@@ -10,12 +10,31 @@ from repositories.order_repository import OrderRepository
 from repositories.sync_log_repository import SyncLogRepository
 from repositories.delayed_order_repository import DelayedOrderRepository
 from models.sync_log import SyncLogCreate, SyncStatus, SyncResult
-from models.order import OrderCreate, OrderUrgency
+from models.order import Order, OrderCreate, OrderUrgency
 
 logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 50
 _SANTIAGO_TZ = ZoneInfo("America/Santiago")
+
+
+def _is_order_resolved(order: Order) -> bool:
+    """Determina si el pedido llegó a un estado terminal desde nuestra perspectiva.
+
+    Falabella Regular: 'shipped' = entregado al operador logístico de Falabella
+                       → nuestra responsabilidad termina ahí.
+    Falabella Direct:  nosotros entregamos → solo 'delivered' cuenta.
+    Otros (ML, etc.):  'shipped' o 'delivered' → resuelto.
+    """
+    if order.source == "falabella":
+        raw = order.raw_data or {}
+        shipping_type = str(raw.get("ShippingProviderType", "")).lower()
+        if "regular" in shipping_type:
+            return order.status in ("shipped", "delivered")
+        else:
+            # Direct (u otro tipo): solo entregado cuenta
+            return order.status == "delivered"
+    return order.status in ("shipped", "delivered")
 
 
 class SyncService:
@@ -95,15 +114,21 @@ class SyncService:
         )
 
     def _cleanup_resolved(self, source: str, fetched_ids: set[str]) -> None:
-        """Archive resolved orders and remove them from the active orders table.
+        """Archiva pedidos resueltos y los elimina de la tabla de activos.
 
-        Classification uses the stored urgency (computed at last upsert time):
-        - urgency=OVERDUE  → atrasado (pedido nunca se envió antes del plazo)
-        - cualquier otro   → a tiempo
+        Lógica de clasificación:
 
-        Falabella Regular: cuando el pedido pasa a 'shipped' se archiva inmediatamente
-        (lo tomó el operador logístico → nuestra responsabilidad termina).
-        Si la fecha límite ya pasó cuando aparece como shipped → urgency=OVERDUE → tarde.
+        1. Si el pedido llegó a estado terminal (según _is_order_resolved):
+           - urgency=OVERDUE → atrasado (estado terminal llegó después del plazo)
+           - otro → a tiempo
+
+        2. Si pasó la fecha límite y sigue activo (pending/ready_to_ship o
+           shipped en Direct que aún no llega a delivered) → atrasado.
+
+        3. Si desapareció del feed antes del plazo → a tiempo.
+
+        Falabella Regular: shipped = terminal (lo tomó el carrier de Falabella).
+        Falabella Direct:  shipped no es terminal, solo delivered cuenta.
         """
         now = datetime.now(_SANTIAGO_TZ)
         db_orders = self.order_repo.get_all_by_source(source)
@@ -112,21 +137,20 @@ class SyncService:
         for ext_id, order in db_orders.items():
             past_deadline = order.limit_delivery_date < now
             left_feed = ext_id not in fetched_ids
-            is_resolved = order.status in ("shipped", "delivered")
 
-            if past_deadline:
-                # Usar urgencia guardada: OVERDUE = atrasado, el resto = a tiempo
+            if _is_order_resolved(order):
+                # Estado terminal alcanzado — urgency guardada decide si fue a tiempo o tarde
                 if order.urgency == OrderUrgency.OVERDUE:
                     late.append(order)
                 else:
                     on_time.append(order)
-            elif is_resolved:
-                # Enviado/entregado antes del plazo → a tiempo, salir de activos ya
-                on_time.append(order)
+            elif past_deadline:
+                # Sigue activo después del plazo → atrasado
+                late.append(order)
             elif left_feed:
-                # Desapareció del feed antes del plazo → resuelto temprano → a tiempo
+                # Desapareció antes del plazo → resuelto temprano → a tiempo
                 on_time.append(order)
-            # else: pendiente, dentro del plazo, sigue activo → mantener
+            # else: activo, dentro del plazo → mantener
 
         if late:
             archived = self.delayed_repo.archive_batch(late, was_delayed=True)
