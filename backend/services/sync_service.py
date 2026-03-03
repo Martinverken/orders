@@ -94,44 +94,37 @@ class SyncService:
             duration_ms=duration_ms,
         )
 
-    # Statuses that mean an order is definitively fulfilled (no longer active)
-    _TERMINAL_STATUSES = {"delivered", "completed", "cancelled", "failed_delivery", "returned"}
-
     def _cleanup_resolved(self, source: str, fetched_ids: set[str]) -> None:
-        """Archive late orders and delete on-time orders that left the API feed
-        or that have a terminal status (delivered/completed/etc.)."""
+        """Archive orders and remove them from the active orders table.
+
+        Two rules — both fetched in a single bulk query (no N+1):
+        - Past deadline (limit_delivery_date < now): still in the system when the
+          deadline arrived → late delivery.
+        - Before deadline + left the API feed: was delivered before the deadline
+          → on-time delivery.
+        """
         now = datetime.now(_SANTIAGO_TZ)
-        db_ids = self.order_repo.get_all_external_ids(source)
+        db_orders = self.order_repo.get_all_by_source(source)
 
-        # Orders that disappeared from the feed + orders with terminal status in the feed
-        disappeared_ids = db_ids - fetched_ids
-        terminal_in_feed = {
-            oid for oid in fetched_ids
-            if (o := self.order_repo.get_by_external_id(oid, source))
-            and o.status in self._TERMINAL_STATUSES
-        }
-        resolved_ids = disappeared_ids | terminal_in_feed
-
-        if not resolved_ids:
-            return
-
-        delayed, on_time = [], []
-        for ext_id in resolved_ids:
-            order = self.order_repo.get_by_external_id(ext_id, source)
-            if order is None:
-                continue
+        late, on_time = [], []
+        for ext_id, order in db_orders.items():
             if order.limit_delivery_date < now:
-                delayed.append(order)
-            else:
+                late.append(order)
+            elif ext_id not in fetched_ids:
                 on_time.append(order)
+            # else: active order still in feed and before deadline — keep it
 
-        if delayed:
-            archived = self.delayed_repo.archive_batch(delayed)
-            logger.info(f"[{source}] Archived {archived} delayed orders")
+        if late:
+            archived = self.delayed_repo.archive_batch(late, was_delayed=True)
+            logger.info(f"[{source}] Archived {archived} late orders")
 
-        all_resolved = delayed + on_time
+        if on_time:
+            self.delayed_repo.archive_batch(on_time, was_delayed=False)
+            logger.info(f"[{source}] Archived {len(on_time)} on-time orders")
+
+        all_resolved = late + on_time
         if all_resolved:
             self.order_repo.delete_batch([o.id for o in all_resolved])
             logger.info(
-                f"[{source}] Removed {len(delayed)} late + {len(on_time)} on-time resolved orders"
+                f"[{source}] Removed {len(late)} late + {len(on_time)} on-time orders"
             )

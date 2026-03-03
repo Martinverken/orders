@@ -15,5 +15,11 @@ def get_summary():
 
 @router.get("/metrics/delays")
 def get_delay_metrics():
-    metrics = delayed_repo.get_monthly_metrics()
-    return {"success": True, "data": [m.model_dump() for m in metrics]}
+    metrics = delayed_repo.get_historical_metrics()
+    return {
+        "success": True,
+        "data": {
+            "delayed": [m.model_dump() for m in metrics["delayed"]],
+            "on_time": [m.model_dump() for m in metrics["on_time"]],
+        },
+    }

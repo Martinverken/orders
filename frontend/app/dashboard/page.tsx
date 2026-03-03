@@ -36,7 +36,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     getDashboardSummary(),
     getOrders({
       source: params.source,
-      urgency: params.urgency,
+      urgency: params.urgency || "active",
       status: params.status,
       page,
       per_page: 25,
@@ -44,6 +44,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     getSyncStatus(),
     getDelayMetrics(),
   ]);
+
+  const totalDelayed = delayMetrics.delayed.reduce((s, m) => s + m.count, 0);
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -77,10 +79,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                 : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
-            Histórico de atrasos
-            {delayMetrics.length > 0 && (
+            Historial de entregas
+            {totalDelayed > 0 && (
               <span className="ml-1.5 text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">
-                {delayMetrics.reduce((sum, m) => sum + m.count, 0)}
+                {totalDelayed}
               </span>
             )}
           </a>
@@ -136,10 +138,12 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         {tab === "historial" && (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div className="px-6 py-4 border-b border-gray-100">
-              <h2 className="text-base font-medium text-gray-900">Histórico de atrasos</h2>
-              <p className="text-xs text-gray-500 mt-0.5">Pedidos entregados después de la fecha límite</p>
+              <h2 className="text-base font-medium text-gray-900">Historial de entregas</h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Pedidos resueltos agrupados por mes, marketplace y operador logístico
+              </p>
             </div>
-            <div className="px-6 py-4">
+            <div className="px-6 py-6">
               <DelayMetricsTable metrics={delayMetrics} />
             </div>
           </div>

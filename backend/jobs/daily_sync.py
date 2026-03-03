@@ -58,3 +58,18 @@ async def run_daily_sync_and_notify():
 def run_daily_sync_sync():
     """Synchronous wrapper for APScheduler (which doesn't run async jobs directly)."""
     asyncio.run(run_daily_sync_and_notify())
+
+
+async def run_sync_only():
+    """Sync all integrations without sending email. Used for frequent polling."""
+    logger.info("=== Starting scheduled sync ===")
+    sync_service = SyncService()
+    results = await sync_service.run_full_sync()
+    for r in results:
+        logger.info(f"[{r.source}] fetched={r.orders_fetched} upserted={r.orders_upserted} error={r.error}")
+    logger.info("=== Scheduled sync complete ===")
+
+
+def run_sync_only_sync():
+    """Synchronous wrapper for APScheduler."""
+    asyncio.run(run_sync_only())

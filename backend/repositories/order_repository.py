@@ -121,6 +121,9 @@ class OrderRepository:
             query = query.in_("status", _PENDING_LIKE).gte("limit_delivery_date", _tomorrow_iso()).lt("limit_delivery_date", _day_after_tomorrow_iso())
         elif urgency == OrderUrgency.ON_TIME:
             query = query.gte("limit_delivery_date", _day_after_tomorrow_iso())
+        elif urgency == "active":
+            # overdue + due_today + tomorrow: all pending/ready_to_ship orders due by tomorrow
+            query = query.in_("status", _PENDING_LIKE).lt("limit_delivery_date", _day_after_tomorrow_iso())
 
         offset = (page - 1) * per_page
         result = query.order("limit_delivery_date").range(offset, offset + per_page - 1).execute()
@@ -185,6 +188,11 @@ class OrderRepository:
             .execute()
         )
         return {r["external_id"] for r in (result.data or [])}
+
+    def get_all_by_source(self, source: str) -> dict[str, "Order"]:
+        """Return all orders for a source as {external_id: Order} in a single query."""
+        result = self.db.table(self.table).select("*").eq("source", source).execute()
+        return {r["external_id"]: Order(**r) for r in (result.data or [])}
 
     def delete_batch(self, ids: list[str]) -> None:
         """Delete orders by their UUID ids."""

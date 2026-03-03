@@ -22,13 +22,6 @@ export function SummaryCards({ summary }: Props) {
       icon: "🟡",
     },
     {
-      label: "Entregados hoy",
-      value: summary.delivered_today_count,
-      color: "border-green-500 text-green-600",
-      bg: "bg-green-50",
-      icon: "✅",
-    },
-    {
       label: "Para mañana",
       value: summary.tomorrow_count,
       color: "border-blue-500 text-blue-600",
@@ -36,8 +29,8 @@ export function SummaryCards({ summary }: Props) {
       icon: "📅",
     },
     {
-      label: "Total pedidos",
-      value: summary.total_orders,
+      label: "Total activos",
+      value: summary.overdue_count + summary.due_today_count + summary.tomorrow_count,
       color: "border-gray-400 text-gray-600",
       bg: "bg-gray-50",
       icon: "📦",
@@ -46,7 +39,7 @@ export function SummaryCards({ summary }: Props) {
 
   return (
     <div>
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-2">
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-2">
         {cards.map((card) => (
           <div
             key={card.label}

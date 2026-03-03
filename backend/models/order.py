@@ -92,6 +92,14 @@ class DelayedOrder(BaseModel):
     days_delayed: float
 
 
+class OnTimeMetric(BaseModel):
+    """Monthly on-time delivery count by source and logistics operator."""
+    month: str
+    source: str
+    logistics_operator: str
+    count: int
+
+
 class DelayMetric(BaseModel):
     """Monthly delay metric by source and logistics operator."""
     month: str          # e.g. "2026-01"

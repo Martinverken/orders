@@ -4,10 +4,11 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from apscheduler.triggers.interval import IntervalTrigger
 
 from config import get_settings
 from routers import orders, sync, dashboard
-from jobs.daily_sync import run_daily_sync_sync
+from jobs.daily_sync import run_daily_sync_sync, run_sync_only_sync
 
 logging.basicConfig(
     level=logging.INFO,
@@ -21,7 +22,14 @@ scheduler = BackgroundScheduler(timezone=settings.scheduler_timezone)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Startup
+    # Sync every 10 minutes
+    scheduler.add_job(
+        run_sync_only_sync,
+        IntervalTrigger(minutes=10, timezone=settings.scheduler_timezone),
+        id="sync_interval",
+        replace_existing=True,
+    )
+    # Daily email report at configured hour (default 07:00 Santiago)
     scheduler.add_job(
         run_daily_sync_sync,
         CronTrigger(
@@ -29,12 +37,12 @@ async def lifespan(app: FastAPI):
             minute=settings.daily_sync_minute,
             timezone=settings.scheduler_timezone,
         ),
-        id="daily_sync",
+        id="daily_report",
         replace_existing=True,
     )
     scheduler.start()
     logger.info(
-        f"Scheduler started — daily sync at "
+        f"Scheduler started — sync every 10 min, daily report at "
         f"{settings.daily_sync_hour:02d}:{settings.daily_sync_minute:02d} "
         f"({settings.scheduler_timezone})"
     )

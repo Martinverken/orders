@@ -9,12 +9,10 @@ const SOURCES = [
 ];
 
 const URGENCIES = [
-  { value: "", label: "Todas las urgencias" },
+  { value: "", label: "Todas" },
   { value: "overdue", label: "Atrasados" },
   { value: "due_today", label: "Entregar hoy" },
-  { value: "delivered_today", label: "Entregados hoy" },
   { value: "tomorrow", label: "Para mañana" },
-  { value: "on_time", label: "A tiempo" },
 ];
 
 export function FilterBar() {
