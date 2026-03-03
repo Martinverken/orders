@@ -35,6 +35,9 @@ class OrderRepository:
                 "created_at_source": o.created_at_source.isoformat() if o.created_at_source else None,
                 "address_updated_at": o.address_updated_at.isoformat() if o.address_updated_at else None,
                 "limit_delivery_date": o.limit_delivery_date.isoformat(),
+                "urgency": compute_urgency(o.limit_delivery_date, o.status).value,
+                "product_name": o.product_name,
+                "product_quantity": o.product_quantity,
                 "raw_data": o.raw_data,
             }
             for o in orders

@@ -57,6 +57,20 @@ def to_order_create(raw: dict) -> OrderCreate | None:
     elif isinstance(statuses_raw, str):
         status = statuses_raw
 
+    # Extract product info from items fetched by the client (_items key)
+    product_name = None
+    product_quantity = None
+    items = raw.get("_items") or []
+    if isinstance(items, list) and items:
+        first_item = items[0] if isinstance(items[0], dict) else {}
+        product_name = first_item.get("Name") or first_item.get("name")
+        qty = first_item.get("Quantity") or first_item.get("quantity")
+        if qty is not None:
+            try:
+                product_quantity = int(qty)
+            except (ValueError, TypeError):
+                pass
+
     return OrderCreate(
         external_id=str(order.OrderId),
         source="falabella",
@@ -64,5 +78,7 @@ def to_order_create(raw: dict) -> OrderCreate | None:
         created_at_source=parse_falabella_datetime(order.CreatedAt),
         address_updated_at=parse_falabella_datetime(order.AddressUpdatedAt),
         limit_delivery_date=limit_delivery_date,
+        product_name=product_name,
+        product_quantity=product_quantity,
         raw_data=raw,
     )

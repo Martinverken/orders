@@ -33,6 +33,7 @@ class DelayedOrderRepository:
                 "source": o.source,
                 "limit_delivery_date": o.limit_delivery_date.isoformat(),
                 "logistics_operator": _extract_logistics_operator(o),
+                "urgency": o.urgency.value if o.urgency else None,
                 "raw_data": o.raw_data,
             }
             for o in orders

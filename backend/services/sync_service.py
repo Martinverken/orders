@@ -10,7 +10,7 @@ from repositories.order_repository import OrderRepository
 from repositories.sync_log_repository import SyncLogRepository
 from repositories.delayed_order_repository import DelayedOrderRepository
 from models.sync_log import SyncLogCreate, SyncStatus, SyncResult
-from models.order import OrderCreate
+from models.order import OrderCreate, OrderUrgency
 
 logger = logging.getLogger(__name__)
 
@@ -95,24 +95,39 @@ class SyncService:
         )
 
     def _cleanup_resolved(self, source: str, fetched_ids: set[str]) -> None:
-        """Archive orders and remove them from the active orders table.
+        """Archive resolved orders and remove them from the active orders table.
 
-        Two rules — both fetched in a single bulk query (no N+1):
-        - Past deadline (limit_delivery_date < now): still in the system when the
-          deadline arrived → late delivery.
-        - Before deadline + left the API feed: was delivered before the deadline
-          → on-time delivery.
+        Classification uses the stored urgency (computed at last upsert time), NOT
+        the current clock vs deadline. This is correct because:
+
+        - Orders still in the feed get their urgency refreshed on every upsert, so
+          if they are now past-deadline they will have urgency=OVERDUE.
+        - Orders that left the feed keep the urgency from the last sync that saw them.
+          e.g. a 'due_today' order that disappeared overnight was delivered that day
+          → on time, even though limit_delivery_date < now.
+
+        Falabella Regular note: 'shipped' is never OVERDUE (shipped ∉ _PENDING_LIKE),
+        so handing off to the carrier always counts as on-time.
         """
         now = datetime.now(_SANTIAGO_TZ)
         db_orders = self.order_repo.get_all_by_source(source)
 
         late, on_time = [], []
         for ext_id, order in db_orders.items():
-            if order.limit_delivery_date < now:
-                late.append(order)
-            elif ext_id not in fetched_ids:
+            past_deadline = order.limit_delivery_date < now
+            left_feed = ext_id not in fetched_ids
+
+            if past_deadline:
+                # Use stored urgency to decide: only OVERDUE means genuinely late
+                if order.urgency == OrderUrgency.OVERDUE:
+                    late.append(order)
+                else:
+                    # due_today / delivered_today / shipped / on_time → met deadline
+                    on_time.append(order)
+            elif left_feed:
+                # Disappeared before deadline → resolved early → on time
                 on_time.append(order)
-            # else: active order still in feed and before deadline — keep it
+            # else: still in feed, before deadline → keep active
 
         if late:
             archived = self.delayed_repo.archive_batch(late, was_delayed=True)

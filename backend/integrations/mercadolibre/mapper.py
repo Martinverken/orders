@@ -79,6 +79,21 @@ def to_order_create(order_raw: dict, shipment_raw: dict | None = None) -> OrderC
 
     raw_data = {"order": order_raw, "shipment": shipment_raw, "delivery_mode": delivery_mode}
 
+    # Extract product info from order_items
+    product_name = None
+    product_quantity = None
+    order_items = order_raw.get("order_items") or []
+    if isinstance(order_items, list) and order_items:
+        first_item = order_items[0] if isinstance(order_items[0], dict) else {}
+        item_detail = first_item.get("item") or {}
+        product_name = item_detail.get("title")
+        qty = first_item.get("quantity")
+        if qty is not None:
+            try:
+                product_quantity = int(qty)
+            except (ValueError, TypeError):
+                pass
+
     return OrderCreate(
         external_id=str(order.id),
         source="mercadolibre",
@@ -86,5 +101,7 @@ def to_order_create(order_raw: dict, shipment_raw: dict | None = None) -> OrderC
         created_at_source=parse_ml_datetime(order.date_created),
         address_updated_at=parse_ml_datetime(order.date_last_updated),
         limit_delivery_date=limit_delivery_date,
+        product_name=product_name,
+        product_quantity=product_quantity,
         raw_data=raw_data,
     )

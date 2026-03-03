@@ -1,4 +1,4 @@
-from pydantic import BaseModel, computed_field
+from pydantic import BaseModel, model_validator
 from datetime import datetime, date, timedelta
 from typing import Optional, Any
 from enum import Enum
@@ -47,6 +47,8 @@ class OrderCreate(BaseModel):
     created_at_source: Optional[datetime] = None
     address_updated_at: Optional[datetime] = None
     limit_delivery_date: datetime
+    product_name: Optional[str] = None
+    product_quantity: Optional[int] = None
     raw_data: Optional[dict[str, Any]] = None
 
 
@@ -55,11 +57,14 @@ class Order(OrderCreate):
     id: str
     synced_at: datetime
     updated_at: datetime
+    # Stored in DB at sync time; falls back to computed value for legacy rows without it
+    urgency: Optional[OrderUrgency] = None
 
-    @computed_field
-    @property
-    def urgency(self) -> OrderUrgency:
-        return compute_urgency(self.limit_delivery_date, self.status)
+    @model_validator(mode="after")
+    def fill_urgency(self) -> "Order":
+        if self.urgency is None:
+            self.urgency = compute_urgency(self.limit_delivery_date, self.status)
+        return self
 
 
 class OrderSummary(BaseModel):

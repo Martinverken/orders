@@ -22,6 +22,7 @@ export function OrdersTable({ orders }: Props) {
         <thead>
           <tr className="border-b border-gray-100 text-left text-gray-500 text-xs uppercase tracking-wide">
             <th className="pb-3 pr-4 font-medium">Order N°</th>
+            <th className="pb-3 pr-4 font-medium">Producto</th>
             <th className="pb-3 pr-4 font-medium">Fuente</th>
             <th className="pb-3 pr-4 font-medium">Estado</th>
             <th className="pb-3 pr-4 font-medium">Urgencia</th>
@@ -39,6 +40,18 @@ export function OrdersTable({ orders }: Props) {
             return (
               <tr key={order.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                 <td className="py-3 pr-4 font-mono text-gray-700">{orderNumber}</td>
+                <td className="py-3 pr-4 text-gray-800 max-w-[200px]">
+                  {order.product_name ? (
+                    <span className="block truncate" title={order.product_name}>
+                      {order.product_name}
+                      {order.product_quantity != null && order.product_quantity > 1 && (
+                        <span className="ml-1 text-gray-400 text-xs">x{order.product_quantity}</span>
+                      )}
+                    </span>
+                  ) : (
+                    <span className="text-gray-400">—</span>
+                  )}
+                </td>
                 <td className="py-3 pr-4 text-gray-600">
                   {SOURCE_LABEL[order.source] || order.source}
                 </td>

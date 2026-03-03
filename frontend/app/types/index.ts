@@ -9,6 +9,8 @@ export interface Order {
   status: string;
   limit_delivery_date: string;
   urgency: OrderUrgency;
+  product_name?: string | null;
+  product_quantity?: number | null;
   synced_at: string;
   updated_at: string;
   raw_data?: Record<string, unknown>;
