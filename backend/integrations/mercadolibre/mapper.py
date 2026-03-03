@@ -64,6 +64,17 @@ def resolve_delivery_deadline(order: MLOrder, shipment: MLShipmentDetail | None)
         elif isinstance(edt, str):
             return parse_ml_datetime(edt)
 
+    # Fallback: shipping_option has the real deadline for ready_to_ship orders
+    if shipment and shipment.shipping_option:
+        opt = shipment.shipping_option
+        if isinstance(opt, dict):
+            for key in ("estimated_delivery_limit", "estimated_delivery_time", "estimated_delivery_extended", "estimated_delivery_final"):
+                nested = opt.get(key)
+                if isinstance(nested, dict):
+                    date_str = nested.get("date") or nested.get("to")
+                    if date_str:
+                        return parse_ml_datetime(date_str)
+
     if order.expiration_date:
         return parse_ml_datetime(order.expiration_date)
 

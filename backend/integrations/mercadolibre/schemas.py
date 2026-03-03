@@ -39,8 +39,10 @@ class MLShipmentDetail(BaseModel):
     logistic_type: Optional[str] = None   # key: 'fulfillment' = Centro de envíos, 'self_service' = Flex
     date_created: Optional[str] = None
     last_updated: Optional[str] = None
-    # Estimated delivery window
+    # Estimated delivery window (top-level; null for ready_to_ship orders)
     estimated_delivery_time: Optional[Any] = None  # may be nested dict with 'date' field
+    # shipping_option contains the real deadline when estimated_delivery_time is null
+    shipping_option: Optional[Any] = None
 
     class Config:
         extra = "allow"
