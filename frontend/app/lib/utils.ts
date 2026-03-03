@@ -57,15 +57,27 @@ export const SOURCE_LABEL: Record<string, string> = {
 };
 
 export const STATUS_LABEL: Record<string, string> = {
+  // Falabella & ML shared
   pending: "Pendiente",
   ready_to_ship: "Listo para enviar",
-  shipped: "Entregado",
+  shipped: "En Camino",
+  delivered: "Entregado",
+  // ML specific
+  handling: "Preparando",
+  paid: "Pagado",
+  not_delivered: "No entregado",
+  cancelled: "Cancelado",
 };
 
 export const STATUS_CLASSES: Record<string, string> = {
   pending: "bg-amber-100 text-amber-700 border-amber-200",
   ready_to_ship: "bg-blue-100 text-blue-700 border-blue-200",
-  shipped: "bg-green-100 text-green-700 border-green-200",
+  handling: "bg-purple-100 text-purple-700 border-purple-200",
+  shipped: "bg-indigo-100 text-indigo-700 border-indigo-200",
+  delivered: "bg-green-100 text-green-700 border-green-200",
+  paid: "bg-gray-100 text-gray-600 border-gray-200",
+  not_delivered: "bg-red-100 text-red-700 border-red-200",
+  cancelled: "bg-red-100 text-red-700 border-red-200",
 };
 
 // Tipo de envío / operador logístico desde raw_data de Falabella
@@ -87,6 +99,9 @@ const SHIPPING_PROVIDER_TYPE_LABEL: Record<string, string> = {
 
 export function getCarrier(raw_data?: Record<string, unknown>): string {
   if (!raw_data) return "";
+
+  // ML: delivery_mode computed by mapper ("Flex" | "Centro de Envíos" | ...)
+  if (raw_data.delivery_mode) return String(raw_data.delivery_mode);
 
   // 1. ShippingProvider (nombre del operador, viene de GetOrderItems)
   if (raw_data.ShippingProvider) return String(raw_data.ShippingProvider);
@@ -118,17 +133,69 @@ export function getCarrier(raw_data?: Record<string, unknown>): string {
 }
 
 export function getOrderNumber(raw_data?: Record<string, unknown>, fallback?: string): string {
+  // Falabella
   if (raw_data?.OrderNumber) return String(raw_data.OrderNumber);
+  // ML: pack_id (top-level helper stored by mapper)
+  if (raw_data?.pack_id) return String(raw_data.pack_id);
+  // ML: pack_id nested in order object
+  const mlOrder = raw_data?.order as Record<string, unknown> | undefined;
+  if (mlOrder?.pack_id) return String(mlOrder.pack_id);
   return fallback ?? "";
 }
 
 export function getTrackingCode(raw_data?: Record<string, unknown>): string {
   if (!raw_data) return "";
-  return (
-    (raw_data.TrackingCode as string) ||
-    (raw_data.tracking_code as string) ||
-    (raw_data.TrackingNumber as string) ||
-    (raw_data.ShipmentId as string) ||
-    ""
-  );
+  // Falabella
+  if (raw_data.TrackingCode) return String(raw_data.TrackingCode);
+  if (raw_data.tracking_code) return String(raw_data.tracking_code);
+  if (raw_data.TrackingNumber) return String(raw_data.TrackingNumber);
+  if (raw_data.ShipmentId) return String(raw_data.ShipmentId);
+  // ML: top-level helper stored by mapper
+  if (raw_data.tracking_number) return String(raw_data.tracking_number);
+  // ML: nested in shipment object
+  const shipment = raw_data.shipment as Record<string, unknown> | undefined;
+  if (shipment?.tracking_number) return String(shipment.tracking_number);
+  return "";
+}
+
+export interface ProductDetails {
+  title: string | null;
+  sku: string | null;
+  quantity: number | null;
+}
+
+export function getProductDetails(raw_data?: Record<string, unknown>, product_name?: string | null, product_quantity?: number | null): ProductDetails {
+  let sku: string | null = null;
+  // ML: top-level helper
+  if (raw_data?.seller_sku) {
+    sku = String(raw_data.seller_sku);
+  } else {
+    // ML: nested
+    const mlOrder = raw_data?.order as Record<string, unknown> | undefined;
+    const items = mlOrder?.order_items as Record<string, unknown>[] | undefined;
+    if (items?.length) {
+      const item = (items[0]?.item ?? {}) as Record<string, unknown>;
+      sku = (item.seller_sku as string) ?? null;
+    }
+    // Falabella
+    if (!sku) {
+      const fItems = raw_data?._items as Record<string, unknown>[] | undefined;
+      if (fItems?.length) sku = (fItems[0]?.SellerSku as string) ?? null;
+    }
+  }
+  return { title: product_name ?? null, sku, quantity: product_quantity ?? null };
+}
+
+/** Formats delivery deadline. For ML orders shows date + "21:00" cutoff. */
+export function formatDeadline(isoString: string | null, source?: string): string {
+  if (!isoString) return "—";
+  const date = new Date(isoString);
+  const formatted = new Intl.DateTimeFormat("es-CL", {
+    timeZone: "America/Santiago",
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  }).format(date);
+  if (source === "mercadolibre") return `${formatted} 21:00`;
+  return formatDateRaw(isoString);
 }

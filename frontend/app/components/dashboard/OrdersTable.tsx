@@ -1,6 +1,6 @@
 import { Order } from "@/app/types";
 import { UrgencyBadge, StatusBadge } from "@/app/components/ui/Badge";
-import { formatDate, formatDateRaw, SOURCE_LABEL, getCarrier, getOrderNumber, getTrackingCode } from "@/app/lib/utils";
+import { formatDate, formatDeadline, SOURCE_LABEL, getCarrier, getOrderNumber, getTrackingCode, getProductDetails } from "@/app/lib/utils";
 
 interface Props {
   orders: Order[];
@@ -37,17 +37,25 @@ export function OrdersTable({ orders }: Props) {
             const carrier = getCarrier(order.raw_data);
             const orderNumber = getOrderNumber(order.raw_data, order.external_id);
             const tracking = getTrackingCode(order.raw_data);
+            const product = getProductDetails(order.raw_data, order.product_name, order.product_quantity);
             return (
               <tr key={order.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                <td className="py-3 pr-4 font-mono text-gray-700">{orderNumber}</td>
-                <td className="py-3 pr-4 text-gray-800 max-w-[200px]">
-                  {order.product_name ? (
-                    <span className="block truncate" title={order.product_name}>
-                      {order.product_name}
-                      {order.product_quantity != null && order.product_quantity > 1 && (
-                        <span className="ml-1 text-gray-400 text-xs">x{order.product_quantity}</span>
-                      )}
-                    </span>
+                <td className="py-3 pr-4 font-mono text-gray-700 text-xs">{orderNumber}</td>
+                <td className="py-3 pr-4 max-w-[180px]">
+                  {product.title ? (
+                    <div className="relative group">
+                      <span className="block truncate text-blue-600 cursor-pointer text-sm">
+                        {product.title}
+                        {product.quantity != null && product.quantity > 1 && (
+                          <span className="ml-1 text-gray-400 text-xs">x{product.quantity}</span>
+                        )}
+                      </span>
+                      <div className="absolute z-20 hidden group-hover:block bg-white shadow-xl border border-gray-200 rounded-lg p-3 min-w-[220px] text-sm left-0 top-6 pointer-events-none">
+                        <p className="font-medium text-gray-800 leading-snug">{product.title}</p>
+                        {product.sku && <p className="text-gray-500 mt-1 text-xs">SKU: {product.sku}</p>}
+                        <p className="text-gray-500 text-xs">Cant.: {product.quantity ?? 1}</p>
+                      </div>
+                    </div>
                   ) : (
                     <span className="text-gray-400">—</span>
                   )}
@@ -61,8 +69,8 @@ export function OrdersTable({ orders }: Props) {
                 <td className="py-3 pr-4">
                   <UrgencyBadge urgency={order.urgency} />
                 </td>
-                <td className="py-3 pr-4 text-gray-600 whitespace-nowrap">
-                  {formatDateRaw(order.limit_delivery_date)}
+                <td className="py-3 pr-4 text-gray-600 whitespace-nowrap text-sm">
+                  {formatDeadline(order.limit_delivery_date, order.source)}
                 </td>
                 <td className="py-3 pr-4 text-gray-500 text-xs">
                   {carrier || "—"}

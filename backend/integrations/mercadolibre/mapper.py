@@ -96,16 +96,16 @@ def to_order_create(order_raw: dict, shipment_raw: dict | None = None) -> OrderC
     )
     delivery_mode = resolve_delivery_mode(logistic_type)
 
-    raw_data = {"order": order_raw, "shipment": shipment_raw, "delivery_mode": delivery_mode}
-
     # Extract product info from order_items
     product_name = None
     product_quantity = None
+    seller_sku = None
     order_items = order_raw.get("order_items") or []
     if isinstance(order_items, list) and order_items:
         first_item = order_items[0] if isinstance(order_items[0], dict) else {}
         item_detail = first_item.get("item") or {}
         product_name = item_detail.get("title")
+        seller_sku = item_detail.get("seller_sku")
         qty = first_item.get("quantity")
         if qty is not None:
             try:
@@ -113,10 +113,23 @@ def to_order_create(order_raw: dict, shipment_raw: dict | None = None) -> OrderC
             except (ValueError, TypeError):
                 pass
 
+    # Use shipment status as order status so urgency is computed correctly
+    shipment_status = (shipment.status if shipment else None) or order.status or "unknown"
+
+    raw_data = {
+        "order": order_raw,
+        "shipment": shipment_raw,
+        "delivery_mode": delivery_mode,
+        # Top-level helpers for frontend
+        "pack_id": order_raw.get("pack_id"),
+        "tracking_number": shipment_raw.get("tracking_number") if shipment_raw else None,
+        "seller_sku": seller_sku,
+    }
+
     return OrderCreate(
         external_id=str(order.id),
         source="mercadolibre",
-        status=order.status or "unknown",
+        status=shipment_status,
         created_at_source=parse_ml_datetime(order.date_created),
         address_updated_at=parse_ml_datetime(order.date_last_updated),
         limit_delivery_date=limit_delivery_date,
