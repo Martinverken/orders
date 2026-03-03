@@ -24,7 +24,14 @@ def _is_order_resolved(order: Order) -> bool:
     Falabella Regular: 'shipped' = entregado al operador logístico de Falabella
                        → nuestra responsabilidad termina ahí.
     Falabella Direct:  nosotros entregamos → solo 'delivered' cuenta.
-    Otros (ML, etc.):  'shipped' o 'delivered' → resuelto.
+
+    ML Centro de Envíos (fulfillment): nosotros llevamos el paquete al centro ML
+                       → shipment.status = 'ready_to_ship' o 'shipped' = resuelto.
+    ML Flex (self_service): nosotros entregamos al cliente final
+                       → shipment.status = 'delivered' = resuelto.
+
+    Nota: el order.status de ML siempre es 'paid' mientras está activo.
+    El estado relevante está en raw_data['shipment']['status'].
     """
     if order.source == "falabella":
         raw = order.raw_data or {}
@@ -32,8 +39,20 @@ def _is_order_resolved(order: Order) -> bool:
         if "regular" in shipping_type:
             return order.status in ("shipped", "delivered")
         else:
-            # Direct (u otro tipo): solo entregado cuenta
             return order.status == "delivered"
+
+    if order.source == "mercadolibre":
+        raw = order.raw_data or {}
+        shipment = raw.get("shipment") or {}
+        logistic_type = str(shipment.get("logistic_type", "")).lower()
+        shipment_status = str(shipment.get("status", "")).lower()
+        if logistic_type == "fulfillment":
+            # Centro de Envíos: llegó al centro ML → nuestra parte termina
+            return shipment_status in ("ready_to_ship", "shipped", "delivered")
+        else:
+            # Flex u otro: nosotros entregamos → solo delivered
+            return shipment_status == "delivered"
+
     return order.status in ("shipped", "delivered")
 
 
