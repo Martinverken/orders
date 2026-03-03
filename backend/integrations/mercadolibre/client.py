@@ -1,5 +1,6 @@
 import httpx
 import logging
+from datetime import datetime, timedelta, timezone
 from typing import AsyncIterator
 
 from config import get_settings
@@ -94,10 +95,13 @@ class MercadoLibreClient(BaseIntegration):
                 offset = 0
                 while True:
                     url = f"{ML_BASE_URL}/orders/search"
+                    from_date = (datetime.now(timezone.utc) - timedelta(days=60)).strftime(
+                        "%Y-%m-%dT00:00:00.000-03:00"
+                    )
                     params = {
                         "seller": self.seller_id,
                         "order.status": status,
-                        "order.date_created.from": "2026-03-01T00:00:00.000-03:00",
+                        "order.date_created.from": from_date,
                         "limit": PAGE_SIZE,
                         "offset": offset,
                     }

@@ -50,7 +50,15 @@ def resolve_delivery_deadline(order: MLOrder, shipment: MLShipmentDetail | None)
     if shipment and shipment.estimated_delivery_time:
         edt = shipment.estimated_delivery_time
         if isinstance(edt, dict):
-            date_str = edt.get("date") or edt.get("to")
+            # ML uses various key names depending on shipment type
+            date_str = (
+                edt.get("date")
+                or edt.get("to")
+                or edt.get("date_to")
+                or edt.get("end")
+                or edt.get("from")
+                or edt.get("date_from")
+            )
             if date_str:
                 return parse_ml_datetime(date_str)
         elif isinstance(edt, str):
