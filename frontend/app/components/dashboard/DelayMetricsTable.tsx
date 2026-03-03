@@ -40,6 +40,7 @@ export function DelayMetricsTable({ metrics }: Props) {
           <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
             <th className="pb-3 font-medium">Mes</th>
             <th className="pb-3 font-medium">Marketplace</th>
+            <th className="pb-3 font-medium">Operador logístico</th>
             <th className="pb-3 font-medium text-right">Pedidos atrasados</th>
             <th className="pb-3 font-medium text-right">Días de atraso prom.</th>
           </tr>
@@ -47,8 +48,8 @@ export function DelayMetricsTable({ metrics }: Props) {
         <tbody className="divide-y divide-gray-50">
           {months.map((month) =>
             byMonth[month].map((row, i) => (
-              <tr key={`${month}-${row.source}`} className="hover:bg-gray-50">
-                <td className="py-3 text-gray-700">
+              <tr key={`${month}-${row.source}-${row.logistics_operator}`} className="hover:bg-gray-50">
+                <td className="py-3 text-gray-700 whitespace-nowrap">
                   {i === 0 ? formatMonth(month) : ""}
                 </td>
                 <td className="py-3">
@@ -59,6 +60,9 @@ export function DelayMetricsTable({ metrics }: Props) {
                   }`}>
                     {SOURCE_LABEL[row.source] ?? row.source}
                   </span>
+                </td>
+                <td className="py-3 text-gray-600">
+                  {row.logistics_operator}
                 </td>
                 <td className="py-3 text-right font-semibold text-red-600">
                   {row.count}

@@ -53,6 +53,7 @@ export interface SyncStatusResponse {
 export interface DelayMetric {
   month: string;
   source: string;
+  logistics_operator: string;
   count: number;
   avg_days_delayed: number;
 }

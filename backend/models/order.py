@@ -93,8 +93,9 @@ class DelayedOrder(BaseModel):
 
 
 class DelayMetric(BaseModel):
-    """Monthly delay metric by source."""
+    """Monthly delay metric by source and logistics operator."""
     month: str          # e.g. "2026-01"
     source: str
+    logistics_operator: str
     count: int
     avg_days_delayed: float
