@@ -36,7 +36,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     getDelayMetrics(),
   ]);
 
-  const tabBase = { source: params.source, urgency: params.urgency, status: params.status };
+  const defined = (obj: Record<string, string | undefined>): Record<string, string> =>
+    Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as Record<string, string>;
+
+  const tabBase = defined({ source: params.source, urgency: params.urgency, status: params.status });
 
   return (
     <div className="min-h-screen bg-gray-50">
