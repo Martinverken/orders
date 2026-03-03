@@ -15,7 +15,7 @@ import re
 from pathlib import Path
 
 CLIENT_ID = "3940234431856307"
-CLIENT_SECRET = "ZB1MB5pNBIkZUp7qRNNwD7MaOmDJGBxZ"
+CLIENT_SECRET = "6lqdqJnHn1w6rQ6hmDyONGq9exMt4olf"
 REDIRECT_URI = "https://verken.cl"
 AUTH_URL = (
     f"https://auth.mercadolibre.cl/authorization"

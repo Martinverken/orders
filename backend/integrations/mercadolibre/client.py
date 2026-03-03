@@ -10,9 +10,9 @@ from models.order import OrderCreate
 logger = logging.getLogger(__name__)
 
 ML_BASE_URL = "https://api.mercadolibre.com"
+TOKEN_URL = "https://api.mercadolibre.com/oauth/token"
 PAGE_SIZE = 50
 
-# Statuses we care about for delivery monitoring
 PENDING_STATUSES = ["paid"]
 
 
@@ -20,6 +20,9 @@ class MercadoLibreClient(BaseIntegration):
     def __init__(self):
         settings = get_settings()
         self.access_token = settings.mercadolibre_access_token
+        self.refresh_token = settings.mercadolibre_refresh_token
+        self.client_id = settings.mercadolibre_client_id
+        self.client_secret = settings.mercadolibre_client_secret
         self.seller_id = settings.mercadolibre_seller_id
 
     @property
@@ -28,6 +31,35 @@ class MercadoLibreClient(BaseIntegration):
 
     def _headers(self) -> dict:
         return {"Authorization": f"Bearer {self.access_token}"}
+
+    def _refresh_access_token(self) -> bool:
+        """Renueva el access_token usando el refresh_token (long-lived).
+        Actualiza self.access_token en memoria para la sesión actual.
+        El refresh_token de ML también rota — se actualiza en self.refresh_token.
+        """
+        if not self.refresh_token or not self.client_id or not self.client_secret:
+            logger.warning("ML: no hay credenciales suficientes para renovar el token")
+            return False
+        try:
+            resp = httpx.post(
+                TOKEN_URL,
+                data={
+                    "grant_type": "refresh_token",
+                    "client_id": self.client_id,
+                    "client_secret": self.client_secret,
+                    "refresh_token": self.refresh_token,
+                },
+                timeout=15.0,
+            )
+            resp.raise_for_status()
+            data = resp.json()
+            self.access_token = data["access_token"]
+            self.refresh_token = data.get("refresh_token", self.refresh_token)
+            logger.info("ML access_token renovado correctamente")
+            return True
+        except Exception as e:
+            logger.error(f"Error renovando ML access_token: {e}")
+            return False
 
     async def _get_shipment_detail(self, client: httpx.AsyncClient, shipment_id: int) -> dict | None:
         """Fetch /shipments/{id} to get logistic_type and estimated delivery."""
@@ -44,8 +76,17 @@ class MercadoLibreClient(BaseIntegration):
 
     async def fetch_pending_orders(self) -> AsyncIterator[OrderCreate]:
         """Yield OrderCreate for all pending ML orders with their shipment details."""
-        if not self.access_token or not self.seller_id:
-            logger.warning("Mercado Libre credentials not configured — skipping")
+        if not self.seller_id:
+            logger.warning("Mercado Libre seller_id no configurado — saltando")
+            return
+
+        # Renueva el token al inicio de cada sync. El access_token dura 6h;
+        # renovando siempre garantizamos que no expira durante el ciclo.
+        if self.refresh_token:
+            self._refresh_access_token()
+
+        if not self.access_token:
+            logger.warning("Mercado Libre sin access_token válido — saltando")
             return
 
         async with httpx.AsyncClient(timeout=30.0) as client:
@@ -62,6 +103,9 @@ class MercadoLibreClient(BaseIntegration):
                     logger.info(f"Fetching ML orders: status={status} offset={offset}")
                     try:
                         resp = await client.get(url, params=params, headers=self._headers())
+                        # Si el token expiró a mitad del sync, renovar y reintentar
+                        if resp.status_code == 401 and self._refresh_access_token():
+                            resp = await client.get(url, params=params, headers=self._headers())
                         resp.raise_for_status()
                         body = resp.json()
                     except httpx.HTTPStatusError as e:
