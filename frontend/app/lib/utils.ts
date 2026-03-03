@@ -92,8 +92,9 @@ const CARRIER_LABEL: Record<string, string> = {
 
 const SHIPPING_PROVIDER_TYPE_LABEL: Record<string, string> = {
   dropshipping: "Despacho directo",
-  crossdocking: "FalaFlex",
-  falaflex: "FalaFlex",
+  crossdocking: "Direct",
+  falaflex: "Direct",
+  direct: "Direct",
   "3pl": "Operador 3PL",
 };
 

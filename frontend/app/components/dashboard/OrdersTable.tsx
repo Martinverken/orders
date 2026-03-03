@@ -21,6 +21,7 @@ export function OrdersTable({ orders }: Props) {
       <table className="w-full text-sm">
         <thead>
           <tr className="border-b border-gray-100 text-left text-gray-500 text-xs uppercase tracking-wide">
+            <th className="pb-3 pr-4 font-medium">#</th>
             <th className="pb-3 pr-4 font-medium">Order N°</th>
             <th className="pb-3 pr-4 font-medium">Producto</th>
             <th className="pb-3 pr-4 font-medium">Fuente</th>
@@ -35,7 +36,7 @@ export function OrdersTable({ orders }: Props) {
           </tr>
         </thead>
         <tbody>
-          {orders.map((order) => {
+          {orders.map((order, idx) => {
             const carrier = getCarrier(order.raw_data);
             const orderNumber = getOrderNumber(order.raw_data, order.external_id);
             const tracking = getTrackingCode(order.raw_data);
@@ -43,6 +44,7 @@ export function OrdersTable({ orders }: Props) {
             const destination = getShippingDestination(order.raw_data);
             return (
               <tr key={order.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+                <td className="py-3 pr-4 text-gray-400 text-xs">{idx + 1}</td>
                 <td className="py-3 pr-4 font-mono text-gray-700 text-xs">{orderNumber}</td>
                 <td className="py-3 pr-4 max-w-[160px]">
                   {product.sku || product.title ? (
