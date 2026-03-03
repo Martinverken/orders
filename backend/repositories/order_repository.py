@@ -175,3 +175,19 @@ class OrderRepository:
             .execute()
         )
         return Order(**result.data) if result.data else None
+
+    def get_all_external_ids(self, source: str) -> set[str]:
+        """Return all external_ids currently in DB for a given source."""
+        result = (
+            self.db.table(self.table)
+            .select("external_id")
+            .eq("source", source)
+            .execute()
+        )
+        return {r["external_id"] for r in (result.data or [])}
+
+    def delete_batch(self, ids: list[str]) -> None:
+        """Delete orders by their UUID ids."""
+        if not ids:
+            return
+        self.db.table(self.table).delete().in_("id", ids).execute()

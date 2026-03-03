@@ -1,24 +1,28 @@
 import logging
 import time
 from datetime import datetime
+from zoneinfo import ZoneInfo
 
 from integrations.base import BaseIntegration, IntegrationError
 from integrations.falabella.client import FalabellaClient
 from integrations.mercadolibre.client import MercadoLibreClient
 from repositories.order_repository import OrderRepository
 from repositories.sync_log_repository import SyncLogRepository
+from repositories.delayed_order_repository import DelayedOrderRepository
 from models.sync_log import SyncLogCreate, SyncStatus, SyncResult
 from models.order import OrderCreate
 
 logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 50
+_SANTIAGO_TZ = ZoneInfo("America/Santiago")
 
 
 class SyncService:
     def __init__(self):
         self.order_repo = OrderRepository()
         self.sync_log_repo = SyncLogRepository()
+        self.delayed_repo = DelayedOrderRepository()
         self.integrations: dict[str, BaseIntegration] = {
             "falabella": FalabellaClient(),
             "mercadolibre": MercadoLibreClient(),
@@ -42,10 +46,12 @@ class SyncService:
         orders_upserted = 0
         error_msg = None
         batch: list[OrderCreate] = []
+        fetched_ids: set[str] = set()
 
         try:
             async for order in integration.fetch_pending_orders():
                 batch.append(order)
+                fetched_ids.add(order.external_id)
                 orders_fetched += 1
                 if len(batch) >= BATCH_SIZE:
                     orders_upserted += self.order_repo.upsert_batch(batch)
@@ -53,6 +59,9 @@ class SyncService:
 
             if batch:
                 orders_upserted += self.order_repo.upsert_batch(batch)
+
+            # Cleanup: process orders that disappeared from the API feed
+            self._cleanup_resolved(source, fetched_ids)
 
             status = SyncStatus.SUCCESS
         except IntegrationError as e:
@@ -80,3 +89,33 @@ class SyncService:
             error=error_msg,
             duration_ms=duration_ms,
         )
+
+    def _cleanup_resolved(self, source: str, fetched_ids: set[str]) -> None:
+        """Archive late orders and delete on-time orders that left the API feed."""
+        now = datetime.now(_SANTIAGO_TZ)
+        db_ids = self.order_repo.get_all_external_ids(source)
+        resolved_ids = db_ids - fetched_ids
+
+        if not resolved_ids:
+            return
+
+        delayed, on_time = [], []
+        for ext_id in resolved_ids:
+            order = self.order_repo.get_by_external_id(ext_id, source)
+            if order is None:
+                continue
+            if order.limit_delivery_date < now:
+                delayed.append(order)
+            else:
+                on_time.append(order)
+
+        if delayed:
+            archived = self.delayed_repo.archive_batch(delayed)
+            logger.info(f"[{source}] Archived {archived} delayed orders")
+
+        all_resolved = delayed + on_time
+        if all_resolved:
+            self.order_repo.delete_batch([o.id for o in all_resolved])
+            logger.info(
+                f"[{source}] Removed {len(delayed)} late + {len(on_time)} on-time resolved orders"
+            )

@@ -80,3 +80,21 @@ class OrdersPage(BaseModel):
     page: int
     per_page: int
     pages: int
+
+
+class DelayedOrder(BaseModel):
+    """Archived delayed order stored for monthly metrics."""
+    id: str
+    external_id: str
+    source: str
+    limit_delivery_date: datetime
+    resolved_at: datetime
+    days_delayed: float
+
+
+class DelayMetric(BaseModel):
+    """Monthly delay metric by source."""
+    month: str          # e.g. "2026-01"
+    source: str
+    count: int
+    avg_days_delayed: float
