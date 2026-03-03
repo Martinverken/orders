@@ -104,14 +104,13 @@ export function getCarrier(raw_data?: Record<string, unknown>): string {
   // ML: delivery_mode computed by mapper ("Flex" | "Centro de Envíos" | ...)
   if (raw_data.delivery_mode) return String(raw_data.delivery_mode);
 
-  // 1. ShippingProvider (nombre del operador, viene de GetOrderItems)
-  if (raw_data.ShippingProvider) {
-    const p = String(raw_data.ShippingProvider).toLowerCase();
-    return CARRIER_LABEL[p] ?? String(raw_data.ShippingProvider);
-  }
-
-  // 2. ShippingProviderType (tipo: dropshipping, crossdocking, etc.)
+  // Falabella: combinar ShippingProviderType + ShippingProvider
   const spt = ((raw_data.ShippingProviderType as string) || "").toLowerCase();
+  if (spt === "regular") {
+    const provider = ((raw_data.ShippingProvider as string) || "").toLowerCase();
+    return provider ? `regular - ${provider}` : "regular";
+  }
+  if (spt === "direct" || spt === "falaflex") return "direct";
   if (spt) return SHIPPING_PROVIDER_TYPE_LABEL[spt] ?? spt;
 
   // 3. DeliveryInfo como fallback
