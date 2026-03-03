@@ -13,14 +13,16 @@ def _today_santiago() -> date:
 
 
 class OrderUrgency(str, Enum):
-    OVERDUE = "overdue"          # pending/ready_to_ship con fecha anterior a hoy
+    OVERDUE = "overdue"          # pending/ready_to_ship/shipped con fecha anterior a hoy (enviado tarde)
     DUE_TODAY = "due_today"      # pending/ready_to_ship para hoy
-    DELIVERED_TODAY = "delivered_today"  # shipped con fecha de hoy
+    DELIVERED_TODAY = "delivered_today"  # shipped con fecha límite hoy (enviado a tiempo)
     TOMORROW = "tomorrow"        # pending/ready_to_ship para mañana
     ON_TIME = "on_time"          # todo lo demás
 
 
 _PENDING_LIKE = {"pending", "ready_to_ship"}
+# Estados que significan "resuelto" — shipped = entregado al operador (Falabella Regular)
+_RESOLVED_LIKE = {"shipped", "delivered"}
 
 
 def compute_urgency(limit_delivery_date: datetime, status: str = "") -> OrderUrgency:
@@ -28,12 +30,13 @@ def compute_urgency(limit_delivery_date: datetime, status: str = "") -> OrderUrg
     tomorrow = today + timedelta(days=1)
     delivery_date = limit_delivery_date.date() if hasattr(limit_delivery_date, "date") else limit_delivery_date
 
-    if delivery_date < today and status in _PENDING_LIKE:
+    # Pasó la fecha límite: si sigue pendiente O si fue enviado después del plazo → atrasado
+    if delivery_date < today and status in (_PENDING_LIKE | _RESOLVED_LIKE):
         return OrderUrgency.OVERDUE
     if delivery_date == today and status in _PENDING_LIKE:
         return OrderUrgency.DUE_TODAY
-    if delivery_date == today and status == "shipped":
-        return OrderUrgency.DELIVERED_TODAY
+    if delivery_date == today and status in _RESOLVED_LIKE:
+        return OrderUrgency.DELIVERED_TODAY  # enviado/entregado justo a tiempo
     if delivery_date == tomorrow and status in _PENDING_LIKE:
         return OrderUrgency.TOMORROW
     return OrderUrgency.ON_TIME

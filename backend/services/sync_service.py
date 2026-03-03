@@ -97,17 +97,13 @@ class SyncService:
     def _cleanup_resolved(self, source: str, fetched_ids: set[str]) -> None:
         """Archive resolved orders and remove them from the active orders table.
 
-        Classification uses the stored urgency (computed at last upsert time), NOT
-        the current clock vs deadline. This is correct because:
+        Classification uses the stored urgency (computed at last upsert time):
+        - urgency=OVERDUE  → atrasado (pedido nunca se envió antes del plazo)
+        - cualquier otro   → a tiempo
 
-        - Orders still in the feed get their urgency refreshed on every upsert, so
-          if they are now past-deadline they will have urgency=OVERDUE.
-        - Orders that left the feed keep the urgency from the last sync that saw them.
-          e.g. a 'due_today' order that disappeared overnight was delivered that day
-          → on time, even though limit_delivery_date < now.
-
-        Falabella Regular note: 'shipped' is never OVERDUE (shipped ∉ _PENDING_LIKE),
-        so handing off to the carrier always counts as on-time.
+        Falabella Regular: cuando el pedido pasa a 'shipped' se archiva inmediatamente
+        (lo tomó el operador logístico → nuestra responsabilidad termina).
+        Si la fecha límite ya pasó cuando aparece como shipped → urgency=OVERDUE → tarde.
         """
         now = datetime.now(_SANTIAGO_TZ)
         db_orders = self.order_repo.get_all_by_source(source)
@@ -116,18 +112,21 @@ class SyncService:
         for ext_id, order in db_orders.items():
             past_deadline = order.limit_delivery_date < now
             left_feed = ext_id not in fetched_ids
+            is_resolved = order.status in ("shipped", "delivered")
 
             if past_deadline:
-                # Use stored urgency to decide: only OVERDUE means genuinely late
+                # Usar urgencia guardada: OVERDUE = atrasado, el resto = a tiempo
                 if order.urgency == OrderUrgency.OVERDUE:
                     late.append(order)
                 else:
-                    # due_today / delivered_today / shipped / on_time → met deadline
                     on_time.append(order)
-            elif left_feed:
-                # Disappeared before deadline → resolved early → on time
+            elif is_resolved:
+                # Enviado/entregado antes del plazo → a tiempo, salir de activos ya
                 on_time.append(order)
-            # else: still in feed, before deadline → keep active
+            elif left_feed:
+                # Desapareció del feed antes del plazo → resuelto temprano → a tiempo
+                on_time.append(order)
+            # else: pendiente, dentro del plazo, sigue activo → mantener
 
         if late:
             archived = self.delayed_repo.archive_batch(late, was_delayed=True)
