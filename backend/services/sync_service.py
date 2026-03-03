@@ -61,7 +61,11 @@ class SyncService:
                 orders_upserted += self.order_repo.upsert_batch(batch)
 
             # Cleanup: process orders that disappeared from the API feed
-            self._cleanup_resolved(source, fetched_ids)
+            # Wrapped in try/except so a cleanup failure never breaks the sync
+            try:
+                self._cleanup_resolved(source, fetched_ids)
+            except Exception as cleanup_err:
+                logger.error(f"[{source}] Cleanup error (sync continues): {cleanup_err}")
 
             status = SyncStatus.SUCCESS
         except IntegrationError as e:
@@ -90,11 +94,23 @@ class SyncService:
             duration_ms=duration_ms,
         )
 
+    # Statuses that mean an order is definitively fulfilled (no longer active)
+    _TERMINAL_STATUSES = {"delivered", "completed", "cancelled", "failed_delivery", "returned"}
+
     def _cleanup_resolved(self, source: str, fetched_ids: set[str]) -> None:
-        """Archive late orders and delete on-time orders that left the API feed."""
+        """Archive late orders and delete on-time orders that left the API feed
+        or that have a terminal status (delivered/completed/etc.)."""
         now = datetime.now(_SANTIAGO_TZ)
         db_ids = self.order_repo.get_all_external_ids(source)
-        resolved_ids = db_ids - fetched_ids
+
+        # Orders that disappeared from the feed + orders with terminal status in the feed
+        disappeared_ids = db_ids - fetched_ids
+        terminal_in_feed = {
+            oid for oid in fetched_ids
+            if (o := self.order_repo.get_by_external_id(oid, source))
+            and o.status in self._TERMINAL_STATUSES
+        }
+        resolved_ids = disappeared_ids | terminal_in_feed
 
         if not resolved_ids:
             return
