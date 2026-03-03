@@ -186,16 +186,8 @@ export function getProductDetails(raw_data?: Record<string, unknown>, product_na
   return { title: product_name ?? null, sku, quantity: product_quantity ?? null };
 }
 
-/** Formats delivery deadline. For ML orders shows date + "21:00" cutoff. */
+/** Formats delivery deadline using the exact value from the API. */
 export function formatDeadline(isoString: string | null, source?: string): string {
   if (!isoString) return "—";
-  const date = new Date(isoString);
-  const formatted = new Intl.DateTimeFormat("es-CL", {
-    timeZone: "America/Santiago",
-    day: "2-digit",
-    month: "2-digit",
-    year: "numeric",
-  }).format(date);
-  if (source === "mercadolibre") return `${formatted} 21:00`;
   return formatDateRaw(isoString);
 }
