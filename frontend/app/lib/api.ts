@@ -55,6 +55,13 @@ export async function triggerSync(source = "all"): Promise<unknown> {
 }
 
 export async function getDelayMetrics(): Promise<HistoricalMetrics> {
-  const data = await apiFetch<{ success: boolean; data: HistoricalMetrics }>("/api/dashboard/metrics/delays");
-  return data.data;
+  try {
+    const data = await apiFetch<{ success: boolean; data: unknown }>("/api/dashboard/metrics/delays");
+    const raw = data.data as HistoricalMetrics;
+    // Guard against old API format (array) or missing fields
+    if (!raw || Array.isArray(raw)) return { delayed: [], on_time: [] };
+    return { delayed: raw.delayed ?? [], on_time: raw.on_time ?? [] };
+  } catch {
+    return { delayed: [], on_time: [] };
+  }
 }
