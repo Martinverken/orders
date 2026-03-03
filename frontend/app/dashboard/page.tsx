@@ -18,6 +18,15 @@ interface PageProps {
 
 export const revalidate = 0;
 
+function buildUrl(base: Record<string, string | undefined>, overrides: Record<string, string>): string {
+  const q = new URLSearchParams();
+  const merged = { ...base, ...overrides };
+  for (const [k, v] of Object.entries(merged)) {
+    if (v !== undefined && v !== "") q.set(k, v);
+  }
+  return `/dashboard?${q.toString()}`;
+}
+
 export default async function DashboardPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const page = Number(params.page || 1);
@@ -36,11 +45,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     getDelayMetrics(),
   ]);
 
-  const defined = (obj: Record<string, string | undefined>): Record<string, string> =>
-    Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined)) as Record<string, string>;
-
-  const tabBase = defined({ source: params.source, urgency: params.urgency, status: params.status });
-
   return (
     <div className="min-h-screen bg-gray-50">
       {/* Header */}
@@ -56,7 +60,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         {/* Tabs */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-1 -mb-px">
           <a
-            href={`/dashboard?${new URLSearchParams({ ...tabBase, tab: "pedidos" })}`}
+            href={buildUrl({ source: params.source, urgency: params.urgency, status: params.status }, { tab: "pedidos" })}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               tab === "pedidos"
                 ? "border-gray-900 text-gray-900"
@@ -66,7 +70,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             Pedidos activos
           </a>
           <a
-            href={`/dashboard?${new URLSearchParams({ tab: "historial" })}`}
+            href={buildUrl({}, { tab: "historial" })}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               tab === "historial"
                 ? "border-gray-900 text-gray-900"
@@ -108,7 +112,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                   <div className="flex gap-2">
                     {ordersPage.page > 1 && (
                       <a
-                        href={`/dashboard?${new URLSearchParams({ ...params, page: String(page - 1) })}`}
+                        href={buildUrl({ source: params.source, urgency: params.urgency, status: params.status, tab: params.tab }, { page: String(page - 1) })}
                         className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50"
                       >
                         Anterior
@@ -116,7 +120,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                     )}
                     {ordersPage.page < ordersPage.pages && (
                       <a
-                        href={`/dashboard?${new URLSearchParams({ ...params, page: String(page + 1) })}`}
+                        href={buildUrl({ source: params.source, urgency: params.urgency, status: params.status, tab: params.tab }, { page: String(page + 1) })}
                         className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50"
                       >
                         Siguiente
