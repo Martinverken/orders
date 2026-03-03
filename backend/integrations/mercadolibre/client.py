@@ -97,6 +97,7 @@ class MercadoLibreClient(BaseIntegration):
                     params = {
                         "seller": self.seller_id,
                         "order.status": status,
+                        "order.date_created.from": "2026-03-01T00:00:00.000-03:00",
                         "limit": PAGE_SIZE,
                         "offset": offset,
                     }
