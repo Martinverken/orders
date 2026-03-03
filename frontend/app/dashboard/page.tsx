@@ -1,9 +1,10 @@
 import { Suspense } from "react";
-import { getDashboardSummary, getOrders, getSyncStatus } from "@/app/lib/api";
+import { getDashboardSummary, getDelayMetrics, getOrders, getSyncStatus } from "@/app/lib/api";
 import { SummaryCards } from "@/app/components/dashboard/SummaryCards";
 import { OrdersTable } from "@/app/components/dashboard/OrdersTable";
 import { SyncStatus } from "@/app/components/dashboard/SyncStatus";
 import { FilterBar } from "@/app/components/dashboard/FilterBar";
+import { DelayMetricsTable } from "@/app/components/dashboard/DelayMetricsTable";
 
 interface PageProps {
   searchParams: Promise<{
@@ -20,7 +21,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const page = Number(params.page || 1);
 
-  const [summary, ordersPage, syncStatus] = await Promise.all([
+  const [summary, ordersPage, syncStatus, delayMetrics] = await Promise.all([
     getDashboardSummary(),
     getOrders({
       source: params.source,
@@ -30,6 +31,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       per_page: 25,
     }),
     getSyncStatus(),
+    getDelayMetrics(),
   ]);
 
   return (
@@ -90,6 +92,17 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               </div>
             </div>
           )}
+        </div>
+
+        {/* Delay Metrics */}
+        <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+          <div className="px-6 py-4 border-b border-gray-100">
+            <h2 className="text-base font-medium text-gray-900">Histórico de atrasos</h2>
+            <p className="text-xs text-gray-500 mt-0.5">Pedidos entregados después de la fecha límite</p>
+          </div>
+          <div className="px-6 py-4">
+            <DelayMetricsTable metrics={delayMetrics} />
+          </div>
         </div>
       </main>
     </div>

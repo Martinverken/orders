@@ -49,3 +49,10 @@ export interface SyncStatusResponse {
   last_sync: SyncLog | null;
   recent_logs: SyncLog[];
 }
+
+export interface DelayMetric {
+  month: string;
+  source: string;
+  count: number;
+  avg_days_delayed: number;
+}

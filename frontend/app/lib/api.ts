@@ -1,4 +1,4 @@
-import { DashboardSummary, Order, OrdersPage, SyncStatusResponse } from "@/app/types";
+import { DashboardSummary, DelayMetric, Order, OrdersPage, SyncStatusResponse } from "@/app/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -52,4 +52,9 @@ export async function triggerSync(source = "all"): Promise<unknown> {
     method: "POST",
     body: JSON.stringify({ source }),
   });
+}
+
+export async function getDelayMetrics(): Promise<DelayMetric[]> {
+  const data = await apiFetch<{ success: boolean; data: DelayMetric[] }>("/api/dashboard/metrics/delays");
+  return data.data;
 }
