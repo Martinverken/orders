@@ -104,7 +104,10 @@ export function getCarrier(raw_data?: Record<string, unknown>): string {
   if (raw_data.delivery_mode) return String(raw_data.delivery_mode);
 
   // 1. ShippingProvider (nombre del operador, viene de GetOrderItems)
-  if (raw_data.ShippingProvider) return String(raw_data.ShippingProvider);
+  if (raw_data.ShippingProvider) {
+    const p = String(raw_data.ShippingProvider).toLowerCase();
+    return CARRIER_LABEL[p] ?? String(raw_data.ShippingProvider);
+  }
 
   // 2. ShippingProviderType (tipo: dropshipping, crossdocking, etc.)
   const spt = ((raw_data.ShippingProviderType as string) || "").toLowerCase();
@@ -180,10 +183,46 @@ export function getProductDetails(raw_data?: Record<string, unknown>, product_na
     // Falabella
     if (!sku) {
       const fItems = raw_data?._items as Record<string, unknown>[] | undefined;
-      if (fItems?.length) sku = (fItems[0]?.SellerSku as string) ?? null;
+      if (fItems?.length) sku = (fItems[0]?.SellerSku as string) ?? (fItems[0]?.Sku as string) ?? null;
     }
   }
   return { title: product_name ?? null, sku, quantity: product_quantity ?? null };
+}
+
+export interface ShippingDestination {
+  city: string | null;
+  comuna: string | null;
+}
+
+export function getShippingDestination(raw_data?: Record<string, unknown>): ShippingDestination {
+  if (!raw_data) return { city: null, comuna: null };
+
+  // Falabella: AddressShipping.City + AddressShipping.Ward ("CIUDAD - COMUNA")
+  const addrShipping = raw_data.AddressShipping as Record<string, unknown> | undefined;
+  if (addrShipping) {
+    const city = addrShipping.City ? String(addrShipping.City) : null;
+    const ward = addrShipping.Ward ? String(addrShipping.Ward) : null;
+    let comuna: string | null = null;
+    if (ward) {
+      const parts = ward.split(" - ");
+      comuna = parts.length > 1 ? parts[parts.length - 1].trim() : ward.trim();
+    }
+    return { city, comuna };
+  }
+
+  // ML: shipment.receiver_address.city.name + neighborhood.name
+  const shipment = raw_data.shipment as Record<string, unknown> | undefined;
+  const addr = shipment?.receiver_address as Record<string, unknown> | undefined;
+  if (addr) {
+    const cityObj = addr.city as Record<string, unknown> | undefined;
+    const neighborhoodObj = addr.neighborhood as Record<string, unknown> | undefined;
+    const city = cityObj?.name ? String(cityObj.name) : null;
+    const rawComuna = neighborhoodObj?.name ? String(neighborhoodObj.name) : null;
+    const comuna = rawComuna || city;
+    return { city, comuna };
+  }
+
+  return { city: null, comuna: null };
 }
 
 /** Formats delivery deadline using the exact value from the API. */

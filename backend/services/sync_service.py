@@ -46,11 +46,11 @@ def _is_order_resolved(order: Order) -> bool:
         shipment = raw.get("shipment") or {}
         logistic_type = str(shipment.get("logistic_type", "")).lower()
         shipment_status = str(shipment.get("status", "")).lower()
-        if logistic_type == "fulfillment":
-            # Centro de Envíos: éxito = En Camino (shipped) o Entregado (delivered)
+        if logistic_type in ("fulfillment", "cross_docking", "xd_drop_off", "drop_off"):
+            # Centro de Envíos: ML gestiona la entrega → En Camino (shipped) o Entregado (delivered)
             return shipment_status in ("shipped", "delivered")
         else:
-            # Flex: nosotros entregamos al cliente → solo Entregado (delivered)
+            # Flex (self_service): nosotros entregamos al cliente → solo Entregado (delivered)
             return shipment_status == "delivered"
 
     return order.status in ("shipped", "delivered")

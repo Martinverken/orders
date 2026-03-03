@@ -31,6 +31,12 @@ def to_order_create(raw: dict) -> OrderCreate | None:
     """Convert raw Falabella order dict to canonical OrderCreate."""
     order = FalabellaOrder(**raw)
 
+    # Skip orders fulfilled by Falabella's own warehouse (no action needed from seller)
+    shipping_type = (raw.get("ShippingType") or "").strip()
+    if shipping_type == "Fulfilled by Falabella":
+        logger.info(f"Order {order.OrderId} is FBF — skipping")
+        return None
+
     # Resolve delivery deadline — actual field name in API response is PromisedShippingTime
     delivery_raw = (
         raw.get("PromisedShippingTime")   # primary (confirmed from real API)

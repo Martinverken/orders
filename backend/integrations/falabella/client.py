@@ -147,7 +147,9 @@ class FalabellaClient(BaseIntegration):
                                 )
                                 raw_order["ShippingProviderType"] = first.get("ShippingProviderType", "")
                                 raw_order["ShippingProvider"] = (
-                                    first.get("ShippingProvider") or raw_order.get("ShippingProvider", "")
+                                    first.get("ShippingProvider")
+                                    or first.get("ShipmentProvider")
+                                    or raw_order.get("ShippingProvider", "")
                                 )
                                 raw_order["_items"] = items
 

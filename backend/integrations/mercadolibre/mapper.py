@@ -9,9 +9,9 @@ logger = logging.getLogger(__name__)
 LOGISTIC_MODE_MAP = {
     "fulfillment": "Centro de Envíos",
     "self_service": "Flex",
-    "cross_docking": "Agencia",
-    "drop_off": "Drop Off",
-    "xd_drop_off": "Cross Docking",
+    "cross_docking": "Centro de Envíos",
+    "drop_off": "Centro de Envíos",
+    "xd_drop_off": "Centro de Envíos",
     "not_specified": "Sin especificar",
 }
 
@@ -94,6 +94,11 @@ def to_order_create(order_raw: dict, shipment_raw: dict | None = None) -> OrderC
     logistic_type = (shipment.logistic_type if shipment else None) or (
         order.shipping.logistic_type if order.shipping else None
     )
+
+    if logistic_type == "fulfillment":
+        logger.info(f"ML order {order.id} is fulfillment (managed by ML warehouse) — skipping")
+        return None
+
     delivery_mode = resolve_delivery_mode(logistic_type)
 
     # Extract product info from order_items

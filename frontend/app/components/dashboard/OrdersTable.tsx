@@ -1,6 +1,6 @@
 import { Order } from "@/app/types";
 import { UrgencyBadge, StatusBadge } from "@/app/components/ui/Badge";
-import { formatDate, formatDeadline, SOURCE_LABEL, getCarrier, getOrderNumber, getTrackingCode, getProductDetails } from "@/app/lib/utils";
+import { formatDate, formatDeadline, SOURCE_LABEL, getCarrier, getOrderNumber, getTrackingCode, getProductDetails, getShippingDestination } from "@/app/lib/utils";
 
 interface Props {
   orders: Order[];
@@ -29,6 +29,8 @@ export function OrdersTable({ orders }: Props) {
             <th className="pb-3 pr-4 font-medium">Fecha límite</th>
             <th className="pb-3 pr-4 font-medium">Operador logístico</th>
             <th className="pb-3 pr-4 font-medium">Tracking</th>
+            <th className="pb-3 pr-4 font-medium">Ciudad</th>
+            <th className="pb-3 pr-4 font-medium">Comuna</th>
             <th className="pb-3 font-medium">Sync</th>
           </tr>
         </thead>
@@ -38,22 +40,19 @@ export function OrdersTable({ orders }: Props) {
             const orderNumber = getOrderNumber(order.raw_data, order.external_id);
             const tracking = getTrackingCode(order.raw_data);
             const product = getProductDetails(order.raw_data, order.product_name, order.product_quantity);
+            const destination = getShippingDestination(order.raw_data);
             return (
               <tr key={order.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                 <td className="py-3 pr-4 font-mono text-gray-700 text-xs">{orderNumber}</td>
-                <td className="py-3 pr-4 max-w-[180px]">
-                  {product.title ? (
+                <td className="py-3 pr-4 max-w-[160px]">
+                  {product.sku || product.title ? (
                     <div className="relative group">
-                      <span className="block truncate text-blue-600 cursor-pointer text-sm">
-                        {product.title}
-                        {product.quantity != null && product.quantity > 1 && (
-                          <span className="ml-1 text-gray-400 text-xs">x{product.quantity}</span>
-                        )}
+                      <span className="block truncate font-mono text-xs text-gray-700 cursor-pointer">
+                        {product.sku || "—"}
                       </span>
                       <div className="absolute z-20 hidden group-hover:block bg-white shadow-xl border border-gray-200 rounded-lg p-3 min-w-[220px] text-sm left-0 top-6 pointer-events-none">
-                        <p className="font-medium text-gray-800 leading-snug">{product.title}</p>
-                        {product.sku && <p className="text-gray-500 mt-1 text-xs">SKU: {product.sku}</p>}
-                        <p className="text-gray-500 text-xs">Cant.: {product.quantity ?? 1}</p>
+                        {product.title && <p className="font-medium text-gray-800 leading-snug">{product.title}</p>}
+                        <p className="text-gray-500 mt-1 text-xs">Cant.: {product.quantity ?? 1}</p>
                       </div>
                     </div>
                   ) : (
@@ -77,6 +76,12 @@ export function OrdersTable({ orders }: Props) {
                 </td>
                 <td className="py-3 pr-4 font-mono text-xs text-gray-600">
                   {tracking || "—"}
+                </td>
+                <td className="py-3 pr-4 text-gray-600 text-xs capitalize">
+                  {destination.city?.toLowerCase() || "—"}
+                </td>
+                <td className="py-3 pr-4 text-gray-600 text-xs capitalize">
+                  {destination.comuna?.toLowerCase() || "—"}
                 </td>
                 <td className="py-3 text-gray-400 text-xs whitespace-nowrap">
                   {formatDate(order.synced_at)}
