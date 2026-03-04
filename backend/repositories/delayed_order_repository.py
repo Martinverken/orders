@@ -4,6 +4,7 @@ from datetime import datetime
 from database import get_supabase
 from models.order import Order, DelayedOrder, DelayMetric, HistoricalOrder, OnTimeMetric
 from repositories.order_repository import _extract_city_commune
+from integrations.welivery.client import get_comprobante
 
 
 def _extract_logistics_operator(order: Order) -> str | None:
@@ -15,6 +16,19 @@ def _extract_logistics_operator(order: Order) -> str | None:
     if order.source == "mercadolibre":
         return order.raw_data.get("delivery_mode")
     return None
+
+
+def _is_flex(order: Order) -> bool:
+    return bool(order.raw_data) and order.raw_data.get("delivery_mode") == "Flex"
+
+
+def _get_welivery_id(order: Order) -> str:
+    """Return the ID to use when querying Welivery: pack_id if available, else external_id."""
+    if order.raw_data:
+        pack_id = order.raw_data.get("pack_id")
+        if pack_id:
+            return str(pack_id)
+    return order.external_id
 
 
 class DelayedOrderRepository:
@@ -49,6 +63,11 @@ class DelayedOrderRepository:
                 "logistics_operator": _extract_logistics_operator(o),
                 "urgency": o.urgency.value if o.urgency else None,
                 "raw_data": o.raw_data,
+                "comprobante": (
+                    get_comprobante(_get_welivery_id(o))
+                    if o.source == "mercadolibre" and _is_flex(o)
+                    else None
+                ),
                 **dict(zip(["city", "commune"], _extract_city_commune(o.source, o.raw_data or {}))),
             }
             for o in orders
@@ -113,6 +132,28 @@ class DelayedOrderRepository:
             query = query.eq("city", city)
         result = query.execute()
         return sorted({r["commune"] for r in (result.data or []) if r.get("commune")})
+
+    def refresh_missing_comprobantes(self) -> int:
+        """Fetch and save comprobantes for Flex ML orders that don't have one yet."""
+        result = (
+            self.db.table(self.table)
+            .select("id,external_id,source,raw_data")
+            .eq("source", "mercadolibre")
+            .eq("logistics_operator", "Flex")
+            .is_("comprobante", "null")
+            .execute()
+        )
+        rows = result.data or []
+        updated = 0
+        for row in rows:
+            raw_data = row.get("raw_data") or {}
+            pack_id = raw_data.get("pack_id")
+            order_id = str(pack_id) if pack_id else row["external_id"]
+            comprobante = get_comprobante(order_id)
+            if comprobante:
+                self.db.table(self.table).update({"comprobante": comprobante}).eq("id", row["id"]).execute()
+                updated += 1
+        return updated
 
     def get_monthly_metrics(self) -> list[DelayMetric]:
         """Return delay counts and avg days delayed grouped by month, source and logistics operator."""

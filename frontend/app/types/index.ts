@@ -84,6 +84,7 @@ export interface HistoricalOrder {
   logistics_operator?: string | null;
   urgency?: string | null;
   raw_data?: Record<string, unknown>;
+  comprobante?: string | null;
 }
 
 export interface HistoricalOrdersPage {

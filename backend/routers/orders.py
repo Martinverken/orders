@@ -59,6 +59,13 @@ def list_historical_orders(
     )
 
 
+@router.post("/history/refresh-comprobantes", response_model=dict)
+def refresh_comprobantes():
+    """Fetch and save comprobantes from Welivery for Flex ML orders that don't have one yet."""
+    updated = delayed_repo.refresh_missing_comprobantes()
+    return {"success": True, "updated": updated}
+
+
 @router.get("", response_model=OrdersPage)
 def list_orders(
     source: Optional[str] = Query(None, description="falabella | mercadolibre"),

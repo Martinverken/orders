@@ -46,7 +46,8 @@ export function HistoricalOrdersTable({ orders }: Props) {
             <th className="pb-3 pr-4 font-medium">Operador logístico</th>
             <th className="pb-3 pr-4 font-medium">Tracking</th>
             <th className="pb-3 pr-4 font-medium">Ciudad</th>
-            <th className="pb-3 font-medium">Comuna</th>
+            <th className="pb-3 pr-4 font-medium">Comuna</th>
+            <th className="pb-3 font-medium">Comprobante</th>
           </tr>
         </thead>
         <tbody>
@@ -109,8 +110,22 @@ export function HistoricalOrdersTable({ orders }: Props) {
                 <td className="py-3 pr-4 text-gray-600 text-xs capitalize">
                   {destination.city?.toLowerCase() || "—"}
                 </td>
-                <td className="py-3 text-gray-600 text-xs capitalize">
+                <td className="py-3 pr-4 text-gray-600 text-xs capitalize">
                   {destination.comuna?.toLowerCase() || "—"}
+                </td>
+                <td className="py-3 text-xs">
+                  {order.comprobante ? (
+                    <a
+                      href={order.comprobante}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-blue-600 hover:underline whitespace-nowrap"
+                    >
+                      Ver PDF
+                    </a>
+                  ) : (
+                    <span className="text-gray-400">—</span>
+                  )}
                 </td>
               </tr>
             );

@@ -112,6 +112,7 @@ class HistoricalOrder(BaseModel):
     logistics_operator: Optional[str] = None
     urgency: Optional[str] = None
     raw_data: Optional[dict[str, Any]] = None
+    comprobante: Optional[str] = None
 
 
 class HistoricalOrdersPage(BaseModel):
