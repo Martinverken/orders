@@ -244,6 +244,12 @@ class SyncService:
                     on_time.append(order)
             elif left_feed:
                 # Desapareció del feed
+                # ML Flex: desaparecer del feed = entregado al cliente final
+                if order.source == "mercadolibre":
+                    raw = order.raw_data or {}
+                    shipment = raw.get("shipment") or {}
+                    if str(shipment.get("logistic_type", "")).lower() == "self_service":
+                        order = order.model_copy(update={"status": "delivered"})
                 if past_deadline:
                     # Desapareció después del plazo → atrasado
                     late.append(order)
