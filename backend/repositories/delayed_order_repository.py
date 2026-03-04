@@ -34,8 +34,8 @@ def _get_welivery_id(order: Order) -> str | None:
     if not order.raw_data:
         return None
     if order.source == "mercadolibre":
-        pack_id = order.raw_data.get("pack_id")
-        return str(pack_id) if pack_id else order.external_id
+        tracking = order.raw_data.get("tracking_number")
+        return str(tracking) if tracking else None
     if order.source == "falabella":
         tracking = order.raw_data.get("TrackingCode")
         return str(tracking) if tracking else None
