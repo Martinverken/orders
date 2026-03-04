@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { HistoricalOrder } from "@/app/types";
+import { HistoricalOrder, OrderCase } from "@/app/types";
 import { SOURCE_LABEL, formatDeadline, getCarrier, getCreatedAt, getOrderNumber, getProductDetails, getShippingDestination, getTrackingCode, getTrackingUrl } from "@/app/lib/utils";
-import { updateHistoricalOrderCase } from "@/app/lib/api";
+import { addOrderCase, deleteOrderCase } from "@/app/lib/api";
 
 interface Props {
   orders: HistoricalOrder[];
@@ -38,12 +38,6 @@ const CASE_STATUS_STYLE: Record<string, string> = {
   resolved: "bg-green-100 text-green-700",
 };
 
-const ROW_CASE_BG: Record<string, string> = {
-  created: "bg-blue-50/40",
-  pending: "bg-amber-50/40",
-  resolved: "bg-green-50/40",
-};
-
 function StatusBadge({ status }: { status?: string | null }) {
   if (!status) return <span className="text-gray-400">—</span>;
   const label = STATUS_LABEL[status] ?? status;
@@ -70,29 +64,34 @@ function HistoricalUrgencyBadge({ daysDelayed }: { daysDelayed: number }) {
   );
 }
 
-function OrderRow({ order, idx }: { order: HistoricalOrder; idx: number }) {
-  const [caseNumber, setCaseNumber] = useState(order.case_number ?? "");
-  const [comments, setComments] = useState(order.comments ?? "");
-  const [caseStatus, setCaseStatus] = useState(order.case_status ?? "");
+const inputClass = "text-xs border border-black rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-black bg-white text-black placeholder-gray-400";
+
+function CasesSection({ orderId, initialCases }: { orderId: string; initialCases: OrderCase[] }) {
+  const [cases, setCases] = useState<OrderCase[]>(initialCases);
+  const [adding, setAdding] = useState(false);
+  const [newStatus, setNewStatus] = useState("");
+  const [newNumber, setNewNumber] = useState("");
+  const [newComment, setNewComment] = useState("");
   const [saving, setSaving] = useState(false);
   const [saveResult, setSaveResult] = useState<"ok" | "error" | null>(null);
+  const [deletingId, setDeletingId] = useState<string | null>(null);
 
-  const hasSavedCase = !!(order.case_number || order.comments || order.case_status);
-  const [isOpen, setIsOpen] = useState(hasSavedCase);
-
-  const handleSave = async () => {
+  const handleAdd = async () => {
     setSaving(true);
     setSaveResult(null);
     try {
-      await updateHistoricalOrderCase(
-        order.id,
-        caseNumber.trim() || null,
-        comments.trim() || null,
-        caseStatus || null,
-      );
-      setIsOpen(true);
+      const created = await addOrderCase(orderId, {
+        case_status: newStatus || null,
+        case_number: newNumber.trim() || null,
+        comments: newComment.trim() || null,
+      });
+      setCases((prev) => [...prev, created]);
+      setNewStatus("");
+      setNewNumber("");
+      setNewComment("");
+      setAdding(false);
       setSaveResult("ok");
-      setTimeout(() => setSaveResult(null), 3000);
+      setTimeout(() => setSaveResult(null), 2000);
     } catch {
       setSaveResult("error");
       setTimeout(() => setSaveResult(null), 4000);
@@ -101,19 +100,97 @@ function OrderRow({ order, idx }: { order: HistoricalOrder; idx: number }) {
     }
   };
 
-  const handleDelete = async () => {
-    setSaving(true);
+  const handleDelete = async (caseId: string) => {
+    setDeletingId(caseId);
     try {
-      await updateHistoricalOrderCase(order.id, null, null, null);
-      setCaseNumber("");
-      setComments("");
-      setCaseStatus("");
-      setIsOpen(false);
+      await deleteOrderCase(caseId);
+      setCases((prev) => prev.filter((c) => c.id !== caseId));
     } finally {
-      setSaving(false);
+      setDeletingId(null);
     }
   };
 
+  return (
+    <div className="space-y-1.5">
+      {cases.map((c) => (
+        <div key={c.id} className="flex items-center gap-2 flex-wrap">
+          {c.case_status && (
+            <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${CASE_STATUS_STYLE[c.case_status] ?? "bg-gray-100 text-gray-600"}`}>
+              {CASE_STATUS_OPTIONS.find((o) => o.value === c.case_status)?.label ?? c.case_status}
+            </span>
+          )}
+          {c.case_number && <span className="font-mono text-xs text-gray-700">{c.case_number}</span>}
+          {c.comments && <span className="text-xs text-gray-500 max-w-[200px] truncate" title={c.comments}>{c.comments}</span>}
+          <button
+            onClick={() => handleDelete(c.id)}
+            disabled={deletingId === c.id}
+            className="text-xs text-red-500 hover:text-red-700 disabled:opacity-40 ml-auto"
+            title="Eliminar"
+          >
+            ✕
+          </button>
+        </div>
+      ))}
+
+      {adding ? (
+        <div className="flex items-center gap-2 flex-wrap pt-1">
+          <select
+            value={newStatus}
+            onChange={(e) => setNewStatus(e.target.value)}
+            className={`text-xs border border-black rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-black cursor-pointer text-black bg-white ${newStatus ? CASE_STATUS_STYLE[newStatus] : ""}`}
+          >
+            {CASE_STATUS_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>{opt.label}</option>
+            ))}
+          </select>
+          <input
+            type="text"
+            value={newNumber}
+            placeholder="N° caso"
+            maxLength={80}
+            onChange={(e) => setNewNumber(e.target.value)}
+            className={`w-24 ${inputClass}`}
+          />
+          <input
+            type="text"
+            value={newComment}
+            placeholder="Comentario"
+            maxLength={300}
+            onChange={(e) => setNewComment(e.target.value)}
+            className={`w-44 ${inputClass}`}
+          />
+          <button
+            onClick={handleAdd}
+            disabled={saving}
+            className="text-xs bg-black text-white rounded px-2 py-1 hover:bg-gray-800 disabled:opacity-50 whitespace-nowrap"
+          >
+            {saving ? "..." : "Guardar"}
+          </button>
+          <button
+            onClick={() => { setAdding(false); setNewStatus(""); setNewNumber(""); setNewComment(""); }}
+            className="text-xs text-gray-500 hover:text-gray-700"
+          >
+            Cancelar
+          </button>
+          {saveResult === "ok" && <span className="text-xs text-green-600 font-medium">✓ Guardado</span>}
+          {saveResult === "error" && <span className="text-xs text-red-600 font-medium">Error al guardar</span>}
+        </div>
+      ) : (
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => setAdding(true)}
+            className="text-xs border border-black text-black rounded px-2 py-1 hover:bg-gray-100 whitespace-nowrap"
+          >
+            + Agregar ticket
+          </button>
+          {saveResult === "ok" && <span className="text-xs text-green-600 font-medium">✓ Guardado</span>}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function OrderRow({ order, idx }: { order: HistoricalOrder; idx: number }) {
   const carrier = getCarrier(order.raw_data);
   const orderNumber = getOrderNumber(order.raw_data, order.external_id);
   const tracking = getTrackingCode(order.raw_data);
@@ -122,13 +199,8 @@ function OrderRow({ order, idx }: { order: HistoricalOrder; idx: number }) {
   const destination = getShippingDestination(order.raw_data);
   const isDelayed = order.days_delayed > 0;
 
-  const hasCase = !!(caseNumber || comments || caseStatus);
-  const rowBg = hasCase ? (ROW_CASE_BG[caseStatus] ?? "bg-blue-50/30") : "";
-
-  const inputClass = "text-xs border border-black rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-black bg-white text-black placeholder-gray-400";
-
   return (
-    <tr className={`border-b border-gray-100 transition-colors ${rowBg || "hover:bg-gray-50"}`}>
+    <tr className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
       <td className="py-3 pr-4 text-gray-400 text-xs">{idx + 1}</td>
       <td className="py-3 pr-4 font-mono text-gray-700 text-xs">{orderNumber}</td>
       <td className="py-3 pr-4 max-w-[160px]">
@@ -186,61 +258,8 @@ function OrderRow({ order, idx }: { order: HistoricalOrder; idx: number }) {
           <span className="text-gray-400">—</span>
         )}
       </td>
-
-      {/* Case management */}
-      <td className="py-3 pr-4" colSpan={3}>
-        {isOpen ? (
-          <div className="flex items-start gap-2 flex-wrap">
-            <select
-              value={caseStatus}
-              onChange={(e) => setCaseStatus(e.target.value)}
-              className={`text-xs border border-black rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-black cursor-pointer text-black bg-white ${caseStatus ? CASE_STATUS_STYLE[caseStatus] : ""}`}
-            >
-              {CASE_STATUS_OPTIONS.map((opt) => (
-                <option key={opt.value} value={opt.value}>{opt.label}</option>
-              ))}
-            </select>
-            <input
-              type="text"
-              value={caseNumber}
-              placeholder="N° caso"
-              maxLength={80}
-              onChange={(e) => setCaseNumber(e.target.value)}
-              className={`w-24 ${inputClass}`}
-            />
-            <input
-              type="text"
-              value={comments}
-              placeholder="Comentarios"
-              maxLength={300}
-              onChange={(e) => setComments(e.target.value)}
-              className={`w-44 ${inputClass}`}
-            />
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="text-xs bg-black text-white rounded px-2 py-1 hover:bg-gray-800 disabled:opacity-50 whitespace-nowrap"
-            >
-              {saving ? "..." : "Guardar"}
-            </button>
-            {saveResult === "ok" && <span className="text-xs text-green-600 font-medium">✓ Guardado</span>}
-            {saveResult === "error" && <span className="text-xs text-red-600 font-medium">Error al guardar</span>}
-            <button
-              onClick={handleDelete}
-              disabled={saving}
-              className="text-xs bg-red-600 text-white rounded px-2 py-1 hover:bg-red-700 disabled:opacity-50"
-            >
-              Eliminar
-            </button>
-          </div>
-        ) : (
-          <button
-            onClick={() => setIsOpen(true)}
-            className="text-xs border border-black text-black rounded px-2 py-1 hover:bg-gray-100 whitespace-nowrap"
-          >
-            + Agregar
-          </button>
-        )}
+      <td className="py-3 pr-2 min-w-[280px]">
+        <CasesSection orderId={order.id} initialCases={order.cases ?? []} />
       </td>
     </tr>
   );
@@ -276,7 +295,7 @@ export function HistoricalOrdersTable({ orders }: Props) {
             <th className="pb-3 pr-4 font-medium">Ciudad</th>
             <th className="pb-3 pr-4 font-medium">Comuna</th>
             <th className="pb-3 pr-4 font-medium">Comprobante</th>
-            <th className="pb-3 font-medium" colSpan={3}>Gestión</th>
+            <th className="pb-3 font-medium">Tickets</th>
           </tr>
         </thead>
         <tbody>

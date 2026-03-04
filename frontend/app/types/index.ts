@@ -73,6 +73,15 @@ export interface HistoricalMetrics {
   on_time: OnTimeMetric[];
 }
 
+export interface OrderCase {
+  id: string;
+  delayed_order_id: string;
+  case_number?: string | null;
+  case_status?: string | null;
+  comments?: string | null;
+  created_at: string;
+}
+
 export interface HistoricalOrder {
   id: string;
   external_id: string;
@@ -89,6 +98,7 @@ export interface HistoricalOrder {
   case_number?: string | null;
   comments?: string | null;
   case_status?: string | null;
+  cases?: OrderCase[];
 }
 
 export interface HistoricalOrdersPage {

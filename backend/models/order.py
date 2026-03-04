@@ -103,6 +103,16 @@ class DelayedOrder(BaseModel):
     days_delayed: float
 
 
+class OrderCase(BaseModel):
+    """A single ticket/case entry linked to a historical order."""
+    id: str
+    delayed_order_id: str
+    case_number: Optional[str] = None
+    case_status: Optional[str] = None
+    comments: Optional[str] = None
+    created_at: datetime
+
+
 class HistoricalOrder(BaseModel):
     """Full record from delayed_orders table for the historical orders view."""
     id: str
@@ -120,6 +130,7 @@ class HistoricalOrder(BaseModel):
     case_number: Optional[str] = None
     comments: Optional[str] = None
     case_status: Optional[str] = None
+    cases: list[OrderCase] = []
 
 
 class HistoricalOrdersPage(BaseModel):

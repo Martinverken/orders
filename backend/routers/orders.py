@@ -11,6 +11,12 @@ class CaseUpdateRequest(BaseModel):
     comments: Optional[str] = None
     case_status: Optional[str] = None
 
+
+class CaseCreateRequest(BaseModel):
+    case_number: Optional[str] = None
+    case_status: Optional[str] = None
+    comments: Optional[str] = None
+
 router = APIRouter(prefix="/api/orders", tags=["orders"])
 order_repo = OrderRepository()
 delayed_repo = DelayedOrderRepository()
@@ -72,6 +78,20 @@ def list_historical_orders(
 def update_case_info(record_id: str, body: CaseUpdateRequest):
     """Update case number and comments for a historical order."""
     delayed_repo.update_case_info(record_id, body.case_number, body.comments, body.case_status)
+    return {"success": True}
+
+
+@router.post("/history/{record_id}/cases", response_model=dict)
+def add_case(record_id: str, body: CaseCreateRequest):
+    """Add a ticket/case entry to a historical order."""
+    case = delayed_repo.add_case(record_id, body.case_number, body.case_status, body.comments)
+    return {"success": True, "data": case.model_dump()}
+
+
+@router.delete("/history/cases/{case_id}", response_model=dict)
+def delete_case(case_id: str):
+    """Delete a ticket/case entry by ID."""
+    delayed_repo.delete_case(case_id)
     return {"success": True}
 
 

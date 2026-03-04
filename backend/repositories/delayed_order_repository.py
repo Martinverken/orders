@@ -2,7 +2,7 @@ import math
 from collections import defaultdict
 from datetime import datetime
 from database import get_supabase
-from models.order import Order, DelayedOrder, DelayMetric, HistoricalOrder, OnTimeMetric
+from models.order import Order, DelayedOrder, DelayMetric, HistoricalOrder, OnTimeMetric, OrderCase
 from repositories.order_repository import _extract_city_commune
 from integrations.welivery.client import get_comprobante
 
@@ -117,15 +117,14 @@ class DelayedOrderRepository:
         page: int = 1,
         per_page: int = 25,
     ) -> dict:
-        query = self.db.table(self.table).select("*", count="exact")
+        select_expr = "*, order_cases!inner(*)" if has_case else "*, order_cases(*)"
+        query = self.db.table(self.table).select(select_expr, count="exact")
         if source:
             query = query.eq("source", source)
         if was_delayed is True:
             query = query.gt("days_delayed", 0)
         elif was_delayed is False:
             query = query.lte("days_delayed", 0)
-        if has_case is True:
-            query = query.not_.is_("case_status", "null")
         if logistics_operator:
             parts = [v.strip() for v in logistics_operator.split(",") if v.strip()]
             if len(parts) > 1:
@@ -139,7 +138,13 @@ class DelayedOrderRepository:
         offset = (page - 1) * per_page
         result = query.order("resolved_at", desc=True).range(offset, offset + per_page - 1).execute()
         total = result.count or 0
-        data = [HistoricalOrder(**r) for r in (result.data or [])]
+        data = [
+            HistoricalOrder(
+                **{k: v for k, v in r.items() if k != "order_cases"},
+                cases=[OrderCase(**c) for c in (r.get("order_cases") or [])],
+            )
+            for r in (result.data or [])
+        ]
         return {
             "data": data,
             "total": total,
@@ -212,6 +217,18 @@ class DelayedOrderRepository:
                 self.db.table(self.table).update({"comprobante": comprobante}).eq("id", row["id"]).execute()
                 updated += 1
         return updated
+
+    def add_case(self, delayed_order_id: str, case_number: str | None, case_status: str | None, comments: str | None) -> OrderCase:
+        result = self.db.table("order_cases").insert({
+            "delayed_order_id": delayed_order_id,
+            "case_number": case_number,
+            "case_status": case_status,
+            "comments": comments,
+        }).execute()
+        return OrderCase(**result.data[0])
+
+    def delete_case(self, case_id: str) -> None:
+        self.db.table("order_cases").delete().eq("id", case_id).execute()
 
     def update_case_info(self, record_id: str, case_number: str | None, comments: str | None, case_status: str | None = None) -> None:
         """Update case fields (number, comments, status) for a historical order."""
