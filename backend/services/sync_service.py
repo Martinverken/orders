@@ -5,7 +5,9 @@ from zoneinfo import ZoneInfo
 
 from integrations.base import BaseIntegration, IntegrationError
 from integrations.falabella.client import FalabellaClient
+from integrations.falabella.mapper import parse_falabella_datetime
 from integrations.mercadolibre.client import MercadoLibreClient
+from integrations.mercadolibre.mapper import parse_ml_datetime
 from repositories.order_repository import OrderRepository
 from repositories.sync_log_repository import SyncLogRepository
 from repositories.delayed_order_repository import DelayedOrderRepository
@@ -16,6 +18,30 @@ logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 50
 _SANTIAGO_TZ = ZoneInfo("America/Santiago")
+
+
+def _falabella_was_late(order: Order) -> bool:
+    """Determina si un pedido Falabella terminado fue entregado tarde.
+
+    La API de Falabella no expone date_shipped ni date_delivered.
+    El proxy más preciso es UpdatedAt del item, que cambia exactamente
+    cuando el status transiciona a shipped (regular) o delivered (direct).
+
+    Regular: item.UpdatedAt al archivar (status=shipped) vs limit_delivery_date
+    Direct:  item.UpdatedAt al archivar (status=delivered) vs limit_delivery_date
+    """
+    raw = order.raw_data or {}
+    items = raw.get("_items") or []
+    first_item = items[0] if isinstance(items, list) and items else {}
+    shipping_type = str(raw.get("ShippingProviderType", "")).lower()
+
+    raw_date = first_item.get("UpdatedAt")
+    date_val = parse_falabella_datetime(raw_date)
+    if date_val:
+        return date_val > order.limit_delivery_date
+
+    # Fallback si no hay item con UpdatedAt
+    return order.urgency == OrderUrgency.OVERDUE
 
 
 def _is_order_resolved(order: Order) -> bool:
@@ -46,11 +72,36 @@ def _is_order_resolved(order: Order) -> bool:
         shipment = raw.get("shipment") or {}
         logistic_type = str(shipment.get("logistic_type", "")).lower()
         shipment_status = str(shipment.get("status", "")).lower()
-        # Todos los tipos ML: se archivan solo cuando llegan a delivered o desaparecen del feed.
-        # (Los fulfillment se filtran en el mapper antes de llegar aquí.)
-        return shipment_status == "delivered"
+        if logistic_type == "self_service":  # Flex: nosotros entregamos al cliente final
+            return shipment_status == "delivered"
+        else:  # Centro de Envíos: nosotros llevamos al punto ML
+            return shipment_status in ("shipped", "delivered")
 
     return order.status in ("shipped", "delivered")
+
+
+def _ml_was_late(order: Order) -> bool:
+    """Determina si un pedido ML terminado fue entregado tarde.
+
+    Flex:            date_delivered > limit_delivery_date → atrasado
+    Centro de Envíos: date_shipped  > limit_delivery_date → atrasado
+    """
+    raw = order.raw_data or {}
+    shipment = raw.get("shipment") or {}
+    logistic_type = str(shipment.get("logistic_type", "")).lower()
+    status_history = shipment.get("status_history") or {}
+
+    if logistic_type == "self_service":  # Flex
+        raw_date = status_history.get("date_delivered")
+    else:  # Centro de Envíos
+        raw_date = status_history.get("date_shipped")
+
+    date_val = parse_ml_datetime(raw_date) if isinstance(raw_date, str) else None
+    if date_val:
+        return date_val > order.limit_delivery_date
+
+    # Fallback si no hay fecha en status_history
+    return order.urgency == OrderUrgency.OVERDUE
 
 
 class SyncService:
@@ -155,17 +206,24 @@ class SyncService:
             left_feed = ext_id not in fetched_ids
 
             if _is_order_resolved(order):
-                # Estado terminal alcanzado — urgency guardada decide si fue a tiempo o tarde
-                if order.urgency == OrderUrgency.OVERDUE:
+                # Estado terminal alcanzado — comparar fecha real de envío/entrega vs plazo
+                if order.source == "falabella":
+                    was_late = _falabella_was_late(order)
+                else:
+                    was_late = _ml_was_late(order)
+                if was_late:
                     late.append(order)
                 else:
                     on_time.append(order)
-            elif past_deadline:
-                # Sigue activo después del plazo → atrasado
-                late.append(order)
             elif left_feed:
-                # Desapareció antes del plazo → resuelto temprano → a tiempo
-                on_time.append(order)
+                # Desapareció del feed
+                if past_deadline:
+                    # Desapareció después del plazo → atrasado
+                    late.append(order)
+                else:
+                    # Desapareció antes del plazo → resuelto temprano → a tiempo
+                    on_time.append(order)
+            # else: activo en el feed, plazo vencido → mantener visible como OVERDUE
             # else: activo, dentro del plazo → mantener
 
         if late:

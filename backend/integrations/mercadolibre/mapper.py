@@ -41,42 +41,33 @@ def resolve_delivery_mode(logistic_type: str | None) -> str:
     return LOGISTIC_MODE_MAP.get(logistic_type or "", "Desconocido")
 
 
-def resolve_delivery_deadline(order: MLOrder, shipment: MLShipmentDetail | None) -> datetime | None:
-    """
-    Resolve limit_delivery_date from:
-    1. shipment.estimated_delivery_time (most accurate)
-    2. order.expiration_date
-    """
-    if shipment and shipment.estimated_delivery_time:
-        edt = shipment.estimated_delivery_time
-        if isinstance(edt, dict):
-            # ML uses various key names depending on shipment type
-            date_str = (
-                edt.get("date")
-                or edt.get("to")
-                or edt.get("date_to")
-                or edt.get("end")
-                or edt.get("from")
-                or edt.get("date_from")
-            )
-            if date_str:
-                return parse_ml_datetime(date_str)
-        elif isinstance(edt, str):
-            return parse_ml_datetime(edt)
+def resolve_delivery_deadline(shipment: MLShipmentDetail | None) -> datetime | None:
+    """Resolve limit_delivery_date from shipment data.
 
-    # Fallback: shipping_option has the real deadline for ready_to_ship orders
-    if shipment and shipment.shipping_option:
+    Primary:  shipping_option.estimated_delivery_limit.date
+    Fallback: estimated_delivery_time.date / .to
+              (the primary field disappears once the deadline has passed)
+    """
+    if not shipment:
+        return None
+
+    # Primary source
+    if shipment.shipping_option:
         opt = shipment.shipping_option
         if isinstance(opt, dict):
-            for key in ("estimated_delivery_limit", "estimated_delivery_time", "estimated_delivery_extended", "estimated_delivery_final"):
-                nested = opt.get(key)
-                if isinstance(nested, dict):
-                    date_str = nested.get("date") or nested.get("to")
-                    if date_str:
-                        return parse_ml_datetime(date_str)
+            limit = opt.get("estimated_delivery_limit")
+            if isinstance(limit, dict):
+                date_str = limit.get("date")
+                if date_str:
+                    return parse_ml_datetime(date_str)
 
-    if order.expiration_date:
-        return parse_ml_datetime(order.expiration_date)
+    # Fallback: estimated_delivery_time (present even after deadline passes)
+    if shipment.estimated_delivery_time:
+        edt = shipment.estimated_delivery_time
+        if isinstance(edt, dict):
+            date_str = edt.get("date") or edt.get("to")
+            if date_str:
+                return parse_ml_datetime(date_str)
 
     return None
 
@@ -86,17 +77,23 @@ def to_order_create(order_raw: dict, shipment_raw: dict | None = None) -> OrderC
     order = MLOrder(**order_raw)
     shipment = MLShipmentDetail(**shipment_raw) if shipment_raw else None
 
-    limit_delivery_date = resolve_delivery_deadline(order, shipment)
-    if not limit_delivery_date:
-        logger.warning(f"ML order {order.id} has no delivery date — skipping")
-        return None
-
     logistic_type = (shipment.logistic_type if shipment else None) or (
         order.shipping.logistic_type if order.shipping else None
     )
 
     if logistic_type == "fulfillment":
         logger.info(f"ML order {order.id} is fulfillment (managed by ML warehouse) — skipping")
+        return None
+
+    limit_delivery_date = resolve_delivery_deadline(shipment)
+    if not limit_delivery_date:
+        logger.warning(f"ML order {order.id} has no delivery date (shipping_option.estimated_delivery_limit.date) — skipping")
+        return None
+
+    # Skip orders already delivered — no action needed
+    shipment_status = (shipment.status if shipment else None) or order.status or "unknown"
+    if shipment_status == "delivered":
+        logger.info(f"ML order {order.id} already delivered — skipping")
         return None
 
     delivery_mode = resolve_delivery_mode(logistic_type)
@@ -117,9 +114,6 @@ def to_order_create(order_raw: dict, shipment_raw: dict | None = None) -> OrderC
                 product_quantity = int(qty)
             except (ValueError, TypeError):
                 pass
-
-    # Use shipment status as order status so urgency is computed correctly
-    shipment_status = (shipment.status if shipment else None) or order.status or "unknown"
 
     raw_data = {
         "order": order_raw,

@@ -14,10 +14,13 @@ from models.order import OrderCreate
 logger = logging.getLogger(__name__)
 
 # Statuses considered "pending" / actionable for delivery monitoring
+# "delivered" is included so direct orders (falaflex) are captured at the exact moment
+# of delivery — their UpdatedAt at that point is used as the date_delivered proxy.
 PENDING_STATUSES = [
     "pending",
     "ready_to_ship",
     "shipped",
+    "delivered",
 ]
 
 PAGE_SIZE = 100
@@ -103,10 +106,12 @@ class FalabellaClient(BaseIntegration):
             for status in PENDING_STATUSES:
                 offset = 0
                 while True:
-                    url = self._build_signed_url(
-                        "GetOrders",
-                        {"Status": status, "Limit": PAGE_SIZE, "Offset": offset},
-                    )
+                    extra: dict = {"Status": status, "Limit": PAGE_SIZE, "Offset": offset}
+                    # 'delivered' has no natural recency filter — without CreatedAfter it
+                    # would return the entire order history and time out.
+                    if status == "delivered":
+                        extra["CreatedAfter"] = "2026-03-01T00:00:00+00:00"
+                    url = self._build_signed_url("GetOrders", extra)
                     logger.info(f"Fetching Falabella orders: status={status} offset={offset}")
                     try:
                         response = await client.get(url)
