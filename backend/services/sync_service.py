@@ -132,6 +132,13 @@ class SyncService:
         for source_name in self.integrations:
             result = await self.run_single_source(source_name)
             results.append(result)
+        # Re-attempt comprobante fetch for Flex/Direct orders archived without one
+        try:
+            updated = self.delayed_repo.refresh_missing_comprobantes()
+            if updated:
+                logger.info(f"[comprobantes] Refreshed {updated} missing comprobantes")
+        except Exception as e:
+            logger.error(f"[comprobantes] Refresh error: {e}")
         return results
 
     async def run_single_source(self, source: str) -> SyncResult:
