@@ -1,6 +1,6 @@
 from models.order import OrderCreate
 from integrations.falabella.schemas import FalabellaOrder
-from datetime import datetime, timezone
+from datetime import datetime
 from zoneinfo import ZoneInfo
 import logging
 
@@ -29,7 +29,7 @@ def parse_falabella_datetime(value: str | None) -> datetime | None:
         try:
             dt = datetime.strptime(value, fmt)
             if dt.tzinfo is None:
-                dt = dt.replace(tzinfo=timezone.utc)
+                dt = dt.replace(tzinfo=_SANTIAGO)
             return dt
         except ValueError:
             continue
