@@ -111,10 +111,10 @@ export async function triggerSync(source = "all"): Promise<unknown> {
   });
 }
 
-export async function updateHistoricalOrderCase(id: string, case_number: string | null, comments: string | null): Promise<void> {
+export async function updateHistoricalOrderCase(id: string, case_number: string | null, comments: string | null, case_status: string | null): Promise<void> {
   await apiFetch(`/api/orders/history/${id}/case`, {
     method: "PATCH",
-    body: JSON.stringify({ case_number: case_number || null, comments: comments || null }),
+    body: JSON.stringify({ case_number: case_number || null, comments: comments || null, case_status: case_status || null }),
   });
 }
 

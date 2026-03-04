@@ -88,6 +88,7 @@ export interface HistoricalOrder {
   comprobante?: string | null;
   case_number?: string | null;
   comments?: string | null;
+  case_status?: string | null;
 }
 
 export interface HistoricalOrdersPage {

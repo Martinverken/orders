@@ -9,6 +9,7 @@ from models.order import Order, OrdersPage
 class CaseUpdateRequest(BaseModel):
     case_number: Optional[str] = None
     comments: Optional[str] = None
+    case_status: Optional[str] = None
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
 order_repo = OrderRepository()
@@ -68,7 +69,7 @@ def list_historical_orders(
 @router.patch("/history/{record_id}/case", response_model=dict)
 def update_case_info(record_id: str, body: CaseUpdateRequest):
     """Update case number and comments for a historical order."""
-    delayed_repo.update_case_info(record_id, body.case_number, body.comments)
+    delayed_repo.update_case_info(record_id, body.case_number, body.comments, body.case_status)
     return {"success": True}
 
 

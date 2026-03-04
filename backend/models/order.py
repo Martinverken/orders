@@ -119,6 +119,7 @@ class HistoricalOrder(BaseModel):
     comprobante: Optional[str] = None
     case_number: Optional[str] = None
     comments: Optional[str] = None
+    case_status: Optional[str] = None
 
 
 class HistoricalOrdersPage(BaseModel):
