@@ -37,12 +37,8 @@ def _get_welivery_id(order: Order) -> str | None:
         pack_id = order.raw_data.get("pack_id")
         return str(pack_id) if pack_id else order.external_id
     if order.source == "falabella":
-        order_number = order.raw_data.get("OrderNumber")
         tracking = order.raw_data.get("TrackingCode")
-        items = order.raw_data.get("_items") or []
-        package_id = items[0].get("PackageId") if items else None
-        if order_number and package_id and tracking:
-            return f"{order_number}-{package_id}-{tracking}"
+        return str(tracking) if tracking else None
     return None
 
 
