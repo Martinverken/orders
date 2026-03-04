@@ -62,9 +62,9 @@ def _is_order_resolved(order: Order) -> bool:
     if order.source == "falabella":
         raw = order.raw_data or {}
         shipping_type = str(raw.get("ShippingProviderType", "")).lower()
-        if "regular" in shipping_type:
-            return order.status in ("shipped", "delivered")
-        else:
+        if shipping_type in ("regular", "crossdocking"):
+            return order.status == "shipped"
+        else:  # falaflex: seller delivers to customer
             return order.status == "delivered"
 
     if order.source == "mercadolibre":
@@ -74,8 +74,8 @@ def _is_order_resolved(order: Order) -> bool:
         shipment_status = str(shipment.get("status", "")).lower()
         if logistic_type == "self_service":  # Flex: nosotros entregamos al cliente final
             return shipment_status == "delivered"
-        else:  # Centro de Envíos: nosotros llevamos al punto ML
-            return shipment_status in ("shipped", "delivered")
+        else:  # Centro de Envíos: nosotros llevamos al punto ML → terminal en shipped
+            return shipment_status == "shipped"
 
     return order.status in ("shipped", "delivered")
 

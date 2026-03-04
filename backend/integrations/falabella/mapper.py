@@ -1,7 +1,17 @@
 from models.order import OrderCreate
 from integrations.falabella.schemas import FalabellaOrder
 from datetime import datetime, timezone
+from zoneinfo import ZoneInfo
 import logging
+
+_SANTIAGO = ZoneInfo("America/Santiago")
+_DIRECT_PROVIDER_TYPES = {"falaflex"}  # only falaflex = seller delivers to customer (23:59 deadline)
+
+
+def _end_of_day_santiago(dt: datetime) -> datetime:
+    """Return same calendar date at 23:59:00 Santiago time."""
+    local = dt.astimezone(_SANTIAGO)
+    return local.replace(hour=23, minute=59, second=0, microsecond=0)
 
 logger = logging.getLogger(__name__)
 
@@ -48,6 +58,11 @@ def to_order_create(raw: dict) -> OrderCreate | None:
     if not limit_delivery_date:
         logger.warning(f"Order {order.OrderId} has no delivery date — skipping")
         return None
+
+    # Direct (falaflex/crossdocking) orders: deadline is end of day, not a specific time
+    shipping_provider_type = (raw.get("ShippingProviderType") or "").strip().lower()
+    if shipping_provider_type in _DIRECT_PROVIDER_TYPES:
+        limit_delivery_date = _end_of_day_santiago(limit_delivery_date)
 
     # Resolve status — Statuses comes as [{"Status": "pending"}] from real API
     status = "unknown"

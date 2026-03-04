@@ -1,7 +1,16 @@
 from models.order import OrderCreate
 from integrations.mercadolibre.schemas import MLOrder, MLShipmentDetail
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+from zoneinfo import ZoneInfo
 import logging
+
+_SANTIAGO = ZoneInfo("America/Santiago")
+
+
+def _end_of_day_santiago(dt: datetime) -> datetime:
+    """Return same calendar date at 23:59:00 Santiago time."""
+    local = dt.astimezone(_SANTIAGO)
+    return local.replace(hour=23, minute=59, second=0, microsecond=0)
 
 logger = logging.getLogger(__name__)
 
@@ -41,17 +50,19 @@ def resolve_delivery_mode(logistic_type: str | None) -> str:
     return LOGISTIC_MODE_MAP.get(logistic_type or "", "Desconocido")
 
 
-def resolve_delivery_deadline(shipment: MLShipmentDetail | None) -> datetime | None:
+def resolve_delivery_deadline(
+    shipment: MLShipmentDetail | None,
+    shipment_raw: dict | None = None,
+) -> datetime | None:
     """Resolve limit_delivery_date from shipment data.
 
     Flex (self_service):
-        estimated_delivery_limit.date — the promised customer delivery date,
-        which is the seller's commitment deadline for same-day delivery.
+        estimated_delivery_limit.date — customer delivery promise date.
 
     Centro de Envíos (xd_drop_off / cross_docking / drop_off):
-        pay_before — the cutoff by which we must drop off at the ML carrier.
-        This is delivery_limit minus transit time (1-2 days earlier).
-        Falls back to estimated_delivery_limit.date if pay_before is absent.
+        date_handling + handling_hours — matches the "Despachar antes de HH:mm"
+        shown on the ML shipping label (e.g. date_handling=Mar 3 11:11 + 24h = Mar 4 11:11).
+        Falls back to estimated_delivery_limit.date if status_history is absent.
 
     Last resort: top-level estimated_delivery_time.date / .to
         Present even after the deadline has passed.
@@ -61,24 +72,36 @@ def resolve_delivery_deadline(shipment: MLShipmentDetail | None) -> datetime | N
 
     is_flex = str(shipment.logistic_type or "").lower() == "self_service"
 
-    if shipment.shipping_option:
-        opt = shipment.shipping_option
-        if isinstance(opt, dict):
-            # Centro de Envíos: use pay_before (drop-off cutoff at ML carrier)
-            if not is_flex:
-                edt_inner = opt.get("estimated_delivery_time")
-                if isinstance(edt_inner, dict):
-                    pay_before = edt_inner.get("pay_before")
-                    if pay_before:
-                        return parse_ml_datetime(pay_before)
+    opt = shipment.shipping_option if isinstance(shipment.shipping_option, dict) else None
 
-            # Flex: use estimated_delivery_limit (customer delivery promise)
-            # Also fallback for CE when pay_before is absent
-            limit = opt.get("estimated_delivery_limit")
-            if isinstance(limit, dict):
-                date_str = limit.get("date")
-                if date_str:
-                    return parse_ml_datetime(date_str)
+    # Centro de Envíos: date_handling + handling_hours = label deadline
+    if not is_flex and shipment_raw:
+        status_history = shipment_raw.get("status_history") or {}
+        date_handling_str = status_history.get("date_handling")
+        if date_handling_str:
+            dt_handling = parse_ml_datetime(date_handling_str)
+            if dt_handling:
+                handling_hours = None
+                if opt:
+                    edt_inner = opt.get("estimated_delivery_time")
+                    if isinstance(edt_inner, dict):
+                        handling_hours = edt_inner.get("handling")
+                if handling_hours is not None:
+                    try:
+                        return dt_handling + timedelta(hours=float(handling_hours))
+                    except (TypeError, ValueError):
+                        pass
+                return dt_handling
+
+    # Flex: estimated_delivery_limit.date; also fallback for CE when status_history absent
+    if opt:
+        limit = opt.get("estimated_delivery_limit")
+        if isinstance(limit, dict):
+            date_str = limit.get("date")
+            if date_str:
+                dt = parse_ml_datetime(date_str)
+                if dt:
+                    return _end_of_day_santiago(dt) if is_flex else dt
 
     # Last resort: top-level estimated_delivery_time (present after deadline passes)
     if shipment.estimated_delivery_time:
@@ -86,7 +109,9 @@ def resolve_delivery_deadline(shipment: MLShipmentDetail | None) -> datetime | N
         if isinstance(edt, dict):
             date_str = edt.get("date") or edt.get("to")
             if date_str:
-                return parse_ml_datetime(date_str)
+                dt = parse_ml_datetime(date_str)
+                if dt:
+                    return _end_of_day_santiago(dt) if is_flex else dt
 
     return None
 
@@ -104,7 +129,7 @@ def to_order_create(order_raw: dict, shipment_raw: dict | None = None) -> OrderC
         logger.info(f"ML order {order.id} is fulfillment (managed by ML warehouse) — skipping")
         return None
 
-    limit_delivery_date = resolve_delivery_deadline(shipment)
+    limit_delivery_date = resolve_delivery_deadline(shipment, shipment_raw)
     if not limit_delivery_date:
         logger.warning(f"ML order {order.id} has no delivery date (shipping_option.estimated_delivery_limit.date) — skipping")
         return None

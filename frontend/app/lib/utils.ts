@@ -225,13 +225,21 @@ export function getShippingDestination(raw_data?: Record<string, unknown>): Ship
   return { city: null, comuna: null };
 }
 
-/** Formats delivery deadline using the exact value from the API. */
+/** Formats delivery deadline as DD/MM/YYYY HH:mm in Santiago timezone. */
 export function formatDeadline(isoString: string | null, _source?: string): string {
   if (!isoString) return "—";
-  return new Date(isoString).toLocaleDateString("es-CL", {
+  const d = new Date(isoString);
+  const datePart = d.toLocaleDateString("es-CL", {
     day: "2-digit",
     month: "2-digit",
     year: "numeric",
     timeZone: "America/Santiago",
   });
+  const timePart = d.toLocaleTimeString("es-CL", {
+    hour: "2-digit",
+    minute: "2-digit",
+    hour12: false,
+    timeZone: "America/Santiago",
+  });
+  return `${datePart} ${timePart}`;
 }
