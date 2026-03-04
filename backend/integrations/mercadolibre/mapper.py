@@ -44,24 +44,39 @@ def resolve_delivery_mode(logistic_type: str | None) -> str:
 def resolve_delivery_deadline(shipment: MLShipmentDetail | None) -> datetime | None:
     """Resolve limit_delivery_date from shipment data.
 
-    Primary:  shipping_option.estimated_delivery_limit.date
-    Fallback: estimated_delivery_time.date / .to
-              (the primary field disappears once the deadline has passed)
+    Primary:  shipping_option.estimated_delivery_time.pay_before
+              This is the SELLER's action deadline — when we must dispatch / drop off
+              at the ML carrier. For xd_drop_off (Centro de Envíos) this is often
+              1-2 days earlier than estimated_delivery_limit (which is the customer
+              delivery date), so it is the correct field for urgency and late checks.
+
+    Fallback: shipping_option.estimated_delivery_limit.date
+              Used when pay_before is absent.
+
+    Last resort: top-level estimated_delivery_time.date / .to
+              Present even after the deadline has passed (pay_before disappears).
     """
     if not shipment:
         return None
 
-    # Primary source
     if shipment.shipping_option:
         opt = shipment.shipping_option
         if isinstance(opt, dict):
+            # Primary: seller dispatch deadline
+            edt_inner = opt.get("estimated_delivery_time")
+            if isinstance(edt_inner, dict):
+                pay_before = edt_inner.get("pay_before")
+                if pay_before:
+                    return parse_ml_datetime(pay_before)
+
+            # Fallback: customer delivery deadline
             limit = opt.get("estimated_delivery_limit")
             if isinstance(limit, dict):
                 date_str = limit.get("date")
                 if date_str:
                     return parse_ml_datetime(date_str)
 
-    # Fallback: estimated_delivery_time (present even after deadline passes)
+    # Last resort: top-level estimated_delivery_time (present after deadline passes)
     if shipment.estimated_delivery_time:
         edt = shipment.estimated_delivery_time
         if isinstance(edt, dict):
