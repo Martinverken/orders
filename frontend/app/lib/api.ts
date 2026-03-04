@@ -111,6 +111,13 @@ export async function triggerSync(source = "all"): Promise<unknown> {
   });
 }
 
+export async function updateHistoricalOrderCase(id: string, case_number: string | null, comments: string | null): Promise<void> {
+  await apiFetch(`/api/orders/history/${id}/case`, {
+    method: "PATCH",
+    body: JSON.stringify({ case_number: case_number || null, comments: comments || null }),
+  });
+}
+
 export async function getDelayMetrics(): Promise<HistoricalMetrics> {
   try {
     const data = await apiFetch<{ success: boolean; data: unknown }>("/api/dashboard/metrics/delays");

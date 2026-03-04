@@ -1,5 +1,9 @@
+"use client";
+
+import { useRef, useState } from "react";
 import { HistoricalOrder } from "@/app/types";
 import { SOURCE_LABEL, formatDeadline, getCarrier, getCreatedAt, getOrderNumber, getProductDetails, getShippingDestination, getTrackingCode, getTrackingUrl } from "@/app/lib/utils";
+import { updateHistoricalOrderCase } from "@/app/lib/api";
 
 interface Props {
   orders: HistoricalOrder[];
@@ -47,6 +51,60 @@ function HistoricalUrgencyBadge({ daysDelayed }: { daysDelayed: number }) {
   );
 }
 
+function CaseCells({ order }: { order: HistoricalOrder }) {
+  const [caseNumber, setCaseNumber] = useState(order.case_number ?? "");
+  const [comments, setComments] = useState(order.comments ?? "");
+  const [saving, setSaving] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const save = (newCase: string, newComments: string) => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(async () => {
+      setSaving(true);
+      try {
+        await updateHistoricalOrderCase(
+          order.id,
+          newCase.trim() || null,
+          newComments.trim() || null,
+        );
+      } finally {
+        setSaving(false);
+      }
+    }, 600);
+  };
+
+  return (
+    <>
+      <td className="py-3 pr-4">
+        <input
+          type="text"
+          value={caseNumber}
+          placeholder="—"
+          maxLength={80}
+          onChange={(e) => {
+            setCaseNumber(e.target.value);
+            save(e.target.value, comments);
+          }}
+          className="w-24 text-xs border border-gray-200 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white placeholder-gray-300"
+        />
+      </td>
+      <td className="py-3 pr-4">
+        <input
+          type="text"
+          value={comments}
+          placeholder="—"
+          maxLength={300}
+          onChange={(e) => {
+            setComments(e.target.value);
+            save(caseNumber, e.target.value);
+          }}
+          className={`w-48 text-xs border rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-blue-400 bg-white placeholder-gray-300 transition-colors ${saving ? "border-blue-300" : "border-gray-200"}`}
+        />
+      </td>
+    </>
+  );
+}
+
 export function HistoricalOrdersTable({ orders }: Props) {
   if (!orders.length) {
     return (
@@ -76,7 +134,9 @@ export function HistoricalOrdersTable({ orders }: Props) {
             <th className="pb-3 pr-4 font-medium">Tracking</th>
             <th className="pb-3 pr-4 font-medium">Ciudad</th>
             <th className="pb-3 pr-4 font-medium">Comuna</th>
-            <th className="pb-3 font-medium">Comprobante</th>
+            <th className="pb-3 pr-4 font-medium">Comprobante</th>
+            <th className="pb-3 pr-4 font-medium">N° Caso</th>
+            <th className="pb-3 font-medium">Comentarios</th>
           </tr>
         </thead>
         <tbody>
@@ -150,7 +210,7 @@ export function HistoricalOrdersTable({ orders }: Props) {
                 <td className="py-3 pr-4 text-gray-600 text-xs capitalize">
                   {destination.comuna?.toLowerCase() || "—"}
                 </td>
-                <td className="py-3 text-xs">
+                <td className="py-3 pr-4 text-xs">
                   {order.comprobante ? (
                     <a
                       href={order.comprobante}
@@ -164,6 +224,7 @@ export function HistoricalOrdersTable({ orders }: Props) {
                     <span className="text-gray-400">—</span>
                   )}
                 </td>
+                <CaseCells order={order} />
               </tr>
             );
           })}

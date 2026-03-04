@@ -214,6 +214,13 @@ class DelayedOrderRepository:
                 updated += 1
         return updated
 
+    def update_case_info(self, record_id: str, case_number: str | None, comments: str | None) -> None:
+        """Update case number and comments for a historical order."""
+        self.db.table(self.table).update({
+            "case_number": case_number,
+            "comments": comments,
+        }).eq("id", record_id).execute()
+
     def get_monthly_metrics(self) -> list[DelayMetric]:
         """Return delay counts and avg days delayed grouped by month, source and logistics operator."""
         result = self.db.table(self.table).select(

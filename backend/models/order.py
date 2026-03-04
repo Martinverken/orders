@@ -117,6 +117,8 @@ class HistoricalOrder(BaseModel):
     status: Optional[str] = None
     raw_data: Optional[dict[str, Any]] = None
     comprobante: Optional[str] = None
+    case_number: Optional[str] = None
+    comments: Optional[str] = None
 
 
 class HistoricalOrdersPage(BaseModel):

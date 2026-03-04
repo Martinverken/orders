@@ -1,8 +1,14 @@
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional
+from pydantic import BaseModel
 from repositories.order_repository import OrderRepository
 from repositories.delayed_order_repository import DelayedOrderRepository
 from models.order import Order, OrdersPage
+
+
+class CaseUpdateRequest(BaseModel):
+    case_number: Optional[str] = None
+    comments: Optional[str] = None
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
 order_repo = OrderRepository()
@@ -57,6 +63,13 @@ def list_historical_orders(
         page=page,
         per_page=per_page,
     )
+
+
+@router.patch("/history/{record_id}/case", response_model=dict)
+def update_case_info(record_id: str, body: CaseUpdateRequest):
+    """Update case number and comments for a historical order."""
+    delayed_repo.update_case_info(record_id, body.case_number, body.comments)
+    return {"success": True}
 
 
 @router.post("/history/refresh-comprobantes", response_model=dict)
