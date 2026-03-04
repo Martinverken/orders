@@ -72,3 +72,24 @@ export interface HistoricalMetrics {
   delayed: DelayMetric[];
   on_time: OnTimeMetric[];
 }
+
+export interface HistoricalOrder {
+  id: string;
+  external_id: string;
+  source: OrderSource;
+  limit_delivery_date: string;
+  resolved_at: string;
+  delivered_at?: string | null;
+  days_delayed: number;
+  logistics_operator?: string | null;
+  urgency?: string | null;
+  raw_data?: Record<string, unknown>;
+}
+
+export interface HistoricalOrdersPage {
+  data: HistoricalOrder[];
+  total: number;
+  page: number;
+  per_page: number;
+  pages: number;
+}

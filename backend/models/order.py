@@ -100,6 +100,28 @@ class DelayedOrder(BaseModel):
     days_delayed: float
 
 
+class HistoricalOrder(BaseModel):
+    """Full record from delayed_orders table for the historical orders view."""
+    id: str
+    external_id: str
+    source: str
+    limit_delivery_date: datetime
+    resolved_at: datetime
+    delivered_at: Optional[datetime] = None
+    days_delayed: float
+    logistics_operator: Optional[str] = None
+    urgency: Optional[str] = None
+    raw_data: Optional[dict[str, Any]] = None
+
+
+class HistoricalOrdersPage(BaseModel):
+    data: list[HistoricalOrder]
+    total: int
+    page: int
+    per_page: int
+    pages: int
+
+
 class OnTimeMetric(BaseModel):
     """Monthly on-time delivery count by source and logistics operator."""
     month: str

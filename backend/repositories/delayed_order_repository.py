@@ -1,7 +1,8 @@
+import math
 from collections import defaultdict
 from datetime import datetime
 from database import get_supabase
-from models.order import Order, DelayedOrder, DelayMetric, OnTimeMetric
+from models.order import Order, DelayedOrder, DelayMetric, HistoricalOrder, OnTimeMetric
 
 
 def _extract_logistics_operator(order: Order) -> str | None:
@@ -56,6 +57,39 @@ class DelayedOrderRepository:
             .execute()
         )
         return len(result.data) if result.data else 0
+
+    def get_paginated(
+        self,
+        source: str | None = None,
+        was_delayed: bool | None = None,
+        logistics_operator: str | None = None,
+        page: int = 1,
+        per_page: int = 25,
+    ) -> dict:
+        query = self.db.table(self.table).select("*", count="exact")
+        if source:
+            query = query.eq("source", source)
+        if was_delayed is True:
+            query = query.gt("days_delayed", 0)
+        elif was_delayed is False:
+            query = query.lte("days_delayed", 0)
+        if logistics_operator:
+            parts = [v.strip() for v in logistics_operator.split(",") if v.strip()]
+            if len(parts) > 1:
+                query = query.in_("logistics_operator", parts)
+            elif parts:
+                query = query.eq("logistics_operator", parts[0])
+        offset = (page - 1) * per_page
+        result = query.order("resolved_at", desc=True).range(offset, offset + per_page - 1).execute()
+        total = result.count or 0
+        data = [HistoricalOrder(**r) for r in (result.data or [])]
+        return {
+            "data": data,
+            "total": total,
+            "page": page,
+            "per_page": per_page,
+            "pages": math.ceil(total / per_page) if per_page > 0 else 0,
+        }
 
     def get_monthly_metrics(self) -> list[DelayMetric]:
         """Return delay counts and avg days delayed grouped by month, source and logistics operator."""

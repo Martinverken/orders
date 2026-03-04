@@ -1,13 +1,16 @@
 import { Suspense } from "react";
-import { getDashboardSummary, getDelayMetrics, getDistinctCities, getOrders, getSyncStatus } from "@/app/lib/api";
+import { getDashboardSummary, getDelayMetrics, getDistinctCities, getHistoricalOrders, getOrders, getSyncStatus } from "@/app/lib/api";
 import { SummaryCards } from "@/app/components/dashboard/SummaryCards";
 import { OrdersTable } from "@/app/components/dashboard/OrdersTable";
 import { SyncStatus } from "@/app/components/dashboard/SyncStatus";
 import { FilterBar } from "@/app/components/dashboard/FilterBar";
+import { HistoricalFilterBar } from "@/app/components/dashboard/HistoricalFilterBar";
+import { HistoricalOrdersTable } from "@/app/components/dashboard/HistoricalOrdersTable";
 import { DelayMetricsTable } from "@/app/components/dashboard/DelayMetricsTable";
 
 interface PageProps {
   searchParams: Promise<{
+    // Pedidos activos filters
     source?: string;
     urgency?: string;
     status?: string;
@@ -16,6 +19,12 @@ interface PageProps {
     city?: string;
     commune?: string;
     page?: string;
+    // Pedidos históricos filters (h_ prefix)
+    h_source?: string;
+    h_urgency?: string;
+    h_logistics_operator?: string;
+    h_page?: string;
+    // Tab
     tab?: string;
   }>;
 }
@@ -33,10 +42,13 @@ function buildUrl(base: Record<string, string | undefined>, overrides: Record<st
 
 export default async function DashboardPage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const page = Number(params.page || 1);
-  const tab = params.tab === "historial" ? "historial" : "pedidos";
+  const tab = params.tab === "historial" ? "historial"
+    : params.tab === "estadisticas" ? "estadisticas"
+    : "pedidos";
 
-  const filters = {
+  const syncStatus = await getSyncStatus();
+
+  const activeFilters = {
     source: params.source,
     urgency: params.urgency || undefined,
     status: params.status,
@@ -46,15 +58,46 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     commune: params.commune,
   };
 
-  const [summary, ordersPage, syncStatus, delayMetrics, cities] = await Promise.all([
-    getDashboardSummary(filters),
-    getOrders({ ...filters, page, per_page: 25 }),
-    getSyncStatus(),
-    getDelayMetrics(),
-    getDistinctCities(),
-  ]);
+  let summary = null, ordersPage = null, cities: string[] = [];
+  let historicalPage = null;
+  let delayMetrics = null;
 
-  const totalDelayed = delayMetrics.delayed.reduce((s, m) => s + m.count, 0);
+  if (tab === "pedidos") {
+    const page = Number(params.page || 1);
+    [summary, ordersPage, cities] = await Promise.all([
+      getDashboardSummary(activeFilters),
+      getOrders({ ...activeFilters, page, per_page: 25 }),
+      getDistinctCities(),
+    ]);
+  } else if (tab === "historial") {
+    const hPage = Number(params.h_page || 1);
+    historicalPage = await getHistoricalOrders({
+      source: params.h_source,
+      urgency: params.h_urgency,
+      logistics_operator: params.h_logistics_operator,
+      page: hPage,
+      per_page: 25,
+    });
+  } else {
+    delayMetrics = await getDelayMetrics();
+  }
+
+  const page = Number(params.page || 1);
+  const hPage = Number(params.h_page || 1);
+
+  // Shared params for buildUrl (preserves both tabs' filters)
+  const allParams = {
+    source: params.source,
+    urgency: params.urgency,
+    status: params.status,
+    product_name: params.product_name,
+    logistics_operator: params.logistics_operator,
+    city: params.city,
+    commune: params.commune,
+    h_source: params.h_source,
+    h_urgency: params.h_urgency,
+    h_logistics_operator: params.h_logistics_operator,
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -71,7 +114,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         {/* Tabs */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-1 -mb-px">
           <a
-            href={buildUrl({ source: params.source, urgency: params.urgency, status: params.status, product_name: params.product_name, logistics_operator: params.logistics_operator, city: params.city, commune: params.commune }, { tab: "pedidos" })}
+            href={buildUrl(allParams, { tab: "pedidos" })}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               tab === "pedidos"
                 ? "border-gray-900 text-gray-900"
@@ -81,25 +124,32 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             Pedidos activos
           </a>
           <a
-            href={buildUrl({}, { tab: "historial" })}
+            href={buildUrl(allParams, { tab: "historial" })}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               tab === "historial"
                 ? "border-gray-900 text-gray-900"
                 : "border-transparent text-gray-500 hover:text-gray-700"
             }`}
           >
-            Historial de entregas
-            {totalDelayed > 0 && (
-              <span className="ml-1.5 text-xs bg-red-100 text-red-600 px-1.5 py-0.5 rounded-full">
-                {totalDelayed}
-              </span>
-            )}
+            Pedidos históricos
+          </a>
+          <a
+            href={buildUrl(allParams, { tab: "estadisticas" })}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              tab === "estadisticas"
+                ? "border-gray-900 text-gray-900"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Estadísticas
           </a>
         </div>
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
-        {tab === "pedidos" && (
+
+        {/* ── Pedidos activos ── */}
+        {tab === "pedidos" && summary && ordersPage && (
           <>
             <SummaryCards summary={summary} />
 
@@ -123,7 +173,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                   <div className="flex gap-2">
                     {ordersPage.page > 1 && (
                       <a
-                        href={buildUrl({ source: params.source, urgency: params.urgency, status: params.status, product_name: params.product_name, logistics_operator: params.logistics_operator, city: params.city, commune: params.commune, tab: params.tab }, { page: String(page - 1) })}
+                        href={buildUrl(allParams, { tab: "pedidos", page: String(page - 1) })}
                         className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50"
                       >
                         Anterior
@@ -131,7 +181,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                     )}
                     {ordersPage.page < ordersPage.pages && (
                       <a
-                        href={buildUrl({ source: params.source, urgency: params.urgency, status: params.status, product_name: params.product_name, logistics_operator: params.logistics_operator, city: params.city, commune: params.commune, tab: params.tab }, { page: String(page + 1) })}
+                        href={buildUrl(allParams, { tab: "pedidos", page: String(page + 1) })}
                         className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50"
                       >
                         Siguiente
@@ -144,19 +194,63 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           </>
         )}
 
-        {tab === "historial" && (
+        {/* ── Pedidos históricos ── */}
+        {tab === "historial" && historicalPage && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+              <h2 className="text-base font-medium text-gray-900">
+                Pedidos históricos ({historicalPage.total})
+              </h2>
+              <Suspense fallback={null}>
+                <HistoricalFilterBar />
+              </Suspense>
+            </div>
+
+            <div className="px-6 py-4">
+              <HistoricalOrdersTable orders={historicalPage.data} />
+            </div>
+
+            {historicalPage.pages > 1 && (
+              <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
+                <span>Página {historicalPage.page} de {historicalPage.pages}</span>
+                <div className="flex gap-2">
+                  {historicalPage.page > 1 && (
+                    <a
+                      href={buildUrl(allParams, { tab: "historial", h_page: String(hPage - 1) })}
+                      className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
+                      Anterior
+                    </a>
+                  )}
+                  {historicalPage.page < historicalPage.pages && (
+                    <a
+                      href={buildUrl(allParams, { tab: "historial", h_page: String(hPage + 1) })}
+                      className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
+                      Siguiente
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Estadísticas ── */}
+        {tab === "estadisticas" && (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div className="px-6 py-4 border-b border-gray-100">
-              <h2 className="text-base font-medium text-gray-900">Historial de entregas</h2>
+              <h2 className="text-base font-medium text-gray-900">Estadísticas de entregas</h2>
               <p className="text-xs text-gray-500 mt-0.5">
                 Pedidos resueltos agrupados por mes, marketplace y operador logístico
               </p>
             </div>
             <div className="px-6 py-6">
-              <DelayMetricsTable metrics={delayMetrics} />
+              <DelayMetricsTable metrics={delayMetrics ?? { delayed: [], on_time: [] }} />
             </div>
           </div>
         )}
+
       </main>
     </div>
   );

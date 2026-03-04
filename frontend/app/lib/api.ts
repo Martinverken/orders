@@ -1,4 +1,4 @@
-import { DashboardSummary, HistoricalMetrics, Order, OrdersPage, SyncStatusResponse } from "@/app/types";
+import { DashboardSummary, HistoricalMetrics, HistoricalOrder, HistoricalOrdersPage, Order, OrdersPage, SyncStatusResponse } from "@/app/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -59,6 +59,22 @@ export async function getDistinctCommunes(city?: string): Promise<string[]> {
   const qs = city ? `?city=${encodeURIComponent(city)}` : "";
   const data = await apiFetch<{ success: boolean; data: string[] }>(`/api/orders/communes${qs}`);
   return data.data;
+}
+
+export async function getHistoricalOrders(params?: {
+  source?: string;
+  urgency?: string;
+  logistics_operator?: string;
+  page?: number;
+  per_page?: number;
+}): Promise<HistoricalOrdersPage> {
+  const query = new URLSearchParams();
+  if (params?.source) query.set("source", params.source);
+  if (params?.urgency) query.set("urgency", params.urgency);
+  if (params?.logistics_operator) query.set("logistics_operator", params.logistics_operator);
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.per_page) query.set("per_page", String(params.per_page));
+  return apiFetch<HistoricalOrdersPage>(`/api/orders/history?${query}`);
 }
 
 export async function getOverdueOrders(): Promise<{ data: Order[]; count: number }> {

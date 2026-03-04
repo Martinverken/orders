@@ -1,10 +1,12 @@
 from fastapi import APIRouter, Query, HTTPException
 from typing import Optional
 from repositories.order_repository import OrderRepository
+from repositories.delayed_order_repository import DelayedOrderRepository
 from models.order import Order, OrdersPage
 
 router = APIRouter(prefix="/api/orders", tags=["orders"])
 order_repo = OrderRepository()
+delayed_repo = DelayedOrderRepository()
 
 
 @router.get("/cities", response_model=dict)
@@ -17,6 +19,28 @@ def get_distinct_cities():
 def get_distinct_communes(city: Optional[str] = Query(None)):
     communes = order_repo.get_distinct_communes(city)
     return {"success": True, "data": communes}
+
+
+@router.get("/history")
+def list_historical_orders(
+    source: Optional[str] = Query(None),
+    urgency: Optional[str] = Query(None),
+    logistics_operator: Optional[str] = Query(None),
+    page: int = Query(1, ge=1),
+    per_page: int = Query(25, ge=1, le=100),
+):
+    was_delayed = None
+    if urgency == "atrasado":
+        was_delayed = True
+    elif urgency == "a_tiempo":
+        was_delayed = False
+    return delayed_repo.get_paginated(
+        source=source,
+        was_delayed=was_delayed,
+        logistics_operator=logistics_operator,
+        page=page,
+        per_page=per_page,
+    )
 
 
 @router.get("", response_model=OrdersPage)
