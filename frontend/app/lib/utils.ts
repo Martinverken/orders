@@ -163,16 +163,6 @@ export function getTrackingUrl(raw_data?: Record<string, unknown>, tracking?: st
     return `https://welivery.cl/tracking/index.php?wid=${tracking}`;
   }
 
-  // ML Centro de Envíos: carrier is Blue Express in Chile; fall back to Chilexpress if indicated
-  if (deliveryMode === "centro de envíos") {
-    const shipment = raw_data?.shipment as Record<string, unknown> | undefined;
-    const method = ((shipment?.tracking_method as string) || "").toLowerCase();
-    if (method.includes("chilexpress")) {
-      return `https://centrodeayuda.chilexpress.cl/seguimiento/${tracking}`;
-    }
-    return `https://www.blue.cl/enviar/seguimiento?n_seguimiento=${tracking}`;
-  }
-
   return null;
 }
 
