@@ -71,7 +71,7 @@ def _is_order_resolved(order: Order) -> bool:
         raw = order.raw_data or {}
         shipping_type = str(raw.get("ShippingProviderType", "")).lower()
         if shipping_type in ("regular", "crossdocking"):
-            return order.status == "shipped"
+            return order.status in ("shipped", "delivered")
         else:  # falaflex: seller delivers to customer
             return order.status == "delivered"
 
@@ -143,6 +143,13 @@ class SyncService:
                 self._cleanup_resolved(source, fetched_ids)
             except Exception as cleanup_err:
                 logger.error(f"[{source}] Cleanup error (sync continues): {cleanup_err}")
+
+            # For ML: re-check archived CE orders that may now be delivered
+            if source == "mercadolibre":
+                try:
+                    await self._refresh_delivered_ml_orders()
+                except Exception as e:
+                    logger.error(f"[mercadolibre] Delivered refresh error (sync continues): {e}")
 
             status = SyncStatus.SUCCESS
         except IntegrationError as e:
@@ -233,3 +240,44 @@ class SyncService:
             logger.info(
                 f"[{source}] Removed {len(late)} late + {len(on_time)} on-time orders"
             )
+
+    async def _refresh_delivered_ml_orders(self) -> None:
+        """Re-fetch shipment status for ML CE orders archived as 'shipped'.
+
+        ML Centro de Envíos orders are archived when we hand the package to ML
+        (shipment.status = 'shipped'). Later, ML delivers to the customer
+        (status = 'delivered'). Since the ML mapper skips delivered orders, we
+        need to explicitly re-check these archived orders every sync cycle.
+        """
+        from integrations.mercadolibre.client import MercadoLibreClient
+        ml_client = self.integrations.get("mercadolibre")
+        if not isinstance(ml_client, MercadoLibreClient):
+            return
+
+        rows = self.delayed_repo.get_shipped_historical("mercadolibre")
+        if not rows:
+            return
+
+        updated = 0
+        for row in rows:
+            raw_data = row.get("raw_data") or {}
+            shipment_id = (raw_data.get("shipment") or {}).get("id")
+            if not shipment_id:
+                continue
+            shipment = await ml_client.get_shipment_status(shipment_id)
+            if not shipment or shipment.get("status") != "delivered":
+                continue
+            status_history = shipment.get("status_history") or {}
+            delivered_str = status_history.get("date_delivered")
+            from datetime import timezone
+            delivered_at = (
+                parse_ml_datetime(delivered_str)
+                if delivered_str
+                else datetime.now(timezone.utc)
+            )
+            if delivered_at:
+                self.delayed_repo.mark_delivered(row["id"], delivered_at)
+                updated += 1
+
+        if updated:
+            logger.info(f"[mercadolibre] Updated {updated} CE orders to delivered")

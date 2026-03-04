@@ -149,6 +149,25 @@ class DelayedOrderRepository:
         result = query.execute()
         return sorted({r["commune"] for r in (result.data or []) if r.get("commune")})
 
+    def get_shipped_historical(self, source: str) -> list[dict]:
+        """Return archived orders with status='shipped' and no delivered_at yet."""
+        result = (
+            self.db.table(self.table)
+            .select("id,raw_data")
+            .eq("source", source)
+            .eq("status", "shipped")
+            .is_("delivered_at", "null")
+            .execute()
+        )
+        return result.data or []
+
+    def mark_delivered(self, record_id: str, delivered_at: datetime) -> None:
+        """Update a historical order's status and delivered_at once delivery is confirmed."""
+        self.db.table(self.table).update({
+            "status": "delivered",
+            "delivered_at": delivered_at.isoformat(),
+        }).eq("id", record_id).execute()
+
     def refresh_missing_comprobantes(self) -> int:
         """Fetch and save comprobantes for Flex/Direct orders (ML and Falabella) missing one."""
         result = (

@@ -61,6 +61,11 @@ class MercadoLibreClient(BaseIntegration):
             logger.error(f"Error renovando ML access_token: {e}")
             return False
 
+    async def get_shipment_status(self, shipment_id: int) -> dict | None:
+        """Fetch current shipment status for an archived order (uses existing auth token)."""
+        async with httpx.AsyncClient(timeout=30.0) as client:
+            return await self._get_shipment_detail(client, shipment_id)
+
     async def _get_shipment_detail(self, client: httpx.AsyncClient, shipment_id: int) -> dict | None:
         """Fetch /shipments/{id} to get logistic_type and estimated delivery."""
         try:
