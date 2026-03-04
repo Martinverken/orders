@@ -49,13 +49,19 @@ def _get_delivery_date(order: Order) -> datetime | None:
         if logistic_type == "self_service":
             raw_date = status_history.get("date_delivered")
         else:
-            # xd_drop_off: el vendedor suelta el paquete en un punto (dropped_off).
-            # date_shipped es cuando el hub de ML procesa, no cuando el vendedor actuó.
+            # CE orders: usar la fecha más temprana que representa acción del vendedor.
+            # xd_drop_off → dropped_off substatus (vendedor suelta en punto ML)
+            # cross_docking → date_ready_to_ship (vendedor dejó listo; date_shipped = carrier recoge, fuera del control del vendedor)
             substatus_history = shipment.get("substatus_history") or []
-            raw_date = next(
+            dropped_off_date = next(
                 (e.get("date") for e in substatus_history if e.get("substatus") == "dropped_off"),
                 None,
-            ) or status_history.get("date_shipped")
+            )
+            raw_date = (
+                dropped_off_date
+                or status_history.get("date_ready_to_ship")
+                or status_history.get("date_shipped")
+            )
         return parse_ml_datetime(raw_date) if isinstance(raw_date, str) else None
 
     return None

@@ -249,6 +249,15 @@ export function getShippingDestination(raw_data?: Record<string, unknown>): Ship
   return { city: null, comuna: null };
 }
 
+export function getCreatedAt(raw_data?: Record<string, unknown>): string | null {
+  // Falabella
+  if (raw_data?.CreatedAt) return String(raw_data.CreatedAt);
+  // ML: nested in order object
+  const mlOrder = raw_data?.order as Record<string, unknown> | undefined;
+  if (mlOrder?.date_created) return String(mlOrder.date_created);
+  return null;
+}
+
 /** Formats delivery deadline as DD/MM/YYYY HH:mm in Santiago timezone. */
 export function formatDeadline(isoString: string | null, _source?: string): string {
   if (!isoString) return "—";

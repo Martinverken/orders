@@ -1,5 +1,5 @@
 import { HistoricalOrder } from "@/app/types";
-import { SOURCE_LABEL, formatDeadline, getCarrier, getOrderNumber, getProductDetails, getShippingDestination, getTrackingCode, getTrackingUrl } from "@/app/lib/utils";
+import { SOURCE_LABEL, formatDeadline, getCarrier, getCreatedAt, getOrderNumber, getProductDetails, getShippingDestination, getTrackingCode, getTrackingUrl } from "@/app/lib/utils";
 
 interface Props {
   orders: HistoricalOrder[];
@@ -68,6 +68,7 @@ export function HistoricalOrdersTable({ orders }: Props) {
             <th className="pb-3 pr-4 font-medium">Fuente</th>
             <th className="pb-3 pr-4 font-medium">Estado</th>
             <th className="pb-3 pr-4 font-medium">Resultado</th>
+            <th className="pb-3 pr-4 font-medium">Fecha Orden</th>
             <th className="pb-3 pr-4 font-medium">Fecha límite</th>
             <th className="pb-3 pr-4 font-medium">Fecha entrega</th>
             <th className="pb-3 pr-4 font-medium">Retraso</th>
@@ -114,6 +115,9 @@ export function HistoricalOrdersTable({ orders }: Props) {
                 </td>
                 <td className="py-3 pr-4">
                   <HistoricalUrgencyBadge daysDelayed={order.days_delayed} />
+                </td>
+                <td className="py-3 pr-4 text-gray-600 whitespace-nowrap text-sm">
+                  {formatDeadline(getCreatedAt(order.raw_data))}
                 </td>
                 <td className="py-3 pr-4 text-gray-600 whitespace-nowrap text-sm">
                   {formatDeadline(order.limit_delivery_date)}
