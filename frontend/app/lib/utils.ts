@@ -56,6 +56,7 @@ export const URGENCY_CLASSES: Record<OrderUrgency, string> = {
 export const SOURCE_LABEL: Record<string, string> = {
   falabella: "Falabella",
   mercadolibre: "Mercado Libre",
+  shopify: "Shopify",
 };
 
 export const STATUS_LABEL: Record<string, string> = {
@@ -103,6 +104,9 @@ const SHIPPING_PROVIDER_TYPE_LABEL: Record<string, string> = {
 export function getCarrier(raw_data?: Record<string, unknown>): string {
   if (!raw_data) return "";
 
+  // Shopify: always Welivery
+  if (raw_data.financial_status !== undefined && raw_data.line_items !== undefined) return "Welivery";
+
   // ML: delivery_mode computed by mapper ("Flex" | "Centro de Envíos" | ...)
   if (raw_data.delivery_mode) return String(raw_data.delivery_mode);
 
@@ -138,6 +142,8 @@ export function getCarrier(raw_data?: Record<string, unknown>): string {
 }
 
 export function getOrderNumber(raw_data?: Record<string, unknown>, fallback?: string): string {
+  // Shopify: order name e.g. "#1234"
+  if (raw_data?.name && raw_data?.financial_status !== undefined) return String(raw_data.name);
   // Falabella
   if (raw_data?.OrderNumber) return String(raw_data.OrderNumber);
   // ML: pack_id (top-level helper stored by mapper)
@@ -150,6 +156,12 @@ export function getOrderNumber(raw_data?: Record<string, unknown>, fallback?: st
 
 export function getTrackingUrl(raw_data?: Record<string, unknown>, tracking?: string): string | null {
   if (!raw_data || !tracking) return null;
+
+  // Shopify: Welivery tracking URL using order number
+  if (raw_data.financial_status !== undefined && raw_data.name) {
+    return `https://welivery.cl/tracking/index.php?wid=${tracking}`;
+  }
+
   const spt = ((raw_data.ShippingProviderType as string) || "").toLowerCase();
   const deliveryMode = ((raw_data.delivery_mode as string) || "").toLowerCase();
 
@@ -170,6 +182,10 @@ export function getTrackingUrl(raw_data?: Record<string, unknown>, tracking?: st
 
 export function getTrackingCode(raw_data?: Record<string, unknown>): string {
   if (!raw_data) return "";
+  // Shopify: order name without "#" is the Welivery reference
+  if (raw_data.financial_status !== undefined && raw_data.name) {
+    return String(raw_data.name).replace(/^#/, "");
+  }
   // Falabella
   if (raw_data.TrackingCode) return String(raw_data.TrackingCode);
   if (raw_data.tracking_code) return String(raw_data.tracking_code);
@@ -219,6 +235,15 @@ export interface ShippingDestination {
 export function getShippingDestination(raw_data?: Record<string, unknown>): ShippingDestination {
   if (!raw_data) return { city: null, comuna: null };
 
+  // Shopify: shipping_address.city + province
+  if (raw_data.shipping_address) {
+    const addr = raw_data.shipping_address as Record<string, unknown>;
+    return {
+      city: addr.city ? String(addr.city) : null,
+      comuna: addr.province ? String(addr.province) : null,
+    };
+  }
+
   // Falabella: AddressShipping.City + AddressShipping.Ward ("CIUDAD - COMUNA")
   const addrShipping = raw_data.AddressShipping as Record<string, unknown> | undefined;
   if (addrShipping) {
@@ -252,6 +277,8 @@ export function getShippingDestination(raw_data?: Record<string, unknown>): Ship
 }
 
 export function getCreatedAt(raw_data?: Record<string, unknown>): string | null {
+  // Shopify
+  if (raw_data?.financial_status !== undefined && raw_data?.created_at) return String(raw_data.created_at);
   // Falabella
   if (raw_data?.CreatedAt) return String(raw_data.CreatedAt);
   // ML: nested in order object

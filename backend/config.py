@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     daily_sync_minute: int = 0
     scheduler_timezone: str = "America/Santiago"
 
+    # Shopify
+    shopify_store_url: str = ""       # e.g. "mystore.myshopify.com"
+    shopify_access_token: str = ""    # Admin API token (scope: read_orders)
+
     # CORS
     allowed_origins: str = "http://localhost:3000"
 

@@ -8,6 +8,7 @@ from integrations.falabella.client import FalabellaClient
 from integrations.falabella.mapper import parse_falabella_datetime
 from integrations.mercadolibre.client import MercadoLibreClient
 from integrations.mercadolibre.mapper import parse_ml_datetime
+from integrations.shopify.client import ShopifyClient
 from repositories.order_repository import OrderRepository
 from repositories.sync_log_repository import SyncLogRepository
 from repositories.delayed_order_repository import DelayedOrderRepository
@@ -29,6 +30,10 @@ def _get_delivery_date(order: Order) -> datetime | None:
     ML CE (xd_drop_off): substatus_history[dropped_off].date → acción del vendedor
     ML CE (otros): shipment.status_history.date_shipped
     """
+    if order.source == "shopify":
+        # DB trigger captures first transition to "delivered" (Welivery COMPLETADO)
+        return order.first_delivered_at or order.first_shipped_at or None
+
     if order.source == "falabella":
         # DB trigger captures first 'shipped' (Regular) and first 'delivered' (Direct) timestamps
         # immutably — prevents later UpdatedAt changes from affecting classification.
@@ -98,6 +103,9 @@ def _is_order_resolved(order: Order) -> bool:
         else:  # falaflex: seller delivers to customer
             return order.status == "delivered"
 
+    if order.source == "shopify":
+        return order.status == "delivered"
+
     if order.source == "mercadolibre":
         raw = order.raw_data or {}
         shipment = raw.get("shipment") or {}
@@ -128,6 +136,10 @@ class SyncService:
             "falabella": FalabellaClient(),
             "mercadolibre": MercadoLibreClient(),
         }
+        try:
+            self.integrations["shopify"] = ShopifyClient()
+        except IntegrationError as e:
+            logger.info(f"Shopify integration not configured: {e}")
 
     async def run_full_sync(self) -> list[SyncResult]:
         results = []
@@ -248,6 +260,9 @@ class SyncService:
                 # Estado terminal alcanzado — comparar fecha real de envío/entrega vs plazo
                 if order.source == "falabella":
                     was_late = _falabella_was_late(order)
+                elif order.source == "shopify":
+                    date_val = _get_delivery_date(order)
+                    was_late = date_val > order.limit_delivery_date if date_val else past_deadline
                 else:
                     was_late = _ml_was_late(order)
                 if was_late:

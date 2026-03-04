@@ -30,12 +30,14 @@ function pct(part: number, total: number): string {
 }
 
 function SourceBadge({ source }: { source: string }) {
+  const cls =
+    source === "falabella"
+      ? "bg-orange-100 text-orange-700"
+      : source === "shopify"
+      ? "bg-green-100 text-green-700"
+      : "bg-yellow-100 text-yellow-700";
   return (
-    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${
-      source === "falabella"
-        ? "bg-orange-100 text-orange-700"
-        : "bg-yellow-100 text-yellow-700"
-    }`}>
+    <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${cls}`}>
       {SOURCE_LABEL[source] ?? source}
     </span>
   );

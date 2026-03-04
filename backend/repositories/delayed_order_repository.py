@@ -19,9 +19,11 @@ def _extract_logistics_operator(order: Order) -> str | None:
 
 
 def _should_fetch_comprobante(order: Order) -> bool:
-    """ML Flex and Falabella Direct orders are handled by Welivery."""
+    """ML Flex, Falabella Direct, and all Shopify orders are handled by Welivery."""
     if not order.raw_data:
         return False
+    if order.source == "shopify":
+        return True
     if order.source == "mercadolibre":
         return order.raw_data.get("delivery_mode") == "Flex"
     if order.source == "falabella":
@@ -33,6 +35,9 @@ def _get_welivery_id(order: Order) -> str | None:
     """Construct the Welivery reference ID based on source."""
     if not order.raw_data:
         return None
+    if order.source == "shopify":
+        name = str(order.raw_data.get("name", "")).lstrip("#")
+        return name or None
     if order.source == "mercadolibre":
         tracking = order.raw_data.get("tracking_number")
         return str(tracking) if tracking else None
