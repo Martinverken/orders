@@ -1,6 +1,6 @@
 from models.order import OrderCreate
 from integrations.mercadolibre.schemas import MLOrder, MLShipmentDetail
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from zoneinfo import ZoneInfo
 import logging
 
@@ -74,24 +74,15 @@ def resolve_delivery_deadline(
 
     opt = shipment.shipping_option if isinstance(shipment.shipping_option, dict) else None
 
-    # Centro de Envíos: date_handling + handling_hours = label deadline
-    if not is_flex and shipment_raw:
-        status_history = shipment_raw.get("status_history") or {}
-        date_handling_str = status_history.get("date_handling")
-        if date_handling_str:
-            dt_handling = parse_ml_datetime(date_handling_str)
-            if dt_handling:
-                handling_hours = None
-                if opt:
-                    edt_inner = opt.get("estimated_delivery_time")
-                    if isinstance(edt_inner, dict):
-                        handling_hours = edt_inner.get("handling")
-                if handling_hours is not None:
-                    try:
-                        return dt_handling + timedelta(hours=float(handling_hours))
-                    except (TypeError, ValueError):
-                        pass
-                return dt_handling
+    # CE: pay_before inside estimated_delivery_time = exact label deadline ("Despachar antes de")
+    if not is_flex and opt:
+        edt_inner = opt.get("estimated_delivery_time")
+        if isinstance(edt_inner, dict):
+            pay_before_str = edt_inner.get("pay_before")
+            if pay_before_str:
+                dt = parse_ml_datetime(pay_before_str)
+                if dt:
+                    return dt
 
     # Flex: estimated_delivery_limit.date; also fallback for CE when status_history absent
     if opt:

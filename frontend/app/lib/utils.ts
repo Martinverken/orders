@@ -236,9 +236,13 @@ export function getShippingDestination(raw_data?: Record<string, unknown>): Ship
   if (addr) {
     const cityObj = addr.city as Record<string, unknown> | undefined;
     const neighborhoodObj = addr.neighborhood as Record<string, unknown> | undefined;
-    const city = cityObj?.name ? String(cityObj.name) : null;
+    const stateObj = addr.state as Record<string, unknown> | undefined;
+    const cityName = cityObj?.name ? String(cityObj.name) : null;
+    const stateId = stateObj?.id ? String(stateObj.id) : null;
+    // CL-RM = Región Metropolitana: city.name is the commune, not the city
+    const city = stateId === "CL-RM" ? "Santiago" : cityName;
     const rawComuna = neighborhoodObj?.name ? String(neighborhoodObj.name) : null;
-    const comuna = rawComuna || city;
+    const comuna = rawComuna || cityName;
     return { city, comuna };
   }
 
