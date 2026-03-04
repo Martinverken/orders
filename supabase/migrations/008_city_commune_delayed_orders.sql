@@ -1,0 +1,2 @@
+ALTER TABLE delayed_orders ADD COLUMN IF NOT EXISTS city TEXT;
+ALTER TABLE delayed_orders ADD COLUMN IF NOT EXISTS commune TEXT;

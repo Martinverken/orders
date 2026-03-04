@@ -1,6 +1,8 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
+import { useState, useEffect } from "react";
+import { getDistinctHistoricalCommunes } from "@/app/lib/api";
 import { MultiSelectDropdown } from "@/app/components/ui/MultiSelectDropdown";
 
 const SOURCES = [
@@ -23,9 +25,17 @@ const LOGISTICS_OPERATORS = [
   { value: "regular - chilexpress", label: "Chilexpress" },
 ];
 
-export function HistoricalFilterBar() {
+export function HistoricalFilterBar({ cities = [] }: { cities?: string[] }) {
   const router = useRouter();
   const params = useSearchParams();
+  const [communes, setCommunes] = useState<string[]>([]);
+
+  const currentCity = params.get("h_city") || "";
+  useEffect(() => {
+    getDistinctHistoricalCommunes(currentCity || undefined)
+      .then(setCommunes)
+      .catch(() => setCommunes([]));
+  }, [currentCity]);
 
   function update(key: string, value: string) {
     const next = new URLSearchParams(params.toString());
@@ -40,17 +50,18 @@ export function HistoricalFilterBar() {
 
   function clearAll() {
     const next = new URLSearchParams(params.toString());
-    next.delete("h_source");
-    next.delete("h_urgency");
-    next.delete("h_logistics_operator");
-    next.delete("h_page");
+    ["h_source", "h_urgency", "h_logistics_operator", "h_city", "h_commune", "h_page"].forEach(
+      (k) => next.delete(k)
+    );
     router.push(`/dashboard?${next.toString()}`);
   }
 
   const hasFilters =
     params.get("h_source") ||
     params.get("h_urgency") ||
-    params.get("h_logistics_operator");
+    params.get("h_logistics_operator") ||
+    params.get("h_city") ||
+    params.get("h_commune");
 
   return (
     <div className="flex flex-wrap gap-3 items-center">
@@ -81,6 +92,30 @@ export function HistoricalFilterBar() {
         params={params}
         onUpdate={update}
       />
+
+      {cities.length > 0 && (
+        <select
+          value={params.get("h_city") || ""}
+          onChange={(e) => update("h_city", e.target.value)}
+          className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+        >
+          <option value="">Todas las ciudades</option>
+          {cities.map((c) => (
+            <option key={c} value={c}>{c}</option>
+          ))}
+        </select>
+      )}
+
+      <select
+        value={params.get("h_commune") || ""}
+        onChange={(e) => update("h_commune", e.target.value)}
+        className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      >
+        <option value="">Todas las comunas</option>
+        {communes.map((c) => (
+          <option key={c} value={c}>{c}</option>
+        ))}
+      </select>
 
       {hasFilters && (
         <button

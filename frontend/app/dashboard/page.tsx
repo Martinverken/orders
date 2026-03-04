@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { getDashboardSummary, getDelayMetrics, getDistinctCities, getHistoricalOrders, getOrders, getSyncStatus } from "@/app/lib/api";
+import { getDashboardSummary, getDelayMetrics, getDistinctCities, getDistinctHistoricalCities, getHistoricalOrders, getOrders, getSyncStatus } from "@/app/lib/api";
 import { SummaryCards } from "@/app/components/dashboard/SummaryCards";
 import { OrdersTable } from "@/app/components/dashboard/OrdersTable";
 import { SyncStatus } from "@/app/components/dashboard/SyncStatus";
@@ -23,6 +23,8 @@ interface PageProps {
     h_source?: string;
     h_urgency?: string;
     h_logistics_operator?: string;
+    h_city?: string;
+    h_commune?: string;
     h_page?: string;
     // Tab
     tab?: string;
@@ -59,7 +61,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   };
 
   let summary = null, ordersPage = null, cities: string[] = [];
-  let historicalPage = null;
+  let historicalPage = null, historicalCities: string[] = [];
   let delayMetrics = null;
 
   if (tab === "pedidos") {
@@ -71,13 +73,18 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     ]);
   } else if (tab === "historial") {
     const hPage = Number(params.h_page || 1);
-    historicalPage = await getHistoricalOrders({
-      source: params.h_source,
-      urgency: params.h_urgency,
-      logistics_operator: params.h_logistics_operator,
-      page: hPage,
-      per_page: 25,
-    });
+    [historicalPage, historicalCities] = await Promise.all([
+      getHistoricalOrders({
+        source: params.h_source,
+        urgency: params.h_urgency,
+        logistics_operator: params.h_logistics_operator,
+        city: params.h_city,
+        commune: params.h_commune,
+        page: hPage,
+        per_page: 25,
+      }),
+      getDistinctHistoricalCities(),
+    ]);
   } else {
     delayMetrics = await getDelayMetrics();
   }
@@ -97,6 +104,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     h_source: params.h_source,
     h_urgency: params.h_urgency,
     h_logistics_operator: params.h_logistics_operator,
+    h_city: params.h_city,
+    h_commune: params.h_commune,
   };
 
   return (
@@ -202,7 +211,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                 Pedidos históricos ({historicalPage.total})
               </h2>
               <Suspense fallback={null}>
-                <HistoricalFilterBar />
+                <HistoricalFilterBar cities={historicalCities} />
               </Suspense>
             </div>
 

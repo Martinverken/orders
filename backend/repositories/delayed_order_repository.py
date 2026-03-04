@@ -3,6 +3,7 @@ from collections import defaultdict
 from datetime import datetime
 from database import get_supabase
 from models.order import Order, DelayedOrder, DelayMetric, HistoricalOrder, OnTimeMetric
+from repositories.order_repository import _extract_city_commune
 
 
 def _extract_logistics_operator(order: Order) -> str | None:
@@ -48,6 +49,7 @@ class DelayedOrderRepository:
                 "logistics_operator": _extract_logistics_operator(o),
                 "urgency": o.urgency.value if o.urgency else None,
                 "raw_data": o.raw_data,
+                **dict(zip(["city", "commune"], _extract_city_commune(o.source, o.raw_data or {}))),
             }
             for o in orders
         ]
@@ -63,6 +65,8 @@ class DelayedOrderRepository:
         source: str | None = None,
         was_delayed: bool | None = None,
         logistics_operator: str | None = None,
+        city: str | None = None,
+        commune: str | None = None,
         page: int = 1,
         per_page: int = 25,
     ) -> dict:
@@ -79,6 +83,10 @@ class DelayedOrderRepository:
                 query = query.in_("logistics_operator", parts)
             elif parts:
                 query = query.eq("logistics_operator", parts[0])
+        if city:
+            query = query.eq("city", city)
+        if commune:
+            query = query.eq("commune", commune)
         offset = (page - 1) * per_page
         result = query.order("resolved_at", desc=True).range(offset, offset + per_page - 1).execute()
         total = result.count or 0
@@ -90,6 +98,21 @@ class DelayedOrderRepository:
             "per_page": per_page,
             "pages": math.ceil(total / per_page) if per_page > 0 else 0,
         }
+
+    def get_distinct_cities(self) -> list[str]:
+        result = self.db.table(self.table).select("city").execute()
+        cities = sorted({r["city"] for r in (result.data or []) if r.get("city")})
+        if "Santiago" in cities:
+            cities.remove("Santiago")
+            cities.insert(0, "Santiago")
+        return cities
+
+    def get_distinct_communes(self, city: str | None = None) -> list[str]:
+        query = self.db.table(self.table).select("commune")
+        if city:
+            query = query.eq("city", city)
+        result = query.execute()
+        return sorted({r["commune"] for r in (result.data or []) if r.get("commune")})
 
     def get_monthly_metrics(self) -> list[DelayMetric]:
         """Return delay counts and avg days delayed grouped by month, source and logistics operator."""
