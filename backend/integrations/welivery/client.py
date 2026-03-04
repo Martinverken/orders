@@ -20,10 +20,7 @@ def get_comprobante(order_id: str) -> str | None:
             resp = client.get(
                 url,
                 params={"Id": order_id},
-                headers={
-                    "X-Api-Key": WELIVERY_API_KEY,
-                    "X-Api-Secret": WELIVERY_API_SECRET,
-                },
+                auth=(WELIVERY_API_KEY, WELIVERY_API_SECRET),
             )
             resp.raise_for_status()
             data = resp.json()
