@@ -36,7 +36,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     getDashboardSummary(),
     getOrders({
       source: params.source,
-      urgency: params.urgency || "active",
+      urgency: params.urgency || undefined,
       status: params.status,
       page,
       per_page: 25,
