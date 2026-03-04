@@ -18,17 +18,32 @@ def _extract_logistics_operator(order: Order) -> str | None:
     return None
 
 
-def _is_flex(order: Order) -> bool:
-    return bool(order.raw_data) and order.raw_data.get("delivery_mode") == "Flex"
+def _should_fetch_comprobante(order: Order) -> bool:
+    """ML Flex and Falabella Direct orders are handled by Welivery."""
+    if not order.raw_data:
+        return False
+    if order.source == "mercadolibre":
+        return order.raw_data.get("delivery_mode") == "Flex"
+    if order.source == "falabella":
+        return (order.raw_data.get("ShippingProviderType") or "").lower() != "regular"
+    return False
 
 
-def _get_welivery_id(order: Order) -> str:
-    """Return the ID to use when querying Welivery: pack_id if available, else external_id."""
-    if order.raw_data:
+def _get_welivery_id(order: Order) -> str | None:
+    """Construct the Welivery reference ID based on source."""
+    if not order.raw_data:
+        return None
+    if order.source == "mercadolibre":
         pack_id = order.raw_data.get("pack_id")
-        if pack_id:
-            return str(pack_id)
-    return order.external_id
+        return str(pack_id) if pack_id else order.external_id
+    if order.source == "falabella":
+        order_number = order.raw_data.get("OrderNumber")
+        tracking = order.raw_data.get("TrackingCode")
+        items = order.raw_data.get("_items") or []
+        package_id = items[0].get("PackageId") if items else None
+        if order_number and package_id and tracking:
+            return f"{order_number}-{package_id}-{tracking}"
+    return None
 
 
 class DelayedOrderRepository:
@@ -62,10 +77,11 @@ class DelayedOrderRepository:
                 ),
                 "logistics_operator": _extract_logistics_operator(o),
                 "urgency": o.urgency.value if o.urgency else None,
+                "status": o.status,
                 "raw_data": o.raw_data,
                 "comprobante": (
-                    get_comprobante(_get_welivery_id(o))
-                    if o.source == "mercadolibre" and _is_flex(o)
+                    get_comprobante(welivery_id)
+                    if _should_fetch_comprobante(o) and (welivery_id := _get_welivery_id(o))
                     else None
                 ),
                 **dict(zip(["city", "commune"], _extract_city_commune(o.source, o.raw_data or {}))),
@@ -134,12 +150,10 @@ class DelayedOrderRepository:
         return sorted({r["commune"] for r in (result.data or []) if r.get("commune")})
 
     def refresh_missing_comprobantes(self) -> int:
-        """Fetch and save comprobantes for Flex ML orders that don't have one yet."""
+        """Fetch and save comprobantes for Flex/Direct orders (ML and Falabella) missing one."""
         result = (
             self.db.table(self.table)
-            .select("id,external_id,source,raw_data")
-            .eq("source", "mercadolibre")
-            .eq("logistics_operator", "Flex")
+            .select("id,external_id,source,raw_data,logistics_operator")
             .is_("comprobante", "null")
             .execute()
         )
@@ -147,9 +161,20 @@ class DelayedOrderRepository:
         updated = 0
         for row in rows:
             raw_data = row.get("raw_data") or {}
-            pack_id = raw_data.get("pack_id")
-            order_id = str(pack_id) if pack_id else row["external_id"]
-            comprobante = get_comprobante(order_id)
+            source = row.get("source", "")
+            # Build a minimal Order-like object for the helpers
+            from types import SimpleNamespace
+            o = SimpleNamespace(
+                external_id=row["external_id"],
+                source=source,
+                raw_data=raw_data,
+            )
+            if not _should_fetch_comprobante(o):
+                continue
+            welivery_id = _get_welivery_id(o)
+            if not welivery_id:
+                continue
+            comprobante = get_comprobante(welivery_id)
             if comprobante:
                 self.db.table(self.table).update({"comprobante": comprobante}).eq("id", row["id"]).execute()
                 updated += 1

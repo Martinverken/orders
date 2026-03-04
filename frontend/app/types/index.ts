@@ -83,6 +83,7 @@ export interface HistoricalOrder {
   days_delayed: number;
   logistics_operator?: string | null;
   urgency?: string | null;
+  status?: string | null;
   raw_data?: Record<string, unknown>;
   comprobante?: string | null;
 }

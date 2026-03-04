@@ -111,6 +111,7 @@ class HistoricalOrder(BaseModel):
     days_delayed: float
     logistics_operator: Optional[str] = None
     urgency: Optional[str] = None
+    status: Optional[str] = None
     raw_data: Optional[dict[str, Any]] = None
     comprobante: Optional[str] = None
 

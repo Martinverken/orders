@@ -5,6 +5,33 @@ interface Props {
   orders: HistoricalOrder[];
 }
 
+const STATUS_LABEL: Record<string, string> = {
+  delivered: "Entregado",
+  shipped: "Despachado",
+  ready_to_ship: "Listo para envío",
+  pending: "Pendiente",
+  cancelled: "Cancelado",
+};
+
+const STATUS_COLOR: Record<string, string> = {
+  delivered: "bg-green-100 text-green-700",
+  shipped: "bg-blue-100 text-blue-700",
+  ready_to_ship: "bg-yellow-100 text-yellow-700",
+  pending: "bg-gray-100 text-gray-600",
+  cancelled: "bg-red-100 text-red-700",
+};
+
+function StatusBadge({ status }: { status?: string | null }) {
+  if (!status) return <span className="text-gray-400">—</span>;
+  const label = STATUS_LABEL[status] ?? status;
+  const color = STATUS_COLOR[status] ?? "bg-gray-100 text-gray-600";
+  return (
+    <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${color}`}>
+      {label}
+    </span>
+  );
+}
+
 function HistoricalUrgencyBadge({ daysDelayed }: { daysDelayed: number }) {
   if (daysDelayed > 0) {
     return (
@@ -39,6 +66,7 @@ export function HistoricalOrdersTable({ orders }: Props) {
             <th className="pb-3 pr-4 font-medium">Order N°</th>
             <th className="pb-3 pr-4 font-medium">Producto</th>
             <th className="pb-3 pr-4 font-medium">Fuente</th>
+            <th className="pb-3 pr-4 font-medium">Estado</th>
             <th className="pb-3 pr-4 font-medium">Resultado</th>
             <th className="pb-3 pr-4 font-medium">Fecha límite</th>
             <th className="pb-3 pr-4 font-medium">Fecha entrega</th>
@@ -80,6 +108,9 @@ export function HistoricalOrdersTable({ orders }: Props) {
                 </td>
                 <td className="py-3 pr-4 text-gray-600">
                   {SOURCE_LABEL[order.source] || order.source}
+                </td>
+                <td className="py-3 pr-4">
+                  <StatusBadge status={order.status} />
                 </td>
                 <td className="py-3 pr-4">
                   <HistoricalUrgencyBadge daysDelayed={order.days_delayed} />

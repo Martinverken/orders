@@ -1,0 +1,1 @@
+ALTER TABLE delayed_orders ADD COLUMN IF NOT EXISTS status TEXT;
