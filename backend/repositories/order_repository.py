@@ -19,6 +19,36 @@ def _extract_logistics_operator(source: str, raw_data: dict) -> str | None:
     return spt or None
 
 
+def _extract_city_commune(source: str, raw_data: dict) -> tuple[str | None, str | None]:
+    if source == "falabella":
+        addr = raw_data.get("AddressShipping") or {}
+        city = addr.get("City") or None
+        ward = str(addr.get("Ward") or "")
+        parts = ward.split(" - ")
+        commune = parts[-1].strip() if len(parts) > 1 else (ward.strip() or None)
+        return city, commune
+    if source == "mercadolibre":
+        shipment = raw_data.get("shipment") or {}
+        addr = shipment.get("receiver_address") or {}
+        city_obj = addr.get("city") or {}
+        neigh_obj = addr.get("neighborhood") or {}
+        state_obj = addr.get("state") or {}
+        city_name = city_obj.get("name") or None
+        state_id = str(state_obj.get("id") or "")
+        city = "Santiago" if state_id == "CL-RM" else city_name
+        commune = neigh_obj.get("name") or city_name
+        return city, commune
+    return None, None
+
+
+def _split_filter(value: str | None) -> list[str] | None:
+    """Parse comma-separated filter value into a list for .in_() queries."""
+    if not value:
+        return None
+    parts = [v.strip() for v in value.split(",") if v.strip()]
+    return parts if parts else None
+
+
 def _today_iso() -> str:
     return _today_santiago().isoformat()
 
@@ -39,8 +69,10 @@ class OrderRepository:
     def upsert_batch(self, orders: list[OrderCreate]) -> int:
         if not orders:
             return 0
-        records = [
-            {
+        records = []
+        for o in orders:
+            city, commune = _extract_city_commune(o.source, o.raw_data or {})
+            records.append({
                 "external_id": o.external_id,
                 "source": o.source,
                 "status": o.status,
@@ -51,10 +83,10 @@ class OrderRepository:
                 "product_name": o.product_name,
                 "product_quantity": o.product_quantity,
                 "logistics_operator": _extract_logistics_operator(o.source, o.raw_data or {}),
+                "city": city,
+                "commune": commune,
                 "raw_data": o.raw_data,
-            }
-            for o in orders
-        ]
+            })
         result = (
             self.db.table(self.table)
             .upsert(records, on_conflict="external_id,source")
@@ -120,32 +152,45 @@ class OrderRepository:
         urgency: Optional[str] = None,
         product_name: Optional[str] = None,
         logistics_operator: Optional[str] = None,
+        city: Optional[str] = None,
+        commune: Optional[str] = None,
         page: int = 1,
         per_page: int = 20,
     ) -> OrdersPage:
         query = self.db.table(self.table).select("*", count="exact")
         if source:
             query = query.eq("source", source)
-        if status:
-            query = query.eq("status", status)
+        status_parts = _split_filter(status)
+        if status_parts:
+            query = query.in_("status", status_parts)
         if product_name:
             query = query.ilike("product_name", f"%{product_name}%")
-        if logistics_operator:
-            query = query.eq("logistics_operator", logistics_operator)
-        # Translate urgency filter to date + status constraints
-        if urgency == OrderUrgency.OVERDUE:
-            query = query.in_("status", _PENDING_LIKE).lt("limit_delivery_date", _today_iso())
-        elif urgency == OrderUrgency.DUE_TODAY:
-            query = query.in_("status", _PENDING_LIKE).gte("limit_delivery_date", _today_iso()).lt("limit_delivery_date", _tomorrow_iso())
-        elif urgency == OrderUrgency.DELIVERED_TODAY:
-            query = query.eq("status", "shipped").gte("limit_delivery_date", _today_iso()).lt("limit_delivery_date", _tomorrow_iso())
-        elif urgency == OrderUrgency.TOMORROW:
-            query = query.in_("status", _PENDING_LIKE).gte("limit_delivery_date", _tomorrow_iso()).lt("limit_delivery_date", _day_after_tomorrow_iso())
-        elif urgency == OrderUrgency.ON_TIME:
-            query = query.gte("limit_delivery_date", _day_after_tomorrow_iso())
-        elif urgency == "active":
-            # overdue + due_today + tomorrow: all pending/ready_to_ship orders due by tomorrow
-            query = query.in_("status", _PENDING_LIKE).lt("limit_delivery_date", _day_after_tomorrow_iso())
+        lo_parts = _split_filter(logistics_operator)
+        if lo_parts:
+            query = query.in_("logistics_operator", lo_parts)
+        if city:
+            query = query.eq("city", city)
+        if commune:
+            query = query.ilike("commune", f"%{commune}%")
+        # Urgency filter
+        urgency_parts = _split_filter(urgency)
+        if urgency_parts and len(urgency_parts) == 1:
+            u = urgency_parts[0]
+            if u == OrderUrgency.OVERDUE:
+                query = query.in_("status", _PENDING_LIKE).lt("limit_delivery_date", _today_iso())
+            elif u == OrderUrgency.DUE_TODAY:
+                query = query.in_("status", _PENDING_LIKE).gte("limit_delivery_date", _today_iso()).lt("limit_delivery_date", _tomorrow_iso())
+            elif u == OrderUrgency.DELIVERED_TODAY:
+                query = query.eq("status", "shipped").gte("limit_delivery_date", _today_iso()).lt("limit_delivery_date", _tomorrow_iso())
+            elif u == OrderUrgency.TOMORROW:
+                query = query.in_("status", _PENDING_LIKE).gte("limit_delivery_date", _tomorrow_iso()).lt("limit_delivery_date", _day_after_tomorrow_iso())
+            elif u == OrderUrgency.ON_TIME:
+                query = query.gte("limit_delivery_date", _day_after_tomorrow_iso())
+            elif u == "active":
+                query = query.in_("status", _PENDING_LIKE).lt("limit_delivery_date", _day_after_tomorrow_iso())
+        elif urgency_parts:
+            # Multiple urgency values → filter by stored urgency column
+            query = query.in_("urgency", urgency_parts)
 
         offset = (page - 1) * per_page
         result = query.order("limit_delivery_date").range(offset, offset + per_page - 1).execute()
@@ -161,19 +206,28 @@ class OrderRepository:
         urgency: Optional[str] = None,
         product_name: Optional[str] = None,
         logistics_operator: Optional[str] = None,
+        city: Optional[str] = None,
+        commune: Optional[str] = None,
     ) -> dict:
         """Count orders by stored urgency column, respecting active filters."""
         query = self.db.table(self.table).select("urgency")
         if source:
             query = query.eq("source", source)
-        if status:
-            query = query.eq("status", status)
-        if urgency:
-            query = query.eq("urgency", urgency)
+        status_parts = _split_filter(status)
+        if status_parts:
+            query = query.in_("status", status_parts)
+        urgency_parts = _split_filter(urgency)
+        if urgency_parts:
+            query = query.in_("urgency", urgency_parts)
         if product_name:
             query = query.ilike("product_name", f"%{product_name}%")
-        if logistics_operator:
-            query = query.eq("logistics_operator", logistics_operator)
+        lo_parts = _split_filter(logistics_operator)
+        if lo_parts:
+            query = query.in_("logistics_operator", lo_parts)
+        if city:
+            query = query.eq("city", city)
+        if commune:
+            query = query.ilike("commune", f"%{commune}%")
         rows = (query.execute()).data or []
         overdue = due_today = delivered_today = tomorrow_count = on_time = 0
         for r in rows:
@@ -196,6 +250,14 @@ class OrderRepository:
             "tomorrow": tomorrow_count,
             "on_time": on_time,
         }
+
+    def get_distinct_cities(self) -> list[str]:
+        result = self.db.table(self.table).select("city").execute()
+        cities = sorted({r["city"] for r in (result.data or []) if r.get("city")})
+        if "Santiago" in cities:
+            cities.remove("Santiago")
+            cities.insert(0, "Santiago")
+        return cities
 
     def get_by_external_id(self, external_id: str, source: str) -> Optional[Order]:
         result = (

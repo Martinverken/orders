@@ -15,6 +15,8 @@ def get_summary(
     urgency: Optional[str] = Query(None),
     product_name: Optional[str] = Query(None),
     logistics_operator: Optional[str] = Query(None),
+    city: Optional[str] = Query(None),
+    commune: Optional[str] = Query(None),
 ):
     summary = order_service.get_dashboard_summary(
         source=source,
@@ -22,6 +24,8 @@ def get_summary(
         urgency=urgency,
         product_name=product_name,
         logistics_operator=logistics_operator,
+        city=city,
+        commune=commune,
     )
     return {"success": True, "data": summary.model_dump()}
 

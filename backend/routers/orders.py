@@ -7,6 +7,12 @@ router = APIRouter(prefix="/api/orders", tags=["orders"])
 order_repo = OrderRepository()
 
 
+@router.get("/cities", response_model=dict)
+def get_distinct_cities():
+    cities = order_repo.get_distinct_cities()
+    return {"success": True, "data": cities}
+
+
 @router.get("", response_model=OrdersPage)
 def list_orders(
     source: Optional[str] = Query(None, description="falabella | mercadolibre"),
@@ -14,12 +20,15 @@ def list_orders(
     urgency: Optional[str] = Query(None, description="overdue | due_today | delivered_today | tomorrow | on_time"),
     product_name: Optional[str] = Query(None),
     logistics_operator: Optional[str] = Query(None),
+    city: Optional[str] = Query(None),
+    commune: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
 ):
     return order_repo.get_paginated(
         source=source, status=status, urgency=urgency,
         product_name=product_name, logistics_operator=logistics_operator,
+        city=city, commune=commune,
         page=page, per_page=per_page,
     )
 

@@ -20,30 +20,39 @@ interface OrderFilters {
   urgency?: string;
   product_name?: string;
   logistics_operator?: string;
+  city?: string;
+  commune?: string;
+}
+
+function buildFilterQuery(filters: OrderFilters): URLSearchParams {
+  const query = new URLSearchParams();
+  if (filters.source) query.set("source", filters.source);
+  if (filters.status) query.set("status", filters.status);
+  if (filters.urgency) query.set("urgency", filters.urgency);
+  if (filters.product_name) query.set("product_name", filters.product_name);
+  if (filters.logistics_operator) query.set("logistics_operator", filters.logistics_operator);
+  if (filters.city) query.set("city", filters.city);
+  if (filters.commune) query.set("commune", filters.commune);
+  return query;
 }
 
 export async function getDashboardSummary(filters?: OrderFilters): Promise<DashboardSummary> {
-  const query = new URLSearchParams();
-  if (filters?.source) query.set("source", filters.source);
-  if (filters?.status) query.set("status", filters.status);
-  if (filters?.urgency) query.set("urgency", filters.urgency);
-  if (filters?.product_name) query.set("product_name", filters.product_name);
-  if (filters?.logistics_operator) query.set("logistics_operator", filters.logistics_operator);
+  const query = buildFilterQuery(filters || {});
   const qs = query.toString();
   const data = await apiFetch<{ success: boolean; data: DashboardSummary }>(`/api/dashboard/summary${qs ? `?${qs}` : ""}`);
   return data.data;
 }
 
 export async function getOrders(params?: OrderFilters & { page?: number; per_page?: number }): Promise<OrdersPage> {
-  const query = new URLSearchParams();
-  if (params?.source) query.set("source", params.source);
-  if (params?.status) query.set("status", params.status);
-  if (params?.urgency) query.set("urgency", params.urgency);
-  if (params?.product_name) query.set("product_name", params.product_name);
-  if (params?.logistics_operator) query.set("logistics_operator", params.logistics_operator);
+  const query = buildFilterQuery(params || {});
   if (params?.page) query.set("page", String(params.page));
   if (params?.per_page) query.set("per_page", String(params.per_page));
   return apiFetch<OrdersPage>(`/api/orders?${query}`);
+}
+
+export async function getDistinctCities(): Promise<string[]> {
+  const data = await apiFetch<{ success: boolean; data: string[] }>("/api/orders/cities");
+  return data.data;
 }
 
 export async function getOverdueOrders(): Promise<{ data: Order[]; count: number }> {
