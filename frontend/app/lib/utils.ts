@@ -226,7 +226,7 @@ export function getShippingDestination(raw_data?: Record<string, unknown>): Ship
 }
 
 /** Formats delivery deadline using the exact value from the API. */
-export function formatDeadline(isoString: string | null, source?: string): string {
+export function formatDeadline(isoString: string | null, _source?: string): string {
   if (!isoString) return "—";
-  return formatDateRaw(isoString);
+  return formatDate(isoString);
 }
