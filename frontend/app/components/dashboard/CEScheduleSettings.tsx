@@ -13,6 +13,24 @@ const DAYS = [
   { key: "saturday", label: "Sábado" },
 ];
 
+const MONTH_SHORT = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+const DAY_OFFSET: Record<string, number> = { monday:0, tuesday:1, wednesday:2, thursday:3, friday:4, saturday:5 };
+
+function getWeekDates(): Record<string, { date: Date; isPast: boolean }> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dow = today.getDay();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+  const result: Record<string, { date: Date; isPast: boolean }> = {};
+  for (const [key, offset] of Object.entries(DAY_OFFSET)) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + offset);
+    result[key] = { date: d, isPast: d < today };
+  }
+  return result;
+}
+
 interface Props {
   initialSchedule: CESchedule;
 }
@@ -47,8 +65,10 @@ export function CEScheduleSettings({ initialSchedule }: Props) {
     ? new Date(initialSchedule.updated_at).toLocaleString("es-CL", { timeZone: "America/Santiago" })
     : null;
 
+  const weekDates = getWeekDates();
+
   return (
-    <div className="max-w-md">
+    <div className="max-w-lg">
       <p className="text-sm text-gray-500 mb-6">
         Ingresa los horarios de corte del Centro de Envíos en formato 24h (ej: 14:45).
         El horario de venta cierra 6 horas antes del corte.
@@ -58,22 +78,27 @@ export function CEScheduleSettings({ initialSchedule }: Props) {
       </p>
 
       <div className="space-y-3">
-        {DAYS.map((d) => (
+        {DAYS.map((d) => {
+          const { date, isPast } = weekDates[d.key];
+          const dateLabel = `${d.label} ${date.getDate()} ${MONTH_SHORT[date.getMonth()]}`;
+          return (
           <div key={d.key} className="flex items-center gap-4">
-            <span className="w-28 text-sm text-gray-700 font-medium">{d.label}</span>
+            <span className={`w-40 text-sm font-medium ${isPast ? "text-gray-400" : "text-gray-700"}`}>{dateLabel}</span>
             <input
               type="time"
               value={times[d.key]}
               onChange={(e) => setTimes((prev) => ({ ...prev, [d.key]: e.target.value }))}
-              className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+              disabled={isPast}
+              className={`px-3 py-1.5 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${isPast ? "border-gray-100 text-gray-400 cursor-not-allowed" : "border-gray-200 text-gray-900"}`}
             />
-            {times[d.key] && (
+            {times[d.key] && !isPast && (
               <span className="text-xs text-gray-400">
                 Venta cierra a las {subtractHours(times[d.key], 6)}
               </span>
             )}
           </div>
-        ))}
+          );
+        })}
       </div>
 
       <div className="mt-6 flex items-center gap-3">

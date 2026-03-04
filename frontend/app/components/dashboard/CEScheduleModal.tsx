@@ -13,6 +13,24 @@ const DAYS = [
   { key: "saturday", label: "Sábado" },
 ];
 
+const MONTH_SHORT = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+const DAY_OFFSET: Record<string, number> = { monday:0, tuesday:1, wednesday:2, thursday:3, friday:4, saturday:5 };
+
+function getWeekDates(): Record<string, { date: Date; isPast: boolean }> {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const dow = today.getDay();
+  const monday = new Date(today);
+  monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+  const result: Record<string, { date: Date; isPast: boolean }> = {};
+  for (const [key, offset] of Object.entries(DAY_OFFSET)) {
+    const d = new Date(monday);
+    d.setDate(monday.getDate() + offset);
+    result[key] = { date: d, isPast: d < today };
+  }
+  return result;
+}
+
 function subtractHours(time: string, hours: number): string {
   const [h, m] = time.split(":").map(Number);
   const total = h * 60 + m - hours * 60;
@@ -38,6 +56,8 @@ export function CEScheduleModal({ initialSchedule }: Props) {
   const [error, setError] = useState<string | null>(null);
 
   if (!open) return null;
+
+  const weekDates = getWeekDates();
 
   async function handleSave() {
     setSaving(true);
@@ -73,22 +93,27 @@ export function CEScheduleModal({ initialSchedule }: Props) {
         </p>
 
         <div className="space-y-3">
-          {DAYS.map((d) => (
+          {DAYS.map((d) => {
+            const { date, isPast } = weekDates[d.key];
+            const dateLabel = `${d.label} ${date.getDate()} ${MONTH_SHORT[date.getMonth()]}`;
+            return (
             <div key={d.key} className="flex items-center gap-4">
-              <span className="w-28 text-sm text-gray-700 font-medium">{d.label}</span>
+              <span className={`w-40 text-sm font-medium ${isPast ? "text-gray-400" : "text-gray-700"}`}>{dateLabel}</span>
               <input
                 type="time"
                 value={times[d.key]}
                 onChange={(e) => setTimes((prev) => ({ ...prev, [d.key]: e.target.value }))}
-                className="px-3 py-1.5 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isPast}
+                className={`px-3 py-1.5 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${isPast ? "border-gray-100 text-gray-400 cursor-not-allowed" : "border-gray-200 text-gray-900"}`}
               />
-              {times[d.key] && (
+              {times[d.key] && !isPast && (
                 <span className="text-xs text-gray-400">
                   Venta hasta las {subtractHours(times[d.key], 6)}
                 </span>
               )}
             </div>
-          ))}
+            );
+          })}
         </div>
 
         {error && (
