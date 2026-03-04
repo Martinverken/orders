@@ -11,6 +11,8 @@ interface PageProps {
     source?: string;
     urgency?: string;
     status?: string;
+    product_name?: string;
+    logistics_operator?: string;
     page?: string;
     tab?: string;
   }>;
@@ -32,15 +34,17 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const page = Number(params.page || 1);
   const tab = params.tab === "historial" ? "historial" : "pedidos";
 
+  const filters = {
+    source: params.source,
+    urgency: params.urgency || undefined,
+    status: params.status,
+    product_name: params.product_name,
+    logistics_operator: params.logistics_operator,
+  };
+
   const [summary, ordersPage, syncStatus, delayMetrics] = await Promise.all([
-    getDashboardSummary(),
-    getOrders({
-      source: params.source,
-      urgency: params.urgency || undefined,
-      status: params.status,
-      page,
-      per_page: 25,
-    }),
+    getDashboardSummary(filters),
+    getOrders({ ...filters, page, per_page: 25 }),
     getSyncStatus(),
     getDelayMetrics(),
   ]);
@@ -62,7 +66,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         {/* Tabs */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-1 -mb-px">
           <a
-            href={buildUrl({ source: params.source, urgency: params.urgency, status: params.status }, { tab: "pedidos" })}
+            href={buildUrl({ source: params.source, urgency: params.urgency, status: params.status, product_name: params.product_name, logistics_operator: params.logistics_operator }, { tab: "pedidos" })}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
               tab === "pedidos"
                 ? "border-gray-900 text-gray-900"
@@ -114,7 +118,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                   <div className="flex gap-2">
                     {ordersPage.page > 1 && (
                       <a
-                        href={buildUrl({ source: params.source, urgency: params.urgency, status: params.status, tab: params.tab }, { page: String(page - 1) })}
+                        href={buildUrl({ source: params.source, urgency: params.urgency, status: params.status, product_name: params.product_name, logistics_operator: params.logistics_operator, tab: params.tab }, { page: String(page - 1) })}
                         className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50"
                       >
                         Anterior
@@ -122,7 +126,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                     )}
                     {ordersPage.page < ordersPage.pages && (
                       <a
-                        href={buildUrl({ source: params.source, urgency: params.urgency, status: params.status, tab: params.tab }, { page: String(page + 1) })}
+                        href={buildUrl({ source: params.source, urgency: params.urgency, status: params.status, product_name: params.product_name, logistics_operator: params.logistics_operator, tab: params.tab }, { page: String(page + 1) })}
                         className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50"
                       >
                         Siguiente

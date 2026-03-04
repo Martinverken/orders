@@ -1,4 +1,5 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Query
+from typing import Optional
 from services.order_service import OrderService
 from repositories.delayed_order_repository import DelayedOrderRepository
 
@@ -8,8 +9,20 @@ delayed_repo = DelayedOrderRepository()
 
 
 @router.get("/summary")
-def get_summary():
-    summary = order_service.get_dashboard_summary()
+def get_summary(
+    source: Optional[str] = Query(None),
+    status: Optional[str] = Query(None),
+    urgency: Optional[str] = Query(None),
+    product_name: Optional[str] = Query(None),
+    logistics_operator: Optional[str] = Query(None),
+):
+    summary = order_service.get_dashboard_summary(
+        source=source,
+        status=status,
+        urgency=urgency,
+        product_name=product_name,
+        logistics_operator=logistics_operator,
+    )
     return {"success": True, "data": summary.model_dump()}
 
 

@@ -14,22 +14,33 @@ async function apiFetch<T>(path: string, options?: RequestInit): Promise<T> {
   return res.json();
 }
 
-export async function getDashboardSummary(): Promise<DashboardSummary> {
-  const data = await apiFetch<{ success: boolean; data: DashboardSummary }>("/api/dashboard/summary");
-  return data.data;
-}
-
-export async function getOrders(params?: {
+interface OrderFilters {
   source?: string;
   status?: string;
   urgency?: string;
-  page?: number;
-  per_page?: number;
-}): Promise<OrdersPage> {
+  product_name?: string;
+  logistics_operator?: string;
+}
+
+export async function getDashboardSummary(filters?: OrderFilters): Promise<DashboardSummary> {
+  const query = new URLSearchParams();
+  if (filters?.source) query.set("source", filters.source);
+  if (filters?.status) query.set("status", filters.status);
+  if (filters?.urgency) query.set("urgency", filters.urgency);
+  if (filters?.product_name) query.set("product_name", filters.product_name);
+  if (filters?.logistics_operator) query.set("logistics_operator", filters.logistics_operator);
+  const qs = query.toString();
+  const data = await apiFetch<{ success: boolean; data: DashboardSummary }>(`/api/dashboard/summary${qs ? `?${qs}` : ""}`);
+  return data.data;
+}
+
+export async function getOrders(params?: OrderFilters & { page?: number; per_page?: number }): Promise<OrdersPage> {
   const query = new URLSearchParams();
   if (params?.source) query.set("source", params.source);
   if (params?.status) query.set("status", params.status);
   if (params?.urgency) query.set("urgency", params.urgency);
+  if (params?.product_name) query.set("product_name", params.product_name);
+  if (params?.logistics_operator) query.set("logistics_operator", params.logistics_operator);
   if (params?.page) query.set("page", String(params.page));
   if (params?.per_page) query.set("per_page", String(params.per_page));
   return apiFetch<OrdersPage>(`/api/orders?${query}`);

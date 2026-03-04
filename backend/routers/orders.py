@@ -12,10 +12,16 @@ def list_orders(
     source: Optional[str] = Query(None, description="falabella | mercadolibre"),
     status: Optional[str] = Query(None),
     urgency: Optional[str] = Query(None, description="overdue | due_today | delivered_today | tomorrow | on_time"),
+    product_name: Optional[str] = Query(None),
+    logistics_operator: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
 ):
-    return order_repo.get_paginated(source=source, status=status, urgency=urgency, page=page, per_page=per_page)
+    return order_repo.get_paginated(
+        source=source, status=status, urgency=urgency,
+        product_name=product_name, logistics_operator=logistics_operator,
+        page=page, per_page=per_page,
+    )
 
 
 @router.get("/overdue", response_model=dict)

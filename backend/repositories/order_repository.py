@@ -7,6 +7,18 @@ from typing import Optional
 _PENDING_LIKE = ["pending", "ready_to_ship"]
 
 
+def _extract_logistics_operator(source: str, raw_data: dict) -> str | None:
+    if source == "mercadolibre":
+        return raw_data.get("delivery_mode") or None
+    spt = (raw_data.get("ShippingProviderType") or "").strip().lower()
+    if spt == "regular":
+        provider = (raw_data.get("ShippingProvider") or "").strip().lower()
+        return f"regular - {provider}" if provider else "regular"
+    if spt in ("direct", "falaflex"):
+        return "direct"
+    return spt or None
+
+
 def _today_iso() -> str:
     return _today_santiago().isoformat()
 
@@ -38,6 +50,7 @@ class OrderRepository:
                 "urgency": compute_urgency(o.limit_delivery_date, o.status).value,
                 "product_name": o.product_name,
                 "product_quantity": o.product_quantity,
+                "logistics_operator": _extract_logistics_operator(o.source, o.raw_data or {}),
                 "raw_data": o.raw_data,
             }
             for o in orders
@@ -105,6 +118,8 @@ class OrderRepository:
         source: Optional[str] = None,
         status: Optional[str] = None,
         urgency: Optional[str] = None,
+        product_name: Optional[str] = None,
+        logistics_operator: Optional[str] = None,
         page: int = 1,
         per_page: int = 20,
     ) -> OrdersPage:
@@ -113,6 +128,10 @@ class OrderRepository:
             query = query.eq("source", source)
         if status:
             query = query.eq("status", status)
+        if product_name:
+            query = query.ilike("product_name", f"%{product_name}%")
+        if logistics_operator:
+            query = query.eq("logistics_operator", logistics_operator)
         # Translate urgency filter to date + status constraints
         if urgency == OrderUrgency.OVERDUE:
             query = query.in_("status", _PENDING_LIKE).lt("limit_delivery_date", _today_iso())
@@ -135,10 +154,27 @@ class OrderRepository:
         pages = (total + per_page - 1) // per_page if total else 0
         return OrdersPage(data=orders, total=total, page=page, per_page=per_page, pages=pages)
 
-    def get_summary_counts(self) -> dict:
-        """Count orders by stored urgency column."""
-        result = self.db.table(self.table).select("urgency").execute()
-        rows = result.data or []
+    def get_summary_counts(
+        self,
+        source: Optional[str] = None,
+        status: Optional[str] = None,
+        urgency: Optional[str] = None,
+        product_name: Optional[str] = None,
+        logistics_operator: Optional[str] = None,
+    ) -> dict:
+        """Count orders by stored urgency column, respecting active filters."""
+        query = self.db.table(self.table).select("urgency")
+        if source:
+            query = query.eq("source", source)
+        if status:
+            query = query.eq("status", status)
+        if urgency:
+            query = query.eq("urgency", urgency)
+        if product_name:
+            query = query.ilike("product_name", f"%{product_name}%")
+        if logistics_operator:
+            query = query.eq("logistics_operator", logistics_operator)
+        rows = (query.execute()).data or []
         overdue = due_today = delivered_today = tomorrow_count = on_time = 0
         for r in rows:
             u = r.get("urgency") or ""

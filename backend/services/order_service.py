@@ -8,8 +8,21 @@ class OrderService:
         self.order_repo = OrderRepository()
         self.sync_log_repo = SyncLogRepository()
 
-    def get_dashboard_summary(self) -> OrderSummary:
-        counts = self.order_repo.get_summary_counts()
+    def get_dashboard_summary(
+        self,
+        source=None,
+        status=None,
+        urgency=None,
+        product_name=None,
+        logistics_operator=None,
+    ) -> OrderSummary:
+        counts = self.order_repo.get_summary_counts(
+            source=source,
+            status=status,
+            urgency=urgency,
+            product_name=product_name,
+            logistics_operator=logistics_operator,
+        )
         last_sync = self.sync_log_repo.get_last_sync()
         return OrderSummary(
             total_orders=counts["total"],
