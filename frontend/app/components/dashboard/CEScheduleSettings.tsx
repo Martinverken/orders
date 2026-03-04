@@ -85,11 +85,13 @@ export function CEScheduleSettings({ initialSchedule }: Props) {
           <div key={d.key} className="flex items-center gap-4">
             <span className={`w-40 text-sm font-medium ${isPast ? "text-gray-400" : "text-gray-700"}`}>{dateLabel}</span>
             <input
-              type="time"
+              type="text"
               value={times[d.key]}
               onChange={(e) => setTimes((prev) => ({ ...prev, [d.key]: e.target.value }))}
               disabled={isPast}
-              className={`px-3 py-1.5 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${isPast ? "border-gray-100 text-gray-400 cursor-not-allowed" : "border-gray-200 text-gray-900"}`}
+              placeholder="HH:MM"
+              maxLength={5}
+              className={`w-20 px-3 py-1.5 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${isPast ? "border-gray-100 text-gray-400 cursor-not-allowed" : "border-gray-200 text-gray-900"}`}
             />
             {times[d.key] && !isPast && (
               <span className="text-xs text-gray-400">
