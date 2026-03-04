@@ -104,7 +104,7 @@ export function DelayMetricsTable({ metrics }: Props) {
             <th className="pb-3 font-medium text-right pr-4">A tiempo</th>
             <th className="pb-3 font-medium text-right pr-4">% cumplim.</th>
             <th className="pb-3 font-medium text-right pr-4">Atrasados</th>
-            <th className="pb-3 font-medium text-right">Días prom.</th>
+            <th className="pb-3 font-medium text-right">Atraso Promedio</th>
           </tr>
         </thead>
         <tbody className="divide-y divide-gray-50">
@@ -138,7 +138,7 @@ export function DelayMetricsTable({ metrics }: Props) {
                   </td>
                   <td className="py-3 text-right text-red-600 font-medium pr-4">{row.delayed}</td>
                   <td className="py-3 text-right text-gray-500">
-                    {row.delayed > 0 ? `${row.avg_days_delayed.toFixed(1)}d` : "—"}
+                    {row.delayed > 0 ? (() => { const hrs = Math.round(row.avg_days_delayed * 24); return `${hrs} ${hrs === 1 ? "hr" : "hrs"}`; })() : "—"}
                   </td>
                 </tr>
               );

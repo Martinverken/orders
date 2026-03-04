@@ -50,7 +50,7 @@ export function CEScheduleSettings({ initialSchedule }: Props) {
   return (
     <div className="max-w-md">
       <p className="text-sm text-gray-500 mb-6">
-        Ingresa los horarios de corte del Centro de Envíos para cada día de la semana.
+        Ingresa los horarios de corte del Centro de Envíos en formato 24h (ej: 14:45).
         El horario de venta cierra 6 horas antes del corte.
         {updatedAt && (
           <span className="block mt-1 text-xs text-gray-400">Última actualización: {updatedAt}</span>

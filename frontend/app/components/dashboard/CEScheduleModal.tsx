@@ -59,7 +59,7 @@ export function CEScheduleModal({ initialSchedule }: Props) {
           Horarios de entrega — Centro de Envíos
         </h2>
         <p className="text-sm text-gray-500 mb-6">
-          Ingresa los horarios de corte de esta semana antes de continuar.
+          Ingresa los horarios de corte de esta semana en formato 24h (ej: 14:45) antes de continuar.
           Puedes verlos en{" "}
           <a
             href="https://www.mercadolibre.cl/preferencias-de-venta/horarios-de-envio"
