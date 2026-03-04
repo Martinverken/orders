@@ -27,6 +27,7 @@ export function OrdersTable({ orders }: Props) {
             <th className="pb-3 pr-4 font-medium">Fuente</th>
             <th className="pb-3 pr-4 font-medium">Estado</th>
             <th className="pb-3 pr-4 font-medium">Urgencia</th>
+            <th className="pb-3 pr-4 font-medium">Fecha orden</th>
             <th className="pb-3 pr-4 font-medium">Fecha límite</th>
             <th className="pb-3 pr-4 font-medium">Operador logístico</th>
             <th className="pb-3 pr-4 font-medium">Tracking</th>
@@ -70,6 +71,9 @@ export function OrdersTable({ orders }: Props) {
                 </td>
                 <td className="py-3 pr-4">
                   <UrgencyBadge urgency={order.urgency} />
+                </td>
+                <td className="py-3 pr-4 text-gray-500 whitespace-nowrap text-sm">
+                  {formatDeadline(order.created_at_source ?? null)}
                 </td>
                 <td className="py-3 pr-4 text-gray-600 whitespace-nowrap text-sm">
                   {formatDeadline(order.limit_delivery_date, order.source)}

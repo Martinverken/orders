@@ -7,6 +7,7 @@ export interface Order {
   external_id: string;
   source: OrderSource;
   status: string;
+  created_at_source?: string | null;
   limit_delivery_date: string;
   urgency: OrderUrgency;
   product_name?: string | null;
