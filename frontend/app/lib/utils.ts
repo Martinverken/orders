@@ -228,5 +228,10 @@ export function getShippingDestination(raw_data?: Record<string, unknown>): Ship
 /** Formats delivery deadline using the exact value from the API. */
 export function formatDeadline(isoString: string | null, _source?: string): string {
   if (!isoString) return "—";
-  return formatDate(isoString);
+  return new Date(isoString).toLocaleDateString("es-CL", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    timeZone: "America/Santiago",
+  });
 }
