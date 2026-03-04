@@ -29,7 +29,7 @@ export function SummaryCards({ summary }: Props) {
       icon: "📅",
     },
     {
-      label: "Total activos",
+      label: "Total paquetes",
       value: summary.overdue_count + summary.due_today_count + summary.tomorrow_count,
       color: "border-gray-400 text-gray-600",
       bg: "bg-gray-50",

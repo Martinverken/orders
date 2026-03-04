@@ -136,32 +136,22 @@ class OrderRepository:
         return OrdersPage(data=orders, total=total, page=page, per_page=per_page, pages=pages)
 
     def get_summary_counts(self) -> dict:
-        """Fetch delivery dates + statuses and compute urgency counts in Python."""
-        result = self.db.table(self.table).select("limit_delivery_date,status").execute()
+        """Count orders by stored urgency column."""
+        result = self.db.table(self.table).select("urgency").execute()
         rows = result.data or []
-        today = _today_santiago()
-        tomorrow = today + timedelta(days=1)
-        pending_like = {"pending", "ready_to_ship"}
         overdue = due_today = delivered_today = tomorrow_count = on_time = 0
         for r in rows:
-            raw = r.get("limit_delivery_date", "")
-            status = r.get("status", "")
-            if not raw:
-                continue
-            try:
-                d = date.fromisoformat(str(raw)[:10])
-                if d < today and status in pending_like:
-                    overdue += 1
-                elif d == today and status in pending_like:
-                    due_today += 1
-                elif d == today and status == "shipped":
-                    delivered_today += 1
-                elif d == tomorrow and status in pending_like:
-                    tomorrow_count += 1
-                else:
-                    on_time += 1
-            except ValueError:
-                pass
+            u = r.get("urgency") or ""
+            if u == "overdue":
+                overdue += 1
+            elif u == "due_today":
+                due_today += 1
+            elif u == "delivered_today":
+                delivered_today += 1
+            elif u == "tomorrow":
+                tomorrow_count += 1
+            elif u == "on_time":
+                on_time += 1
         return {
             "total": len(rows),
             "overdue": overdue,
