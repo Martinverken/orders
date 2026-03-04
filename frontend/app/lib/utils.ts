@@ -159,7 +159,7 @@ export function getTrackingUrl(raw_data?: Record<string, unknown>, tracking?: st
   }
 
   // Falabella Direct (falaflex) or ML Flex: Welivery
-  if (spt === "falaflex" || deliveryMode === "flex") {
+  if (spt === "falaflex" || spt === "direct" || deliveryMode === "flex") {
     return `https://welivery.cl/tracking/index.php?wid=${tracking}`;
   }
 

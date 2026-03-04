@@ -1,4 +1,5 @@
 from collections import defaultdict
+from datetime import datetime
 from database import get_supabase
 from models.order import Order, DelayedOrder, DelayMetric, OnTimeMetric
 
@@ -19,11 +20,17 @@ class DelayedOrderRepository:
         self.db = get_supabase()
         self.table = "delayed_orders"
 
-    def archive_batch(self, orders: list[Order], was_delayed: bool = True) -> int:
+    def archive_batch(
+        self,
+        orders: list[Order],
+        was_delayed: bool = True,
+        delivery_dates: dict[str, datetime | None] | None = None,
+    ) -> int:
         """Archive resolved orders into delayed_orders table.
 
         was_delayed=True  → order was delivered after limit_delivery_date
         was_delayed=False → order was resolved before limit_delivery_date (on time)
+        delivery_dates    → map of order.id → actual delivery/dispatch datetime
         """
         if not orders:
             return 0
@@ -32,6 +39,11 @@ class DelayedOrderRepository:
                 "external_id": o.external_id,
                 "source": o.source,
                 "limit_delivery_date": o.limit_delivery_date.isoformat(),
+                "delivered_at": (
+                    delivery_dates[o.id].isoformat()
+                    if delivery_dates and delivery_dates.get(o.id)
+                    else None
+                ),
                 "logistics_operator": _extract_logistics_operator(o),
                 "urgency": o.urgency.value if o.urgency else None,
                 "raw_data": o.raw_data,

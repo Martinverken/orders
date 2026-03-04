@@ -20,27 +20,35 @@ BATCH_SIZE = 50
 _SANTIAGO_TZ = ZoneInfo("America/Santiago")
 
 
-def _falabella_was_late(order: Order) -> bool:
-    """Determina si un pedido Falabella terminado fue entregado tarde.
+def _get_delivery_date(order: Order) -> datetime | None:
+    """Extrae la fecha real de despacho/entrega desde raw_data.
 
-    La API de Falabella no expone date_shipped ni date_delivered.
-    El proxy más preciso es UpdatedAt del item, que cambia exactamente
-    cuando el status transiciona a shipped (regular) o delivered (direct).
-
-    Regular: item.UpdatedAt al archivar (status=shipped) vs limit_delivery_date
-    Direct:  item.UpdatedAt al archivar (status=delivered) vs limit_delivery_date
+    Falabella: item.UpdatedAt (cambia al pasar a shipped/delivered)
+    ML CE: shipment.status_history.date_shipped
+    ML Flex: shipment.status_history.date_delivered
     """
-    raw = order.raw_data or {}
-    items = raw.get("_items") or []
-    first_item = items[0] if isinstance(items, list) and items else {}
-    shipping_type = str(raw.get("ShippingProviderType", "")).lower()
+    if order.source == "falabella":
+        raw = order.raw_data or {}
+        items = raw.get("_items") or []
+        first_item = items[0] if isinstance(items, list) and items else {}
+        return parse_falabella_datetime(first_item.get("UpdatedAt"))
 
-    raw_date = first_item.get("UpdatedAt")
-    date_val = parse_falabella_datetime(raw_date)
+    if order.source == "mercadolibre":
+        raw = order.raw_data or {}
+        shipment = raw.get("shipment") or {}
+        logistic_type = str(shipment.get("logistic_type", "")).lower()
+        status_history = shipment.get("status_history") or {}
+        key = "date_delivered" if logistic_type == "self_service" else "date_shipped"
+        raw_date = status_history.get(key)
+        return parse_ml_datetime(raw_date) if isinstance(raw_date, str) else None
+
+    return None
+
+
+def _falabella_was_late(order: Order) -> bool:
+    date_val = _get_delivery_date(order)
     if date_val:
         return date_val > order.limit_delivery_date
-
-    # Fallback si no hay item con UpdatedAt
     return order.urgency == OrderUrgency.OVERDUE
 
 
@@ -81,26 +89,9 @@ def _is_order_resolved(order: Order) -> bool:
 
 
 def _ml_was_late(order: Order) -> bool:
-    """Determina si un pedido ML terminado fue entregado tarde.
-
-    Flex:            date_delivered > limit_delivery_date → atrasado
-    Centro de Envíos: date_shipped  > limit_delivery_date → atrasado
-    """
-    raw = order.raw_data or {}
-    shipment = raw.get("shipment") or {}
-    logistic_type = str(shipment.get("logistic_type", "")).lower()
-    status_history = shipment.get("status_history") or {}
-
-    if logistic_type == "self_service":  # Flex
-        raw_date = status_history.get("date_delivered")
-    else:  # Centro de Envíos
-        raw_date = status_history.get("date_shipped")
-
-    date_val = parse_ml_datetime(raw_date) if isinstance(raw_date, str) else None
+    date_val = _get_delivery_date(order)
     if date_val:
         return date_val > order.limit_delivery_date
-
-    # Fallback si no hay fecha en status_history
     return order.urgency == OrderUrgency.OVERDUE
 
 
@@ -226,12 +217,14 @@ class SyncService:
             # else: activo en el feed, plazo vencido → mantener visible como OVERDUE
             # else: activo, dentro del plazo → mantener
 
+        delivery_dates = {o.id: _get_delivery_date(o) for o in late + on_time}
+
         if late:
-            archived = self.delayed_repo.archive_batch(late, was_delayed=True)
+            archived = self.delayed_repo.archive_batch(late, was_delayed=True, delivery_dates=delivery_dates)
             logger.info(f"[{source}] Archived {archived} late orders")
 
         if on_time:
-            self.delayed_repo.archive_batch(on_time, was_delayed=False)
+            self.delayed_repo.archive_batch(on_time, was_delayed=False, delivery_dates=delivery_dates)
             logger.info(f"[{source}] Archived {len(on_time)} on-time orders")
 
         all_resolved = late + on_time
