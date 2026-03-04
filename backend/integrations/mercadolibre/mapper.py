@@ -1,16 +1,57 @@
 from models.order import OrderCreate
 from integrations.mercadolibre.schemas import MLOrder, MLShipmentDetail
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 import logging
+import os
+import json
+import math
 
 _SANTIAGO = ZoneInfo("America/Santiago")
+
+# Weekly CE cutoff schedule: {"monday": "11:00", "thursday": "14:45", ...}
+# sell_cutoff[day] = ce_cutoff[day] - 6h (always 6h buffer)
+# Set via ML_CE_CUTOFF_SCHEDULE env var (update each Friday for next week)
+_WEEKDAY_NAMES = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+_ML_CE_SCHEDULE: dict[str, str] = json.loads(os.getenv("ML_CE_CUTOFF_SCHEDULE", "{}"))
 
 
 def _end_of_day_santiago(dt: datetime) -> datetime:
     """Return same calendar date at 23:59:00 Santiago time."""
     local = dt.astimezone(_SANTIAGO)
     return local.replace(hour=23, minute=59, second=0, microsecond=0)
+
+
+def _resolve_ce_deadline_from_schedule(date_handling_dt: datetime) -> datetime | None:
+    """Find CE dispatch deadline using the weekly cutoff schedule.
+
+    Algorithm: find first day D (starting from date_handling date) where
+    date_handling < sell_cutoff[D] (sell_cutoff = ce_cutoff - 6h).
+    Returns ce_cutoff[D] as the deadline.
+
+    Example: date_handling = Tue 14:48, Wed ce_cutoff = 11:00
+      Wed sell_cutoff = 05:00. Tue 14:48 < Wed 05:00 → deadline = Wed 11:00
+    """
+    if not _ML_CE_SCHEDULE:
+        return None
+    for delta in range(7):
+        candidate_date = date_handling_dt.astimezone(_SANTIAGO).date()
+        from datetime import date as date_type
+        candidate_date = candidate_date + timedelta(days=delta)
+        weekday = _WEEKDAY_NAMES[candidate_date.weekday()]
+        ce_cutoff_str = _ML_CE_SCHEDULE.get(weekday)
+        if not ce_cutoff_str:
+            continue
+        h, m = map(int, ce_cutoff_str.split(":"))
+        ce_cutoff_dt = datetime(
+            candidate_date.year, candidate_date.month, candidate_date.day,
+            h, m, tzinfo=_SANTIAGO,
+        )
+        sell_cutoff_dt = ce_cutoff_dt - timedelta(hours=6)
+        if date_handling_dt < sell_cutoff_dt:
+            return ce_cutoff_dt
+    return None
+
 
 logger = logging.getLogger(__name__)
 
@@ -60,9 +101,10 @@ def resolve_delivery_deadline(
         estimated_delivery_limit.date — customer delivery promise date.
 
     Centro de Envíos (xd_drop_off / cross_docking / drop_off):
-        date_handling + handling_time.amount hours — matches the "Despachar antes de HH:mm"
-        shown on the ML shipping label (e.g. date_handling=Mar 3 11:11 + 24h = Mar 4 11:11).
-        Falls back to pay_before then estimated_delivery_limit.date if status_history is absent.
+        Uses the weekly CE cutoff schedule (ML_CE_CUTOFF_SCHEDULE env var).
+        Algorithm: from date_handling, find first day where date_handling < sell_cutoff[day]
+        (sell_cutoff = ce_cutoff - 6h). Returns ce_cutoff[day] as the "Despachar antes de" time.
+        Falls back to pay_before then estimated_delivery_limit.date if schedule is absent.
 
     Last resort: top-level estimated_delivery_time.date / .to
         Present even after the deadline has passed.
@@ -74,19 +116,16 @@ def resolve_delivery_deadline(
 
     opt = shipment.shipping_option if isinstance(shipment.shipping_option, dict) else None
 
-    # CE: date_handling + handling_time.amount = exact "Despachar antes de HH:mm" on the label
+    # CE: use weekly cutoff schedule to find the correct "Despachar antes de HH:mm"
     if not is_flex and shipment_raw:
         status_history = shipment_raw.get("status_history") or {}
         date_handling_str = status_history.get("date_handling")
         if date_handling_str:
             date_handling = parse_ml_datetime(date_handling_str)
             if date_handling:
-                opt_raw = shipment_raw.get("shipping_option") or {}
-                ht = opt_raw.get("handling_time") or {}
-                handling_hours = ht.get("amount") if ht.get("unit") == "hour" else None
-                if handling_hours:
-                    from datetime import timedelta
-                    return date_handling + timedelta(hours=int(handling_hours))
+                deadline = _resolve_ce_deadline_from_schedule(date_handling)
+                if deadline:
+                    return deadline
 
     # CE fallback: pay_before inside estimated_delivery_time
     if not is_flex and opt:
