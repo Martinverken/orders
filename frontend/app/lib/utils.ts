@@ -146,6 +146,26 @@ export function getOrderNumber(raw_data?: Record<string, unknown>, fallback?: st
   return fallback ?? "";
 }
 
+export function getTrackingUrl(raw_data?: Record<string, unknown>, tracking?: string): string | null {
+  if (!raw_data || !tracking) return null;
+  const spt = ((raw_data.ShippingProviderType as string) || "").toLowerCase();
+  const deliveryMode = ((raw_data.delivery_mode as string) || "").toLowerCase();
+
+  // Falabella Regular: BlueExpress or Chilexpress
+  if (spt === "regular") {
+    const provider = ((raw_data.ShippingProvider as string) || "").toLowerCase();
+    if (provider.includes("blue")) return `https://www.blue.cl/enviar/seguimiento?n_seguimiento=${tracking}`;
+    if (provider.includes("chilexpress")) return `https://centrodeayuda.chilexpress.cl/seguimiento/${tracking}`;
+  }
+
+  // Falabella Direct (falaflex) or ML Flex: Welivery
+  if (spt === "falaflex" || deliveryMode === "flex") {
+    return `https://welivery.cl/tracking/index.php?wid=${tracking}`;
+  }
+
+  return null;
+}
+
 export function getTrackingCode(raw_data?: Record<string, unknown>): string {
   if (!raw_data) return "";
   // Falabella

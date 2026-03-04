@@ -1,6 +1,6 @@
 import { Order } from "@/app/types";
 import { UrgencyBadge, StatusBadge } from "@/app/components/ui/Badge";
-import { formatDate, formatDeadline, SOURCE_LABEL, getCarrier, getOrderNumber, getTrackingCode, getProductDetails, getShippingDestination } from "@/app/lib/utils";
+import { formatDate, formatDeadline, SOURCE_LABEL, getCarrier, getOrderNumber, getTrackingCode, getTrackingUrl, getProductDetails, getShippingDestination } from "@/app/lib/utils";
 
 interface Props {
   orders: Order[];
@@ -40,6 +40,7 @@ export function OrdersTable({ orders }: Props) {
             const carrier = getCarrier(order.raw_data);
             const orderNumber = getOrderNumber(order.raw_data, order.external_id);
             const tracking = getTrackingCode(order.raw_data);
+            const trackingUrl = getTrackingUrl(order.raw_data, tracking);
             const product = getProductDetails(order.raw_data, order.product_name, order.product_quantity);
             const destination = getShippingDestination(order.raw_data);
             return (
@@ -77,7 +78,11 @@ export function OrdersTable({ orders }: Props) {
                   {carrier || "—"}
                 </td>
                 <td className="py-3 pr-4 font-mono text-xs text-gray-600">
-                  {tracking || "—"}
+                  {trackingUrl ? (
+                    <a href={trackingUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
+                      {tracking}
+                    </a>
+                  ) : (tracking || "—")}
                 </td>
                 <td className="py-3 pr-4 text-gray-600 text-xs capitalize">
                   {destination.city?.toLowerCase() || "—"}
