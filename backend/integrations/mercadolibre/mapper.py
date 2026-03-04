@@ -44,32 +44,36 @@ def resolve_delivery_mode(logistic_type: str | None) -> str:
 def resolve_delivery_deadline(shipment: MLShipmentDetail | None) -> datetime | None:
     """Resolve limit_delivery_date from shipment data.
 
-    Primary:  shipping_option.estimated_delivery_time.pay_before
-              This is the SELLER's action deadline — when we must dispatch / drop off
-              at the ML carrier. For xd_drop_off (Centro de Envíos) this is often
-              1-2 days earlier than estimated_delivery_limit (which is the customer
-              delivery date), so it is the correct field for urgency and late checks.
+    Flex (self_service):
+        estimated_delivery_limit.date — the promised customer delivery date,
+        which is the seller's commitment deadline for same-day delivery.
 
-    Fallback: shipping_option.estimated_delivery_limit.date
-              Used when pay_before is absent.
+    Centro de Envíos (xd_drop_off / cross_docking / drop_off):
+        pay_before — the cutoff by which we must drop off at the ML carrier.
+        This is delivery_limit minus transit time (1-2 days earlier).
+        Falls back to estimated_delivery_limit.date if pay_before is absent.
 
     Last resort: top-level estimated_delivery_time.date / .to
-              Present even after the deadline has passed (pay_before disappears).
+        Present even after the deadline has passed.
     """
     if not shipment:
         return None
 
+    is_flex = str(shipment.logistic_type or "").lower() == "self_service"
+
     if shipment.shipping_option:
         opt = shipment.shipping_option
         if isinstance(opt, dict):
-            # Primary: seller dispatch deadline
-            edt_inner = opt.get("estimated_delivery_time")
-            if isinstance(edt_inner, dict):
-                pay_before = edt_inner.get("pay_before")
-                if pay_before:
-                    return parse_ml_datetime(pay_before)
+            # Centro de Envíos: use pay_before (drop-off cutoff at ML carrier)
+            if not is_flex:
+                edt_inner = opt.get("estimated_delivery_time")
+                if isinstance(edt_inner, dict):
+                    pay_before = edt_inner.get("pay_before")
+                    if pay_before:
+                        return parse_ml_datetime(pay_before)
 
-            # Fallback: customer delivery deadline
+            # Flex: use estimated_delivery_limit (customer delivery promise)
+            # Also fallback for CE when pay_before is absent
             limit = opt.get("estimated_delivery_limit")
             if isinstance(limit, dict):
                 date_str = limit.get("date")
