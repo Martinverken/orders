@@ -113,6 +113,7 @@ class DelayedOrderRepository:
         logistics_operator: str | None = None,
         city: str | None = None,
         commune: str | None = None,
+        has_case: bool | None = None,
         page: int = 1,
         per_page: int = 25,
     ) -> dict:
@@ -123,6 +124,8 @@ class DelayedOrderRepository:
             query = query.gt("days_delayed", 0)
         elif was_delayed is False:
             query = query.lte("days_delayed", 0)
+        if has_case is True:
+            query = query.not_.is_("case_status", "null")
         if logistics_operator:
             parts = [v.strip() for v in logistics_operator.split(",") if v.strip()]
             if len(parts) > 1:

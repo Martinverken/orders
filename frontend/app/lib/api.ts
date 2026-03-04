@@ -67,6 +67,7 @@ export async function getHistoricalOrders(params?: {
   logistics_operator?: string;
   city?: string;
   commune?: string;
+  has_case?: boolean;
   page?: number;
   per_page?: number;
 }): Promise<HistoricalOrdersPage> {
@@ -76,6 +77,7 @@ export async function getHistoricalOrders(params?: {
   if (params?.logistics_operator) query.set("logistics_operator", params.logistics_operator);
   if (params?.city) query.set("city", params.city);
   if (params?.commune) query.set("commune", params.commune);
+  if (params?.has_case !== undefined) query.set("has_case", String(params.has_case));
   if (params?.page) query.set("page", String(params.page));
   if (params?.per_page) query.set("per_page", String(params.per_page));
   return apiFetch<HistoricalOrdersPage>(`/api/orders/history?${query}`);

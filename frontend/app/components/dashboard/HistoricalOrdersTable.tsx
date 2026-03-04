@@ -75,12 +75,14 @@ function OrderRow({ order, idx }: { order: HistoricalOrder; idx: number }) {
   const [comments, setComments] = useState(order.comments ?? "");
   const [caseStatus, setCaseStatus] = useState(order.case_status ?? "");
   const [saving, setSaving] = useState(false);
+  const [saveResult, setSaveResult] = useState<"ok" | "error" | null>(null);
 
   const hasSavedCase = !!(order.case_number || order.comments || order.case_status);
   const [isOpen, setIsOpen] = useState(hasSavedCase);
 
   const handleSave = async () => {
     setSaving(true);
+    setSaveResult(null);
     try {
       await updateHistoricalOrderCase(
         order.id,
@@ -89,6 +91,11 @@ function OrderRow({ order, idx }: { order: HistoricalOrder; idx: number }) {
         caseStatus || null,
       );
       setIsOpen(true);
+      setSaveResult("ok");
+      setTimeout(() => setSaveResult(null), 3000);
+    } catch {
+      setSaveResult("error");
+      setTimeout(() => setSaveResult(null), 4000);
     } finally {
       setSaving(false);
     }
@@ -140,6 +147,7 @@ function OrderRow({ order, idx }: { order: HistoricalOrder; idx: number }) {
         )}
       </td>
       <td className="py-3 pr-4 text-gray-600">{SOURCE_LABEL[order.source] || order.source}</td>
+      <td className="py-3 pr-4 text-gray-500 text-xs">{carrier || order.logistics_operator || "—"}</td>
       <td className="py-3 pr-4"><StatusBadge status={order.status} /></td>
       <td className="py-3 pr-4"><HistoricalUrgencyBadge daysDelayed={order.days_delayed} /></td>
       <td className="py-3 pr-4 text-gray-600 whitespace-nowrap text-sm">
@@ -160,7 +168,6 @@ function OrderRow({ order, idx }: { order: HistoricalOrder; idx: number }) {
           <span className="text-gray-400">—</span>
         )}
       </td>
-      <td className="py-3 pr-4 text-gray-500 text-xs">{carrier || order.logistics_operator || "—"}</td>
       <td className="py-3 pr-4 font-mono text-xs text-gray-600">
         {trackingUrl ? (
           <a href={trackingUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">
@@ -216,6 +223,8 @@ function OrderRow({ order, idx }: { order: HistoricalOrder; idx: number }) {
             >
               {saving ? "..." : "Guardar"}
             </button>
+            {saveResult === "ok" && <span className="text-xs text-green-600 font-medium">✓ Guardado</span>}
+            {saveResult === "error" && <span className="text-xs text-red-600 font-medium">Error al guardar</span>}
             <button
               onClick={handleDelete}
               disabled={saving}
@@ -256,13 +265,13 @@ export function HistoricalOrdersTable({ orders }: Props) {
             <th className="pb-3 pr-4 font-medium">Order N°</th>
             <th className="pb-3 pr-4 font-medium">Producto</th>
             <th className="pb-3 pr-4 font-medium">Fuente</th>
+            <th className="pb-3 pr-4 font-medium">Operador</th>
             <th className="pb-3 pr-4 font-medium">Estado</th>
             <th className="pb-3 pr-4 font-medium">Resultado</th>
             <th className="pb-3 pr-4 font-medium">Fecha Orden</th>
             <th className="pb-3 pr-4 font-medium">Fecha límite</th>
             <th className="pb-3 pr-4 font-medium">Fecha entrega</th>
             <th className="pb-3 pr-4 font-medium">Retraso</th>
-            <th className="pb-3 pr-4 font-medium">Operador logístico</th>
             <th className="pb-3 pr-4 font-medium">Tracking</th>
             <th className="pb-3 pr-4 font-medium">Ciudad</th>
             <th className="pb-3 pr-4 font-medium">Comuna</th>

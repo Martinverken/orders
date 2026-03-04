@@ -25,11 +25,11 @@ export function OrdersTable({ orders }: Props) {
             <th className="pb-3 pr-4 font-medium">Order N°</th>
             <th className="pb-3 pr-4 font-medium">Producto</th>
             <th className="pb-3 pr-4 font-medium">Fuente</th>
+            <th className="pb-3 pr-4 font-medium">Operador</th>
             <th className="pb-3 pr-4 font-medium">Estado</th>
             <th className="pb-3 pr-4 font-medium">Urgencia</th>
             <th className="pb-3 pr-4 font-medium">Fecha orden</th>
             <th className="pb-3 pr-4 font-medium">Fecha límite</th>
-            <th className="pb-3 pr-4 font-medium">Operador logístico</th>
             <th className="pb-3 pr-4 font-medium">Tracking</th>
             <th className="pb-3 pr-4 font-medium">Ciudad</th>
             <th className="pb-3 pr-4 font-medium">Comuna</th>
@@ -66,6 +66,9 @@ export function OrdersTable({ orders }: Props) {
                 <td className="py-3 pr-4 text-gray-600">
                   {SOURCE_LABEL[order.source] || order.source}
                 </td>
+                <td className="py-3 pr-4 text-gray-500 text-xs">
+                  {carrier || "—"}
+                </td>
                 <td className="py-3 pr-4">
                   <StatusBadge status={order.status} />
                 </td>
@@ -77,9 +80,6 @@ export function OrdersTable({ orders }: Props) {
                 </td>
                 <td className="py-3 pr-4 text-gray-600 whitespace-nowrap text-sm">
                   {formatDeadline(order.limit_delivery_date, order.source)}
-                </td>
-                <td className="py-3 pr-4 text-gray-500 text-xs">
-                  {carrier || "—"}
                 </td>
                 <td className="py-3 pr-4 font-mono text-xs text-gray-600">
                   {trackingUrl ? (

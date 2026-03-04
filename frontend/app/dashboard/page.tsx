@@ -6,6 +6,7 @@ import { SyncStatus } from "@/app/components/dashboard/SyncStatus";
 import { FilterBar } from "@/app/components/dashboard/FilterBar";
 import { HistoricalFilterBar } from "@/app/components/dashboard/HistoricalFilterBar";
 import { HistoricalOrdersTable } from "@/app/components/dashboard/HistoricalOrdersTable";
+import { TicketsTable } from "@/app/components/dashboard/TicketsTable";
 import { DelayMetricsTable } from "@/app/components/dashboard/DelayMetricsTable";
 
 interface PageProps {
@@ -46,6 +47,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const tab = params.tab === "historial" ? "historial"
     : params.tab === "estadisticas" ? "estadisticas"
+    : params.tab === "tickets" ? "tickets"
     : "pedidos";
 
   const syncStatus = await getSyncStatus();
@@ -62,6 +64,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   let summary = null, ordersPage = null, cities: string[] = [];
   let historicalPage = null, historicalCities: string[] = [];
+  let ticketsPage = null;
   let delayMetrics = null;
 
   if (tab === "pedidos") {
@@ -85,6 +88,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       }),
       getDistinctHistoricalCities(),
     ]);
+  } else if (tab === "tickets") {
+    ticketsPage = await getHistoricalOrders({ has_case: true, per_page: 100 });
   } else {
     delayMetrics = await getDelayMetrics();
   }
@@ -141,6 +146,16 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             }`}
           >
             Pedidos históricos
+          </a>
+          <a
+            href={buildUrl(allParams, { tab: "tickets" })}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              tab === "tickets"
+                ? "border-gray-900 text-gray-900"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Tickets
           </a>
           <a
             href={buildUrl(allParams, { tab: "estadisticas" })}
@@ -242,6 +257,21 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Tickets ── */}
+        {tab === "tickets" && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-medium text-gray-900">
+                Tickets ({ticketsPage?.total ?? 0})
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">Pedidos históricos con gestión activa</p>
+            </div>
+            <div className="px-6 py-4">
+              <TicketsTable orders={ticketsPage?.data ?? []} />
+            </div>
           </div>
         )}
 

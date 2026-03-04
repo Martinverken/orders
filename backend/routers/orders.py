@@ -47,6 +47,7 @@ def list_historical_orders(
     logistics_operator: Optional[str] = Query(None),
     city: Optional[str] = Query(None),
     commune: Optional[str] = Query(None),
+    has_case: Optional[bool] = Query(None),
     page: int = Query(1, ge=1),
     per_page: int = Query(25, ge=1, le=100),
 ):
@@ -61,6 +62,7 @@ def list_historical_orders(
         logistics_operator=logistics_operator,
         city=city,
         commune=commune,
+        has_case=has_case,
         page=page,
         per_page=per_page,
     )
