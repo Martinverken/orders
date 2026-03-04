@@ -70,7 +70,7 @@ export function HistoricalOrdersTable({ orders }: Props) {
             <th className="pb-3 pr-4 font-medium">Resultado</th>
             <th className="pb-3 pr-4 font-medium">Fecha límite</th>
             <th className="pb-3 pr-4 font-medium">Fecha entrega</th>
-            <th className="pb-3 pr-4 font-medium">Días retraso</th>
+            <th className="pb-3 pr-4 font-medium">Retraso</th>
             <th className="pb-3 pr-4 font-medium">Operador logístico</th>
             <th className="pb-3 pr-4 font-medium">Tracking</th>
             <th className="pb-3 pr-4 font-medium">Ciudad</th>
@@ -123,7 +123,9 @@ export function HistoricalOrdersTable({ orders }: Props) {
                 </td>
                 <td className="py-3 pr-4 text-sm whitespace-nowrap">
                   {isDelayed ? (
-                    <span className="text-red-600 font-medium">+{order.days_delayed.toFixed(1)}d</span>
+                    <span className="text-red-600 font-medium">
+                      +{Math.round(order.days_delayed * 24)} {Math.round(order.days_delayed * 24) === 1 ? "hr" : "hrs"}
+                    </span>
                   ) : (
                     <span className="text-gray-400">—</span>
                   )}

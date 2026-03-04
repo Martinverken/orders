@@ -62,6 +62,9 @@ class Order(OrderCreate):
     updated_at: datetime
     # Stored in DB at sync time; falls back to computed value for legacy rows without it
     urgency: Optional[OrderUrgency] = None
+    # Set by DB trigger on first transition to 'shipped'/'delivered' (Falabella); immutable thereafter
+    first_shipped_at: Optional[datetime] = None
+    first_delivered_at: Optional[datetime] = None
 
     @model_validator(mode="after")
     def fill_urgency(self) -> "Order":

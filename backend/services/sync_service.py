@@ -23,11 +23,19 @@ _SANTIAGO_TZ = ZoneInfo("America/Santiago")
 def _get_delivery_date(order: Order) -> datetime | None:
     """Extrae la fecha real de despacho/entrega desde raw_data.
 
-    Falabella: item.UpdatedAt (cambia al pasar a shipped/delivered)
-    ML CE: shipment.status_history.date_shipped
+    Falabella: order.first_shipped_at (DB trigger captura el primer UpdatedAt al pasar a 'shipped')
     ML Flex: shipment.status_history.date_delivered
+    ML CE (xd_drop_off): substatus_history[dropped_off].date → acción del vendedor
+    ML CE (otros): shipment.status_history.date_shipped
     """
     if order.source == "falabella":
+        # DB trigger captures first 'shipped' (Regular) and first 'delivered' (Direct) timestamps
+        # immutably — prevents later UpdatedAt changes from affecting classification.
+        if order.first_shipped_at:
+            return order.first_shipped_at
+        if order.first_delivered_at:
+            return order.first_delivered_at
+        # Fallback for rows pre-dating the trigger
         raw = order.raw_data or {}
         items = raw.get("_items") or []
         first_item = items[0] if isinstance(items, list) and items else {}
@@ -38,8 +46,16 @@ def _get_delivery_date(order: Order) -> datetime | None:
         shipment = raw.get("shipment") or {}
         logistic_type = str(shipment.get("logistic_type", "")).lower()
         status_history = shipment.get("status_history") or {}
-        key = "date_delivered" if logistic_type == "self_service" else "date_shipped"
-        raw_date = status_history.get(key)
+        if logistic_type == "self_service":
+            raw_date = status_history.get("date_delivered")
+        else:
+            # xd_drop_off: el vendedor suelta el paquete en un punto (dropped_off).
+            # date_shipped es cuando el hub de ML procesa, no cuando el vendedor actuó.
+            substatus_history = shipment.get("substatus_history") or []
+            raw_date = next(
+                (e.get("date") for e in substatus_history if e.get("substatus") == "dropped_off"),
+                None,
+            ) or status_history.get("date_shipped")
         return parse_ml_datetime(raw_date) if isinstance(raw_date, str) else None
 
     return None

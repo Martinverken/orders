@@ -65,15 +65,30 @@ class DelayedOrderRepository:
         """
         if not orders:
             return 0
+        # Fetch existing delivered_at values to preserve first-set date (immutable once written)
+        existing_resp = (
+            self.db.table(self.table)
+            .select("external_id,source,delivered_at")
+            .in_("external_id", [o.external_id for o in orders])
+            .execute()
+        )
+        existing_delivered_at = {
+            (r["external_id"], r["source"]): r["delivered_at"]
+            for r in (existing_resp.data or [])
+            if r.get("delivered_at")
+        }
         records = [
             {
                 "external_id": o.external_id,
                 "source": o.source,
                 "limit_delivery_date": o.limit_delivery_date.isoformat(),
                 "delivered_at": (
-                    delivery_dates[o.id].isoformat()
-                    if delivery_dates and delivery_dates.get(o.id)
-                    else None
+                    existing_delivered_at.get((o.external_id, o.source))
+                    or (
+                        delivery_dates[o.id].isoformat()
+                        if delivery_dates and delivery_dates.get(o.id)
+                        else None
+                    )
                 ),
                 "logistics_operator": _extract_logistics_operator(o),
                 "urgency": o.urgency.value if o.urgency else None,
