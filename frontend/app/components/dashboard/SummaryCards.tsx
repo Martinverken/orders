@@ -29,8 +29,15 @@ export function SummaryCards({ summary }: Props) {
       icon: "📅",
     },
     {
+      label: "2+ días",
+      value: summary.two_or_more_days_count,
+      color: "border-purple-500 text-purple-600",
+      bg: "bg-purple-50",
+      icon: "🗓️",
+    },
+    {
       label: "Total paquetes",
-      value: summary.overdue_count + summary.due_today_count + summary.tomorrow_count,
+      value: summary.overdue_count + summary.due_today_count + summary.tomorrow_count + summary.two_or_more_days_count,
       color: "border-gray-400 text-gray-600",
       bg: "bg-gray-50",
       icon: "📦",
@@ -39,7 +46,7 @@ export function SummaryCards({ summary }: Props) {
 
   return (
     <div>
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-2">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-2">
         {cards.map((card) => (
           <div
             key={card.label}

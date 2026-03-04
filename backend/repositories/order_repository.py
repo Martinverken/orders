@@ -184,8 +184,10 @@ class OrderRepository:
                 query = query.eq("status", "shipped").gte("limit_delivery_date", _today_iso()).lt("limit_delivery_date", _tomorrow_iso())
             elif u == OrderUrgency.TOMORROW:
                 query = query.in_("status", _PENDING_LIKE).gte("limit_delivery_date", _tomorrow_iso()).lt("limit_delivery_date", _day_after_tomorrow_iso())
+            elif u == OrderUrgency.TWO_OR_MORE_DAYS:
+                query = query.in_("status", list(_PENDING_LIKE)).gte("limit_delivery_date", _day_after_tomorrow_iso())
             elif u == OrderUrgency.ON_TIME:
-                query = query.gte("limit_delivery_date", _day_after_tomorrow_iso())
+                query = query.not_.in_("status", list(_PENDING_LIKE)).gte("limit_delivery_date", _day_after_tomorrow_iso())
             elif u == "active":
                 query = query.in_("status", _PENDING_LIKE).lt("limit_delivery_date", _day_after_tomorrow_iso())
         elif urgency_parts:
@@ -229,7 +231,7 @@ class OrderRepository:
         if commune:
             query = query.ilike("commune", f"%{commune}%")
         rows = (query.execute()).data or []
-        overdue = due_today = delivered_today = tomorrow_count = on_time = 0
+        overdue = due_today = delivered_today = tomorrow_count = two_or_more_days = on_time = 0
         for r in rows:
             u = r.get("urgency") or ""
             if u == "overdue":
@@ -240,6 +242,8 @@ class OrderRepository:
                 delivered_today += 1
             elif u == "tomorrow":
                 tomorrow_count += 1
+            elif u == "two_or_more_days":
+                two_or_more_days += 1
             elif u == "on_time":
                 on_time += 1
         return {
@@ -248,6 +252,7 @@ class OrderRepository:
             "due_today": due_today,
             "delivered_today": delivered_today,
             "tomorrow": tomorrow_count,
+            "two_or_more_days": two_or_more_days,
             "on_time": on_time,
         }
 

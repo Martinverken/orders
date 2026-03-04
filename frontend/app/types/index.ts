@@ -1,4 +1,4 @@
-export type OrderUrgency = "overdue" | "due_today" | "delivered_today" | "tomorrow" | "on_time";
+export type OrderUrgency = "overdue" | "due_today" | "delivered_today" | "tomorrow" | "two_or_more_days" | "on_time";
 export type OrderSource = "falabella" | "mercadolibre";
 export type SyncStatus = "running" | "success" | "error";
 
@@ -31,6 +31,7 @@ export interface DashboardSummary {
   due_today_count: number;
   delivered_today_count: number;
   tomorrow_count: number;
+  two_or_more_days_count: number;
   on_time_count: number;
   last_sync_at: string | null;
   sources: OrderSource[];

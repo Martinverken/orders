@@ -60,9 +60,9 @@ def resolve_delivery_deadline(
         estimated_delivery_limit.date — customer delivery promise date.
 
     Centro de Envíos (xd_drop_off / cross_docking / drop_off):
-        date_handling + handling_hours — matches the "Despachar antes de HH:mm"
+        date_handling + handling_time.amount hours — matches the "Despachar antes de HH:mm"
         shown on the ML shipping label (e.g. date_handling=Mar 3 11:11 + 24h = Mar 4 11:11).
-        Falls back to estimated_delivery_limit.date if status_history is absent.
+        Falls back to pay_before then estimated_delivery_limit.date if status_history is absent.
 
     Last resort: top-level estimated_delivery_time.date / .to
         Present even after the deadline has passed.
@@ -74,7 +74,21 @@ def resolve_delivery_deadline(
 
     opt = shipment.shipping_option if isinstance(shipment.shipping_option, dict) else None
 
-    # CE: pay_before inside estimated_delivery_time = exact label deadline ("Despachar antes de")
+    # CE: date_handling + handling_time.amount = exact "Despachar antes de HH:mm" on the label
+    if not is_flex and shipment_raw:
+        status_history = shipment_raw.get("status_history") or {}
+        date_handling_str = status_history.get("date_handling")
+        if date_handling_str:
+            date_handling = parse_ml_datetime(date_handling_str)
+            if date_handling:
+                opt_raw = shipment_raw.get("shipping_option") or {}
+                ht = opt_raw.get("handling_time") or {}
+                handling_hours = ht.get("amount") if ht.get("unit") == "hour" else None
+                if handling_hours:
+                    from datetime import timedelta
+                    return date_handling + timedelta(hours=int(handling_hours))
+
+    # CE fallback: pay_before inside estimated_delivery_time
     if not is_flex and opt:
         edt_inner = opt.get("estimated_delivery_time")
         if isinstance(edt_inner, dict):

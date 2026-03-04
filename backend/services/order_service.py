@@ -34,6 +34,7 @@ class OrderService:
             due_today_count=counts["due_today"],
             delivered_today_count=counts["delivered_today"],
             tomorrow_count=counts["tomorrow"],
+            two_or_more_days_count=counts["two_or_more_days"],
             on_time_count=counts["on_time"],
             last_sync_at=last_sync.started_at if last_sync else None,
             sources=["falabella", "mercadolibre"],

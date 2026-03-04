@@ -40,6 +40,7 @@ export const URGENCY_LABEL: Record<OrderUrgency, string> = {
   due_today: "Entregar hoy",
   delivered_today: "Entregado hoy",
   tomorrow: "Mañana",
+  two_or_more_days: "2+ días",
   on_time: "A tiempo",
 };
 
@@ -48,6 +49,7 @@ export const URGENCY_CLASSES: Record<OrderUrgency, string> = {
   due_today: "bg-amber-100 text-amber-700 border-amber-200",
   delivered_today: "bg-green-100 text-green-700 border-green-200",
   tomorrow: "bg-blue-100 text-blue-700 border-blue-200",
+  two_or_more_days: "bg-purple-100 text-purple-700 border-purple-200",
   on_time: "bg-gray-100 text-gray-600 border-gray-200",
 };
 

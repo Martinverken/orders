@@ -13,11 +13,12 @@ def _today_santiago() -> date:
 
 
 class OrderUrgency(str, Enum):
-    OVERDUE = "overdue"          # pending/ready_to_ship/shipped con fecha anterior a hoy (enviado tarde)
-    DUE_TODAY = "due_today"      # pending/ready_to_ship para hoy
+    OVERDUE = "overdue"              # pending/ready_to_ship/shipped con fecha anterior a hoy (enviado tarde)
+    DUE_TODAY = "due_today"          # pending/ready_to_ship para hoy
     DELIVERED_TODAY = "delivered_today"  # shipped con fecha límite hoy (enviado a tiempo)
-    TOMORROW = "tomorrow"        # pending/ready_to_ship para mañana
-    ON_TIME = "on_time"          # todo lo demás
+    TOMORROW = "tomorrow"            # pending/ready_to_ship para mañana
+    TWO_OR_MORE_DAYS = "two_or_more_days"  # pending/ready_to_ship con fecha >= pasado mañana
+    ON_TIME = "on_time"              # todo lo demás (shipped/delivered dentro del plazo)
 
 
 _PENDING_LIKE = {"pending", "ready_to_ship"}
@@ -28,6 +29,7 @@ _RESOLVED_LIKE = {"shipped", "delivered"}
 def compute_urgency(limit_delivery_date: datetime, status: str = "") -> OrderUrgency:
     today = _today_santiago()
     tomorrow = today + timedelta(days=1)
+    day_after = today + timedelta(days=2)
     delivery_date = limit_delivery_date.date() if hasattr(limit_delivery_date, "date") else limit_delivery_date
 
     # Pasó la fecha límite: si sigue pendiente O si fue enviado después del plazo → atrasado
@@ -39,6 +41,8 @@ def compute_urgency(limit_delivery_date: datetime, status: str = "") -> OrderUrg
         return OrderUrgency.DELIVERED_TODAY  # enviado/entregado justo a tiempo
     if delivery_date == tomorrow and status in _PENDING_LIKE:
         return OrderUrgency.TOMORROW
+    if delivery_date >= day_after and status in _PENDING_LIKE:
+        return OrderUrgency.TWO_OR_MORE_DAYS
     return OrderUrgency.ON_TIME
 
 
@@ -80,6 +84,7 @@ class OrderSummary(BaseModel):
     due_today_count: int
     delivered_today_count: int
     tomorrow_count: int
+    two_or_more_days_count: int
     on_time_count: int
     last_sync_at: Optional[datetime] = None
     sources: list[str]

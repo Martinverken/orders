@@ -15,7 +15,7 @@ const URGENCIES = [
   { value: "overdue", label: "Atrasados" },
   { value: "due_today", label: "Entregar hoy" },
   { value: "tomorrow", label: "Para mañana" },
-  { value: "on_time", label: "A tiempo" },
+  { value: "two_or_more_days", label: "2+ días" },
 ];
 
 const STATUSES = [
