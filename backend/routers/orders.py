@@ -13,6 +13,12 @@ def get_distinct_cities():
     return {"success": True, "data": cities}
 
 
+@router.get("/communes", response_model=dict)
+def get_distinct_communes(city: Optional[str] = Query(None)):
+    communes = order_repo.get_distinct_communes(city)
+    return {"success": True, "data": communes}
+
+
 @router.get("", response_model=OrdersPage)
 def list_orders(
     source: Optional[str] = Query(None, description="falabella | mercadolibre"),

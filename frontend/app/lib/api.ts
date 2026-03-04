@@ -55,6 +55,12 @@ export async function getDistinctCities(): Promise<string[]> {
   return data.data;
 }
 
+export async function getDistinctCommunes(city?: string): Promise<string[]> {
+  const qs = city ? `?city=${encodeURIComponent(city)}` : "";
+  const data = await apiFetch<{ success: boolean; data: string[] }>(`/api/orders/communes${qs}`);
+  return data.data;
+}
+
 export async function getOverdueOrders(): Promise<{ data: Order[]; count: number }> {
   return apiFetch("/api/orders/overdue");
 }

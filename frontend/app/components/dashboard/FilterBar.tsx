@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useRef, useEffect } from "react";
+import { getDistinctCommunes } from "@/app/lib/api";
 
 const SOURCES = [
   { value: "", label: "Todas las fuentes" },
@@ -111,7 +112,12 @@ export function FilterBar({ cities = [] }: { cities?: string[] }) {
   const router = useRouter();
   const params = useSearchParams();
   const [productInput, setProductInput] = useState(params.get("product_name") || "");
-  const [communeInput, setCommuneInput] = useState(params.get("commune") || "");
+  const [communes, setCommunes] = useState<string[]>([]);
+
+  const currentCity = params.get("city") || "";
+  useEffect(() => {
+    getDistinctCommunes(currentCity || undefined).then(setCommunes).catch(() => setCommunes([]));
+  }, [currentCity]);
 
   function update(key: string, value: string) {
     const next = new URLSearchParams(params.toString());
@@ -128,13 +134,8 @@ export function FilterBar({ cities = [] }: { cities?: string[] }) {
     update("product_name", productInput.trim());
   }
 
-  function applyCommune() {
-    update("commune", communeInput.trim());
-  }
-
   function clearAll() {
     setProductInput("");
-    setCommuneInput("");
     router.push("/dashboard");
   }
 
@@ -196,15 +197,16 @@ export function FilterBar({ cities = [] }: { cities?: string[] }) {
         </select>
       )}
 
-      <input
-        type="text"
-        placeholder="Comuna..."
-        value={communeInput}
-        onChange={(e) => setCommuneInput(e.target.value)}
-        onBlur={applyCommune}
-        onKeyDown={(e) => e.key === "Enter" && applyCommune()}
-        className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 w-36"
-      />
+      <select
+        value={params.get("commune") || ""}
+        onChange={(e) => update("commune", e.target.value)}
+        className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500"
+      >
+        <option value="">Todas las comunas</option>
+        {communes.map((c) => (
+          <option key={c} value={c}>{c}</option>
+        ))}
+      </select>
 
       <input
         type="text"

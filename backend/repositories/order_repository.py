@@ -259,6 +259,14 @@ class OrderRepository:
             cities.insert(0, "Santiago")
         return cities
 
+    def get_distinct_communes(self, city: str | None = None) -> list[str]:
+        query = self.db.table(self.table).select("commune")
+        if city:
+            query = query.eq("city", city)
+        result = query.execute()
+        communes = sorted({r["commune"] for r in (result.data or []) if r.get("commune")})
+        return communes
+
     def get_by_external_id(self, external_id: str, source: str) -> Optional[Order]:
         result = (
             self.db.table(self.table)
