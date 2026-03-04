@@ -13,7 +13,14 @@ _SANTIAGO = ZoneInfo("America/Santiago")
 # sell_cutoff[day] = ce_cutoff[day] - 6h (always 6h buffer)
 # Set via ML_CE_CUTOFF_SCHEDULE env var (update each Friday for next week)
 _WEEKDAY_NAMES = ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"]
+# Loaded from DB at sync time (reload_ce_schedule); env var is the initial fallback
 _ML_CE_SCHEDULE: dict[str, str] = json.loads(os.getenv("ML_CE_CUTOFF_SCHEDULE", "{}"))
+
+
+def reload_ce_schedule(schedule: dict[str, str]) -> None:
+    """Update the in-process CE schedule (called from sync service and settings router)."""
+    global _ML_CE_SCHEDULE
+    _ML_CE_SCHEDULE = schedule
 
 
 def _end_of_day_santiago(dt: datetime) -> datetime:

@@ -109,3 +109,8 @@ export interface HistoricalOrdersPage {
   per_page: number;
   pages: number;
 }
+
+export interface CESchedule {
+  value: Record<string, string>;  // {"monday":"11:00","thursday":"14:45",...}
+  updated_at: string | null;
+}

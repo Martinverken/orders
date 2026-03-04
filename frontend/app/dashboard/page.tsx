@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { getDashboardSummary, getDelayMetrics, getDistinctCities, getDistinctHistoricalCities, getHistoricalOrders, getOrders, getSyncStatus } from "@/app/lib/api";
+import { getCESchedule, getDashboardSummary, getDelayMetrics, getDistinctCities, getDistinctHistoricalCities, getHistoricalOrders, getOrders, getSyncStatus } from "@/app/lib/api";
 import { SummaryCards } from "@/app/components/dashboard/SummaryCards";
 import { OrdersTable } from "@/app/components/dashboard/OrdersTable";
 import { SyncStatus } from "@/app/components/dashboard/SyncStatus";
@@ -8,6 +8,8 @@ import { HistoricalFilterBar } from "@/app/components/dashboard/HistoricalFilter
 import { HistoricalOrdersTable } from "@/app/components/dashboard/HistoricalOrdersTable";
 import { TicketsTable } from "@/app/components/dashboard/TicketsTable";
 import { DelayMetricsTable } from "@/app/components/dashboard/DelayMetricsTable";
+import { CEScheduleSettings } from "@/app/components/dashboard/CEScheduleSettings";
+import { CEScheduleModal } from "@/app/components/dashboard/CEScheduleModal";
 
 interface PageProps {
   searchParams: Promise<{
@@ -48,6 +50,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const tab = params.tab === "historial" ? "historial"
     : params.tab === "estadisticas" ? "estadisticas"
     : params.tab === "tickets" ? "tickets"
+    : params.tab === "configuracion" ? "configuracion"
     : "pedidos";
 
   const syncStatus = await getSyncStatus();
@@ -61,6 +64,18 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     city: params.city,
     commune: params.commune,
   };
+
+  // Always fetch CE schedule (needed for Friday modal on any tab)
+  const ceSchedule = await getCESchedule();
+
+  // Friday modal: show if today is Friday and schedule wasn't updated this week
+  const nowSantiago = new Date(new Date().toLocaleString("en-US", { timeZone: "America/Santiago" }));
+  const isFriday = nowSantiago.getDay() === 5;
+  const startOfWeek = new Date(nowSantiago);
+  startOfWeek.setDate(nowSantiago.getDate() - nowSantiago.getDay() + 1); // Monday
+  startOfWeek.setHours(0, 0, 0, 0);
+  const scheduleUpdatedAt = ceSchedule.updated_at ? new Date(ceSchedule.updated_at) : null;
+  const showModal = isFriday && (!scheduleUpdatedAt || scheduleUpdatedAt < startOfWeek);
 
   let summary = null, ordersPage = null, cities: string[] = [];
   let historicalPage = null, historicalCities: string[] = [];
@@ -90,6 +105,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     ]);
   } else if (tab === "tickets") {
     ticketsPage = await getHistoricalOrders({ has_case: true, per_page: 100 });
+  } else if (tab === "configuracion") {
+    // no extra data needed
   } else {
     delayMetrics = await getDelayMetrics();
   }
@@ -115,6 +132,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {showModal && <CEScheduleModal initialSchedule={ceSchedule} />}
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
@@ -166,6 +184,16 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             }`}
           >
             Estadísticas
+          </a>
+          <a
+            href={buildUrl(allParams, { tab: "configuracion" })}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              tab === "configuracion"
+                ? "border-gray-900 text-gray-900"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Configuración
           </a>
         </div>
       </header>
@@ -271,6 +299,21 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             </div>
             <div className="px-6 py-4">
               <TicketsTable orders={ticketsPage?.data ?? []} />
+            </div>
+          </div>
+        )}
+
+        {/* ── Configuración ── */}
+        {tab === "configuracion" && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-medium text-gray-900">Horarios Centro de Envíos (ML)</h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Actualiza cada viernes con el horario de la próxima semana
+              </p>
+            </div>
+            <div className="px-6 py-6">
+              <CEScheduleSettings initialSchedule={ceSchedule} />
             </div>
           </div>
         )}

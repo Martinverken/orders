@@ -11,6 +11,7 @@ from integrations.mercadolibre.mapper import parse_ml_datetime
 from repositories.order_repository import OrderRepository
 from repositories.sync_log_repository import SyncLogRepository
 from repositories.delayed_order_repository import DelayedOrderRepository
+from repositories.settings_repository import SettingsRepository
 from models.sync_log import SyncLogCreate, SyncStatus, SyncResult
 from models.order import Order, OrderCreate, OrderUrgency
 
@@ -122,6 +123,7 @@ class SyncService:
         self.order_repo = OrderRepository()
         self.sync_log_repo = SyncLogRepository()
         self.delayed_repo = DelayedOrderRepository()
+        self.settings_repo = SettingsRepository()
         self.integrations: dict[str, BaseIntegration] = {
             "falabella": FalabellaClient(),
             "mercadolibre": MercadoLibreClient(),
@@ -155,6 +157,16 @@ class SyncService:
         fetched_ids: set[str] = set()
 
         try:
+            # For ML: reload CE schedule from DB before fetching orders
+            if source == "mercadolibre":
+                try:
+                    from integrations.mercadolibre.mapper import reload_ce_schedule
+                    row = self.settings_repo.get("ml_ce_schedule")
+                    if row and row.get("value"):
+                        reload_ce_schedule(row["value"])
+                except Exception as e:
+                    logger.warning(f"[mercadolibre] Could not reload CE schedule: {e}")
+
             async for order in integration.fetch_pending_orders():
                 batch.append(order)
                 fetched_ids.add(order.external_id)

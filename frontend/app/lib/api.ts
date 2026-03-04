@@ -1,4 +1,4 @@
-import { DashboardSummary, HistoricalMetrics, HistoricalOrdersPage, Order, OrderCase, OrdersPage, SyncStatusResponse } from "@/app/types";
+import { CESchedule, DashboardSummary, HistoricalMetrics, HistoricalOrdersPage, Order, OrderCase, OrdersPage, SyncStatusResponse } from "@/app/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -130,6 +130,18 @@ export async function addOrderCase(orderId: string, data: { case_number?: string
 
 export async function deleteOrderCase(caseId: string): Promise<void> {
   await apiFetch(`/api/orders/history/cases/${caseId}`, { method: "DELETE" });
+}
+
+export async function getCESchedule(): Promise<CESchedule> {
+  const data = await apiFetch<{ success: boolean; data: CESchedule | null }>("/api/settings/ce-schedule");
+  return data.data ?? { value: {}, updated_at: null };
+}
+
+export async function saveCESchedule(schedule: Record<string, string>): Promise<void> {
+  await apiFetch("/api/settings/ce-schedule", {
+    method: "PUT",
+    body: JSON.stringify(schedule),
+  });
 }
 
 export async function getDelayMetrics(): Promise<HistoricalMetrics> {
