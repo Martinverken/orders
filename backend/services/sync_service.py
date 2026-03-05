@@ -113,8 +113,15 @@ def _is_order_resolved(order: Order) -> bool:
         shipment_status = str(shipment.get("status", "")).lower()
         if logistic_type == "self_service":  # Flex: nosotros entregamos al cliente final
             return shipment_status == "delivered"
-        else:  # Centro de Envíos: nosotros llevamos al punto ML → terminal en shipped
-            return shipment_status == "shipped"
+        if shipment_status == "shipped":  # Centro de Envíos: siempre terminal en shipped
+            return True
+        # xd_drop_off: ML puede tardar en actualizar a "shipped" pero el vendedor ya
+        # entregó en el punto ML → dropped_off (y substatuses posteriores) = resuelto.
+        if logistic_type == "xd_drop_off":
+            substatus_history = shipment.get("substatus_history") or []
+            _resolved = {"dropped_off", "picked_up", "in_hub", "in_packing_list"}
+            return any(e.get("substatus") in _resolved for e in substatus_history)
+        return False
 
     return order.status in ("shipped", "delivered")
 
