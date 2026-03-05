@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { HistoricalOrder, OrderCase } from "@/app/types";
 import { SOURCE_LABEL, formatDeadline, getCarrier, getCreatedAt, getOrderNumber, getProductDetails, getShippingDestination, getTrackingCode, getTrackingUrl } from "@/app/lib/utils";
 import { addOrderCase } from "@/app/lib/api";
@@ -9,6 +9,9 @@ import { CaseHistoryModal } from "./CaseHistoryModal";
 interface Props {
   orders: HistoricalOrder[];
 }
+
+type SortCol = "created_at" | "limit_delivery_date" | "delivered_at" | "days_delayed";
+type SortDir = "asc" | "desc";
 
 const STATUS_LABEL: Record<string, string> = {
   delivered: "Entregado",
@@ -49,6 +52,33 @@ function HistoricalUrgencyBadge({ daysDelayed }: { daysDelayed: number }) {
     <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-700">
       A tiempo
     </span>
+  );
+}
+
+function SortableHeader({
+  label,
+  col,
+  sortCol,
+  sortDir,
+  onSort,
+}: {
+  label: string;
+  col: SortCol;
+  sortCol: SortCol | null;
+  sortDir: SortDir;
+  onSort: (col: SortCol) => void;
+}) {
+  const active = sortCol === col;
+  return (
+    <th
+      className="pb-3 pr-4 font-medium cursor-pointer select-none hover:text-gray-700 whitespace-nowrap"
+      onClick={() => onSort(col)}
+    >
+      {label}
+      <span className="ml-1 inline-block w-3 text-center">
+        {active ? (sortDir === "asc" ? "↑" : "↓") : <span className="opacity-30">↕</span>}
+      </span>
+    </th>
   );
 }
 
@@ -172,6 +202,39 @@ function OrderRow({ order, idx }: { order: HistoricalOrder; idx: number }) {
 }
 
 export function HistoricalOrdersTable({ orders }: Props) {
+  const [sortCol, setSortCol] = useState<SortCol | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  const handleSort = (col: SortCol) => {
+    if (sortCol === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortCol(col);
+      setSortDir("asc");
+    }
+  };
+
+  const sorted = useMemo(() => {
+    if (!sortCol) return orders;
+    return [...orders].sort((a, b) => {
+      let av: number;
+      let bv: number;
+      if (sortCol === "days_delayed") {
+        av = a.days_delayed ?? 0;
+        bv = b.days_delayed ?? 0;
+      } else if (sortCol === "created_at") {
+        av = getCreatedAt(a.raw_data) ? new Date(getCreatedAt(a.raw_data)!).getTime() : 0;
+        bv = getCreatedAt(b.raw_data) ? new Date(getCreatedAt(b.raw_data)!).getTime() : 0;
+      } else {
+        const aVal = a[sortCol as keyof HistoricalOrder];
+        const bVal = b[sortCol as keyof HistoricalOrder];
+        av = aVal ? new Date(aVal as string).getTime() : 0;
+        bv = bVal ? new Date(bVal as string).getTime() : 0;
+      }
+      return sortDir === "asc" ? av - bv : bv - av;
+    });
+  }, [orders, sortCol, sortDir]);
+
   if (!orders.length) {
     return (
       <div className="text-center py-12 text-gray-400">
@@ -193,10 +256,10 @@ export function HistoricalOrdersTable({ orders }: Props) {
             <th className="pb-3 pr-4 font-medium">Operador</th>
             <th className="pb-3 pr-4 font-medium">Estado</th>
             <th className="pb-3 pr-4 font-medium">Resultado</th>
-            <th className="pb-3 pr-4 font-medium">Fecha Orden</th>
-            <th className="pb-3 pr-4 font-medium">Fecha límite</th>
-            <th className="pb-3 pr-4 font-medium">Fecha entrega</th>
-            <th className="pb-3 pr-4 font-medium">Retraso</th>
+            <SortableHeader label="Fecha Orden" col="created_at" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+            <SortableHeader label="Fecha límite" col="limit_delivery_date" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+            <SortableHeader label="Fecha entrega" col="delivered_at" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+            <SortableHeader label="Retraso" col="days_delayed" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
             <th className="pb-3 pr-4 font-medium">Tracking</th>
             <th className="pb-3 pr-4 font-medium">Ciudad</th>
             <th className="pb-3 pr-4 font-medium">Comuna</th>
@@ -205,7 +268,7 @@ export function HistoricalOrdersTable({ orders }: Props) {
           </tr>
         </thead>
         <tbody>
-          {orders.map((order, idx) => (
+          {sorted.map((order, idx) => (
             <OrderRow key={order.id} order={order} idx={idx} />
           ))}
         </tbody>

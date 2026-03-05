@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { Order, OrderCase } from "@/app/types";
 import { UrgencyBadge, StatusBadge } from "@/app/components/ui/Badge";
 import { formatDate, formatDeadline, SOURCE_LABEL, getCarrier, getOrderNumber, getTrackingCode, getTrackingUrl, getProductDetails, getShippingDestination } from "@/app/lib/utils";
@@ -9,6 +9,36 @@ import { CaseHistoryModal } from "./CaseHistoryModal";
 
 interface Props {
   orders: Order[];
+}
+
+type SortCol = "created_at_source" | "limit_delivery_date" | "synced_at";
+type SortDir = "asc" | "desc";
+
+function SortableHeader({
+  label,
+  col,
+  sortCol,
+  sortDir,
+  onSort,
+}: {
+  label: string;
+  col: SortCol;
+  sortCol: SortCol | null;
+  sortDir: SortDir;
+  onSort: (col: SortCol) => void;
+}) {
+  const active = sortCol === col;
+  return (
+    <th
+      className="pb-3 pr-4 font-medium cursor-pointer select-none hover:text-gray-700 whitespace-nowrap"
+      onClick={() => onSort(col)}
+    >
+      {label}
+      <span className="ml-1 inline-block w-3 text-center">
+        {active ? (sortDir === "asc" ? "↑" : "↓") : <span className="opacity-30">↕</span>}
+      </span>
+    </th>
+  );
 }
 
 function ActiveTicketButton({ order }: { order: Order }) {
@@ -75,6 +105,27 @@ function ActiveTicketButton({ order }: { order: Order }) {
 }
 
 export function OrdersTable({ orders }: Props) {
+  const [sortCol, setSortCol] = useState<SortCol | null>(null);
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+
+  const handleSort = (col: SortCol) => {
+    if (sortCol === col) {
+      setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    } else {
+      setSortCol(col);
+      setSortDir("asc");
+    }
+  };
+
+  const sorted = useMemo(() => {
+    if (!sortCol) return orders;
+    return [...orders].sort((a, b) => {
+      const av = a[sortCol] ? new Date(a[sortCol] as string).getTime() : 0;
+      const bv = b[sortCol] ? new Date(b[sortCol] as string).getTime() : 0;
+      return sortDir === "asc" ? av - bv : bv - av;
+    });
+  }, [orders, sortCol, sortDir]);
+
   if (!orders.length) {
     return (
       <div className="text-center py-12 text-gray-400">
@@ -96,17 +147,17 @@ export function OrdersTable({ orders }: Props) {
             <th className="pb-3 pr-4 font-medium">Operador</th>
             <th className="pb-3 pr-4 font-medium">Estado</th>
             <th className="pb-3 pr-4 font-medium">Urgencia</th>
-            <th className="pb-3 pr-4 font-medium">Fecha orden</th>
-            <th className="pb-3 pr-4 font-medium">Fecha límite</th>
+            <SortableHeader label="Fecha orden" col="created_at_source" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+            <SortableHeader label="Fecha límite" col="limit_delivery_date" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
             <th className="pb-3 pr-4 font-medium">Tracking</th>
             <th className="pb-3 pr-4 font-medium">Ciudad</th>
             <th className="pb-3 pr-4 font-medium">Comuna</th>
-            <th className="pb-3 pr-4 font-medium">Sync</th>
+            <SortableHeader label="Sync" col="synced_at" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
             <th className="pb-3 font-medium">Tickets</th>
           </tr>
         </thead>
         <tbody>
-          {orders.map((order, idx) => {
+          {sorted.map((order, idx) => {
             const carrier = getCarrier(order.raw_data);
             const orderNumber = getOrderNumber(order.raw_data, order.external_id);
             const tracking = getTrackingCode(order.raw_data);
