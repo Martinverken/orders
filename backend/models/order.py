@@ -111,7 +111,8 @@ class DelayedOrder(BaseModel):
 class OrderCase(BaseModel):
     """A single ticket/case entry linked to a historical order."""
     id: str
-    delayed_order_id: str
+    delayed_order_id: Optional[str] = None
+    order_id: Optional[str] = None
     case_number: Optional[str] = None
     case_status: Optional[str] = None
     comments: Optional[str] = None
