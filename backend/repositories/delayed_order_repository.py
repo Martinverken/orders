@@ -177,7 +177,7 @@ class DelayedOrderRepository:
         """Return archived orders with status='shipped' and no delivered_at yet."""
         result = (
             self.db.table(self.table)
-            .select("id,raw_data")
+            .select("id,raw_data,limit_delivery_date")
             .eq("source", source)
             .eq("status", "shipped")
             .is_("delivered_at", "null")
@@ -191,6 +191,9 @@ class DelayedOrderRepository:
             "status": "delivered",
             "delivered_at": delivered_at.isoformat(),
         }).eq("id", record_id).execute()
+
+    def update_urgency(self, record_id: str, urgency: str) -> None:
+        self.db.table(self.table).update({"urgency": urgency}).eq("id", record_id).execute()
 
     def refresh_missing_comprobantes(self) -> int:
         """Fetch and save comprobantes for Flex/Direct orders (ML and Falabella) missing one."""

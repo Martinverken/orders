@@ -123,6 +123,16 @@ def _ml_was_late(order: Order) -> bool:
     date_val = _get_delivery_date(order)
     if date_val:
         return date_val > order.limit_delivery_date
+    # For CE orders (xd_drop_off, cross_docking): use first_shipped_at set by DB trigger.
+    # Avoids false OVERDUE when the seller shipped on time but substatus_history is missing.
+    raw = order.raw_data or {}
+    shipment = raw.get("shipment") or {}
+    logistic_type = str(shipment.get("logistic_type", "")).lower()
+    if logistic_type != "self_service":
+        if order.first_shipped_at:
+            return order.first_shipped_at > order.limit_delivery_date
+        return False  # No date available → benefit of the doubt
+    # Flex: no delivery date in DB → fall back to stored urgency
     return order.urgency == OrderUrgency.OVERDUE
 
 
@@ -339,6 +349,12 @@ class SyncService:
             )
             if delivered_at:
                 self.delayed_repo.mark_delivered(row["id"], delivered_at)
+                # Correct urgency if delivered before deadline
+                raw_limit = row.get("limit_delivery_date")
+                if raw_limit:
+                    limit_dt = parse_ml_datetime(raw_limit) if isinstance(raw_limit, str) else raw_limit
+                    if limit_dt and delivered_at < limit_dt:
+                        self.delayed_repo.update_urgency(row["id"], "on_time")
                 updated += 1
 
         if updated:
