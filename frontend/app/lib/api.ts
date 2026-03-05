@@ -1,4 +1,4 @@
-import { CESchedule, DashboardSummary, HistoricalMetrics, HistoricalOrdersPage, Order, OrderCase, OrdersPage, SyncStatusResponse } from "@/app/types";
+import { ActiveOrderWithCases, CESchedule, DashboardSummary, HistoricalMetrics, HistoricalOrdersPage, Order, OrderCase, OrdersPage, SyncStatusResponse } from "@/app/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -142,6 +142,11 @@ export async function addActiveOrderCase(orderId: string, data: { case_number?: 
     method: "POST",
     body: JSON.stringify(data),
   });
+  return res.data;
+}
+
+export async function getActiveOrdersWithCases(): Promise<ActiveOrderWithCases[]> {
+  const res = await apiFetch<{ success: boolean; data: ActiveOrderWithCases[] }>("/api/orders/with-cases");
   return res.data;
 }
 

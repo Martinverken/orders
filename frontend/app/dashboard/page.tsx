@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { getCESchedule, getDashboardSummary, getDelayMetrics, getDistinctCities, getDistinctHistoricalCities, getHistoricalOrders, getOrders, getSyncStatus } from "@/app/lib/api";
+import { getActiveOrdersWithCases, getCESchedule, getDashboardSummary, getDelayMetrics, getDistinctCities, getDistinctHistoricalCities, getHistoricalOrders, getOrders, getSyncStatus } from "@/app/lib/api";
 import { SummaryCards } from "@/app/components/dashboard/SummaryCards";
 import { OrdersTable } from "@/app/components/dashboard/OrdersTable";
 import { SyncStatus } from "@/app/components/dashboard/SyncStatus";
@@ -80,6 +80,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   let summary = null, ordersPage = null, cities: string[] = [];
   let historicalPage = null, historicalCities: string[] = [];
   let ticketsPage = null;
+  let activeWithCases = null;
   let delayMetrics = null;
 
   if (tab === "pedidos") {
@@ -104,7 +105,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       getDistinctHistoricalCities(),
     ]);
   } else if (tab === "tickets") {
-    ticketsPage = await getHistoricalOrders({ has_case: true, per_page: 100 });
+    [ticketsPage, activeWithCases] = await Promise.all([
+      getHistoricalOrders({ has_case: true, per_page: 100 }),
+      getActiveOrdersWithCases(),
+    ]);
   } else if (tab === "configuracion") {
     // no extra data needed
   } else {
@@ -293,12 +297,12 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div className="px-6 py-4 border-b border-gray-100">
               <h2 className="text-base font-medium text-gray-900">
-                Tickets ({ticketsPage?.total ?? 0})
+                Tickets ({(ticketsPage?.total ?? 0) + (activeWithCases?.length ?? 0)})
               </h2>
-              <p className="text-xs text-gray-500 mt-0.5">Pedidos históricos con gestión activa</p>
+              <p className="text-xs text-gray-500 mt-0.5">Pedidos con gestión activa</p>
             </div>
             <div className="px-6 py-4">
-              <TicketsTable orders={ticketsPage?.data ?? []} />
+              <TicketsTable orders={ticketsPage?.data ?? []} activeOrders={activeWithCases ?? []} />
             </div>
           </div>
         )}

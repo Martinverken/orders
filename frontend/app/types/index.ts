@@ -76,11 +76,17 @@ export interface HistoricalMetrics {
 
 export interface OrderCase {
   id: string;
-  delayed_order_id: string;
+  delayed_order_id?: string | null;
+  order_id?: string | null;
   case_number?: string | null;
   case_status?: string | null;
   comments?: string | null;
   created_at: string;
+}
+
+export interface ActiveOrderWithCases {
+  order: Order;
+  cases: OrderCase[];
 }
 
 export interface HistoricalOrder {

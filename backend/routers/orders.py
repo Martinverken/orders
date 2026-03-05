@@ -95,6 +95,13 @@ def delete_case(case_id: str):
     return {"success": True}
 
 
+@router.get("/with-cases", response_model=dict)
+def get_active_orders_with_cases():
+    """Return active orders that have at least one ticket/case."""
+    items = delayed_repo.get_active_orders_with_cases()
+    return {"success": True, "data": items}
+
+
 @router.get("/{order_id}/cases", response_model=dict)
 def get_active_order_cases(order_id: str):
     """List cases for an active (non-archived) order."""

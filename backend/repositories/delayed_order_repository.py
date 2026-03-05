@@ -205,6 +205,29 @@ class DelayedOrderRepository:
     def update_urgency(self, record_id: str, urgency: str) -> None:
         self.db.table(self.table).update({"urgency": urgency}).eq("id", record_id).execute()
 
+    def get_active_orders_with_cases(self) -> list[dict]:
+        """Return active orders that have at least one case, with their cases attached."""
+        cases_result = (
+            self.db.table("order_cases")
+            .select("*")
+            .not_.is_("order_id", "null")
+            .is_("delayed_order_id", "null")
+            .execute()
+        )
+        case_rows = cases_result.data or []
+        if not case_rows:
+            return []
+        from collections import defaultdict
+        cases_by_order: dict[str, list] = defaultdict(list)
+        for row in case_rows:
+            cases_by_order[row["order_id"]].append(row)
+        order_ids = list(cases_by_order.keys())
+        orders_result = self.db.table("orders").select("*").in_("id", order_ids).execute()
+        return [
+            {"order": r, "cases": cases_by_order[r["id"]]}
+            for r in (orders_result.data or [])
+        ]
+
     def get_cases_for_active_order(self, order_id: str) -> list:
         from models.order import OrderCase
         result = self.db.table("order_cases").select("*").eq("order_id", order_id).order("created_at").execute()
