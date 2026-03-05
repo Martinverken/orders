@@ -80,6 +80,11 @@ def to_order_create(raw: dict) -> OrderCreate | None:
     elif isinstance(statuses_raw, str):
         status = statuses_raw
 
+    # Direct/FalaFlex: "shipped" = Welivery recogió del seller, aún no entregó al cliente.
+    # Map to "ready_to_ship" so compute_urgency returns DUE_TODAY instead of DELIVERED_TODAY.
+    if shipping_provider_type in _DIRECT_PROVIDER_TYPES and status == "shipped":
+        status = "ready_to_ship"
+
     # Regular orders: "delivered" means Falabella's carrier handled it — our job ended
     # at "shipped". The "delivered" status fetch (needed for Direct UpdatedAt) re-inserts
     # these orders and breaks cleanup. Skip them here so the cleanup sees them as
