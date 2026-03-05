@@ -196,10 +196,14 @@ class SyncService:
                 except Exception as e:
                     logger.warning(f"[mercadolibre] Could not reload CE schedule: {e}")
 
+            archived_ids = self.delayed_repo.get_archived_external_ids(source)
+
             async for order in integration.fetch_pending_orders():
-                batch.append(order)
                 fetched_ids.add(order.external_id)
                 orders_fetched += 1
+                if order.external_id in archived_ids:
+                    continue  # already archived — skip re-insertion
+                batch.append(order)
                 if len(batch) >= BATCH_SIZE:
                     orders_upserted += self.order_repo.upsert_batch(batch)
                     batch = []

@@ -1,7 +1,7 @@
 """Shopify Admin REST API client.
 
 Fetches paid orders with tags 'ebox' + 'welivery'.
-Checks Welivery delivery status for each eligible order.
+Uses Shopify's own fulfillment_status to detect delivered orders.
 """
 import logging
 from typing import AsyncIterator
@@ -11,7 +11,6 @@ import httpx
 from config import get_settings
 from integrations.base import BaseIntegration, IntegrationError
 from integrations.shopify.mapper import to_order_create
-from integrations.welivery.client import get_delivery_status
 from models.order import OrderCreate
 
 logger = logging.getLogger(__name__)
@@ -41,7 +40,7 @@ class ShopifyClient(BaseIntegration):
             "financial_status": "paid",
             "status": "any",
             "limit": 250,
-            "fields": "id,name,order_number,tags,financial_status,created_at,line_items,shipping_address",
+            "fields": "id,name,order_number,tags,financial_status,fulfillment_status,created_at,line_items,shipping_address",
         }
 
         fetched = 0
@@ -68,15 +67,10 @@ class ShopifyClient(BaseIntegration):
                         skipped_ineligible += 1
                         continue
 
-                    # Check Welivery delivery status
-                    welivery_id = str(raw.get("name", "")).lstrip("#")
-                    if welivery_id:
-                        status_resp = get_delivery_status(welivery_id)
-                        if status_resp["delivered"]:
-                            skipped_delivered += 1
-                            # Yield as "delivered" so sync_service archives it
-                            yield mapped.model_copy(update={"status": "delivered"})
-                            continue
+                    # Skip orders already fulfilled in Shopify — left_feed logic archives them
+                    if raw.get("fulfillment_status") == "fulfilled":
+                        skipped_delivered += 1
+                        continue
 
                     yield mapped
 

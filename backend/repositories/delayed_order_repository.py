@@ -121,6 +121,10 @@ class DelayedOrderRepository:
                     }).eq("order_id", str(o.id)).execute()
         return len(result.data) if result.data else 0
 
+    def get_archived_external_ids(self, source: str) -> set[str]:
+        result = self.db.table(self.table).select("external_id").eq("source", source).execute()
+        return {r["external_id"] for r in (result.data or [])}
+
     def get_paginated(
         self,
         source: str | None = None,
