@@ -22,6 +22,8 @@ function ActiveTicketButton({ order }: { order: Order }) {
       try {
         const fetched = await getActiveOrderCases(order.id);
         setCases(fetched);
+      } catch {
+        setCases([]);
       } finally {
         setLoading(false);
       }
