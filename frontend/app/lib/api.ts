@@ -132,6 +132,19 @@ export async function deleteOrderCase(caseId: string): Promise<void> {
   await apiFetch(`/api/orders/history/cases/${caseId}`, { method: "DELETE" });
 }
 
+export async function getActiveOrderCases(orderId: string): Promise<OrderCase[]> {
+  const res = await apiFetch<{ success: boolean; data: OrderCase[] }>(`/api/orders/${orderId}/cases`);
+  return res.data;
+}
+
+export async function addActiveOrderCase(orderId: string, data: { case_number?: string | null; case_status?: string | null; comments?: string | null }): Promise<OrderCase> {
+  const res = await apiFetch<{ success: boolean; data: OrderCase }>(`/api/orders/${orderId}/cases`, {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  return res.data;
+}
+
 export async function getCESchedule(): Promise<CESchedule> {
   const data = await apiFetch<{ success: boolean; data: CESchedule | null }>("/api/settings/ce-schedule");
   return data.data ?? { value: {}, updated_at: null };

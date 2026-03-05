@@ -109,6 +109,16 @@ class DelayedOrderRepository:
             .upsert(records, on_conflict="external_id,source")
             .execute()
         )
+        # Transfer cases from active orders to their new delayed_orders records
+        if result.data:
+            ei_to_doi = {r["external_id"]: r["id"] for r in result.data}
+            for o in orders:
+                doid = ei_to_doi.get(o.external_id)
+                if doid and o.id:
+                    self.db.table("order_cases").update({
+                        "delayed_order_id": doid,
+                        "order_id": None,
+                    }).eq("order_id", str(o.id)).execute()
         return len(result.data) if result.data else 0
 
     def get_paginated(
@@ -194,6 +204,21 @@ class DelayedOrderRepository:
 
     def update_urgency(self, record_id: str, urgency: str) -> None:
         self.db.table(self.table).update({"urgency": urgency}).eq("id", record_id).execute()
+
+    def get_cases_for_active_order(self, order_id: str) -> list:
+        from models.order import OrderCase
+        result = self.db.table("order_cases").select("*").eq("order_id", order_id).order("created_at").execute()
+        return [OrderCase(**r) for r in (result.data or [])]
+
+    def add_case_for_active_order(self, order_id: str, case_number, case_status, comments):
+        from models.order import OrderCase
+        result = self.db.table("order_cases").insert({
+            "order_id": order_id,
+            "case_number": case_number,
+            "case_status": case_status,
+            "comments": comments,
+        }).execute()
+        return OrderCase(**result.data[0])
 
     def refresh_missing_comprobantes(self) -> int:
         """Fetch and save comprobantes for Flex/Direct orders (ML and Falabella) missing one."""

@@ -95,6 +95,22 @@ def delete_case(case_id: str):
     return {"success": True}
 
 
+@router.get("/{order_id}/cases", response_model=dict)
+def get_active_order_cases(order_id: str):
+    """List cases for an active (non-archived) order."""
+    cases = delayed_repo.get_cases_for_active_order(order_id)
+    return {"success": True, "data": [c.model_dump() for c in cases]}
+
+
+@router.post("/{order_id}/cases", response_model=dict)
+def add_active_order_case(order_id: str, body: CaseCreateRequest):
+    """Add a ticket/case to an active order."""
+    case = delayed_repo.add_case_for_active_order(
+        order_id, body.case_number, body.case_status, body.comments
+    )
+    return {"success": True, "data": case.model_dump()}
+
+
 @router.post("/history/refresh-comprobantes", response_model=dict)
 def refresh_comprobantes():
     """Fetch and save comprobantes from Welivery for Flex ML orders that don't have one yet."""

@@ -1,9 +1,75 @@
-import { Order } from "@/app/types";
+"use client";
+
+import { useState } from "react";
+import { Order, OrderCase } from "@/app/types";
 import { UrgencyBadge, StatusBadge } from "@/app/components/ui/Badge";
 import { formatDate, formatDeadline, SOURCE_LABEL, getCarrier, getOrderNumber, getTrackingCode, getTrackingUrl, getProductDetails, getShippingDestination } from "@/app/lib/utils";
+import { getActiveOrderCases, addActiveOrderCase } from "@/app/lib/api";
+import { CaseHistoryModal } from "./CaseHistoryModal";
 
 interface Props {
   orders: Order[];
+}
+
+function ActiveTicketButton({ order }: { order: Order }) {
+  const [open, setOpen] = useState(false);
+  const [cases, setCases] = useState<OrderCase[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const handleOpen = async () => {
+    if (!cases) {
+      setLoading(true);
+      try {
+        const fetched = await getActiveOrderCases(order.id);
+        setCases(fetched);
+      } finally {
+        setLoading(false);
+      }
+    }
+    setOpen(true);
+  };
+
+  const handleAdd = async (data: { case_number?: string | null; case_status?: string | null; comments?: string | null }) => {
+    const created = await addActiveOrderCase(order.id, data);
+    setCases((prev) => [...(prev ?? []), created]);
+    return created;
+  };
+
+  const count = cases?.length ?? 0;
+  const topStatus = cases?.find((c) => c.case_status === "pending")?.case_status
+    ?? cases?.find((c) => c.case_status === "created")?.case_status
+    ?? cases?.[0]?.case_status;
+
+  const orderNumber = getOrderNumber(order.raw_data, order.external_id);
+
+  return (
+    <>
+      <button
+        onClick={handleOpen}
+        disabled={loading}
+        className="flex items-center gap-1.5 text-xs border border-gray-200 rounded-full px-2.5 py-1 hover:bg-gray-50 transition-colors disabled:opacity-50"
+      >
+        {loading ? (
+          <span className="text-gray-400">...</span>
+        ) : (
+          <>
+            {count > 0 && topStatus && (
+              <span className={`inline-block w-2 h-2 rounded-full ${topStatus === "pending" ? "bg-amber-400" : topStatus === "created" ? "bg-blue-400" : "bg-green-400"}`} />
+            )}
+            <span className="text-gray-600">{count > 0 ? `${count} ticket${count > 1 ? "s" : ""}` : "+ Ticket"}</span>
+          </>
+        )}
+      </button>
+      {open && cases !== null && (
+        <CaseHistoryModal
+          orderLabel={orderNumber}
+          initialCases={cases}
+          onClose={() => setOpen(false)}
+          onAddCase={handleAdd}
+        />
+      )}
+    </>
+  );
 }
 
 export function OrdersTable({ orders }: Props) {
@@ -33,7 +99,8 @@ export function OrdersTable({ orders }: Props) {
             <th className="pb-3 pr-4 font-medium">Tracking</th>
             <th className="pb-3 pr-4 font-medium">Ciudad</th>
             <th className="pb-3 pr-4 font-medium">Comuna</th>
-            <th className="pb-3 font-medium">Sync</th>
+            <th className="pb-3 pr-4 font-medium">Sync</th>
+            <th className="pb-3 font-medium">Tickets</th>
           </tr>
         </thead>
         <tbody>
@@ -94,8 +161,11 @@ export function OrdersTable({ orders }: Props) {
                 <td className="py-3 pr-4 text-gray-600 text-xs capitalize">
                   {destination.comuna?.toLowerCase() || "—"}
                 </td>
-                <td className="py-3 text-gray-400 text-xs whitespace-nowrap">
+                <td className="py-3 pr-4 text-gray-400 text-xs whitespace-nowrap">
                   {formatDate(order.synced_at)}
+                </td>
+                <td className="py-3 pr-2">
+                  <ActiveTicketButton order={order} />
                 </td>
               </tr>
             );
