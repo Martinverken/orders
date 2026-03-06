@@ -77,6 +77,21 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const scheduleUpdatedAt = ceSchedule.updated_at ? new Date(ceSchedule.updated_at) : null;
   const showModal = isFriday && (!scheduleUpdatedAt || scheduleUpdatedAt < startOfWeek);
 
+  // CE schedule warning: Friday + next week not fully configured
+  const nextWeekDates = isFriday
+    ? (() => {
+        const nextMonday = new Date(nowSantiago);
+        nextMonday.setDate(nowSantiago.getDate() - nowSantiago.getDay() + 8);
+        nextMonday.setHours(0, 0, 0, 0);
+        return Array.from({ length: 5 }, (_, i) => {
+          const d = new Date(nextMonday);
+          d.setDate(nextMonday.getDate() + i);
+          return d.toLocaleDateString("sv");
+        });
+      })()
+    : [];
+  const showCEWarning = isFriday && nextWeekDates.some((iso) => !ceSchedule.value?.[iso]);
+
   let summary = null, ordersPage = null, cities: string[] = [];
   let historicalPage = null, historicalCities: string[] = [];
   let ticketsPage = null;
@@ -200,6 +215,24 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             Configuración
           </a>
         </div>
+
+        {showCEWarning && (
+          <div className="bg-amber-50 border-t border-amber-200">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-2.5 flex items-center gap-2">
+              <span className="text-amber-700 font-bold text-sm">⚠️ IMPORTANTE:</span>
+              <span className="text-amber-800 text-sm">
+                Debes ir a{" "}
+                <a
+                  href={buildUrl(allParams, { tab: "configuracion" })}
+                  className="font-semibold underline hover:text-amber-900"
+                >
+                  Configuración
+                </a>{" "}
+                y agregar los horarios del Centro de Envíos de la próxima semana.
+              </span>
+            </div>
+          </div>
+        )}
       </header>
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
