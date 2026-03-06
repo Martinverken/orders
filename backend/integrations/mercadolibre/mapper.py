@@ -46,7 +46,7 @@ def _resolve_ce_deadline_from_schedule(date_handling_dt: datetime) -> datetime |
         from datetime import date as date_type
         candidate_date = candidate_date + timedelta(days=delta)
         weekday = _WEEKDAY_NAMES[candidate_date.weekday()]
-        ce_cutoff_str = _ML_CE_SCHEDULE.get(weekday)
+        ce_cutoff_str = _ML_CE_SCHEDULE.get(candidate_date.isoformat()) or _ML_CE_SCHEDULE.get(weekday)
         if not ce_cutoff_str:
             continue
         h, m = map(int, ce_cutoff_str.split(":"))

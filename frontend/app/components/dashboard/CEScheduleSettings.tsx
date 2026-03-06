@@ -4,31 +4,29 @@ import { useState } from "react";
 import { saveCESchedule } from "@/app/lib/api";
 import { CESchedule } from "@/app/types";
 
-const DAYS = [
-  { key: "monday", label: "Lunes" },
-  { key: "tuesday", label: "Martes" },
-  { key: "wednesday", label: "Miércoles" },
-  { key: "thursday", label: "Jueves" },
-  { key: "friday", label: "Viernes" },
-  { key: "saturday", label: "Sábado" },
-];
-
+const FULL_DAY = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
 const MONTH_SHORT = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
-const DAY_OFFSET: Record<string, number> = { monday:0, tuesday:1, wednesday:2, thursday:3, friday:4, saturday:5 };
+const WEEKDAY_KEYS = ["sunday","monday","tuesday","wednesday","thursday","friday","saturday"];
 
-function getWeekDates(): Record<string, { date: Date; isPast: boolean }> {
+function getBusinessWeeks(): { title: string; days: { isoDate: string; label: string; isPast: boolean; weekdayKey: string }[] }[] {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const dow = today.getDay();
-  const monday = new Date(today);
-  monday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
-  const result: Record<string, { date: Date; isPast: boolean }> = {};
-  for (const [key, offset] of Object.entries(DAY_OFFSET)) {
-    const d = new Date(monday);
-    d.setDate(monday.getDate() + offset);
-    result[key] = { date: d, isPast: d < today };
-  }
-  return result;
+  const currentMonday = new Date(today);
+  currentMonday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
+
+  return [0, 1].map((weekOffset) => {
+    const weekStart = new Date(currentMonday);
+    weekStart.setDate(currentMonday.getDate() + weekOffset * 7);
+    const days = Array.from({ length: 5 }, (_, i) => {
+      const d = new Date(weekStart);
+      d.setDate(weekStart.getDate() + i);
+      const isoDate = d.toLocaleDateString("sv"); // "YYYY-MM-DD" in local time
+      const label = `${FULL_DAY[d.getDay()]} ${d.getDate()} ${MONTH_SHORT[d.getMonth()]}`;
+      return { isoDate, label, isPast: d < today, weekdayKey: WEEKDAY_KEYS[d.getDay()] };
+    });
+    return { title: weekOffset === 0 ? "Esta semana" : "Próxima semana", days };
+  });
 }
 
 interface Props {
@@ -36,13 +34,18 @@ interface Props {
 }
 
 export function CEScheduleSettings({ initialSchedule }: Props) {
-  const [times, setTimes] = useState<Record<string, string>>(
-    () => {
-      const init: Record<string, string> = {};
-      for (const d of DAYS) init[d.key] = initialSchedule.value?.[d.key] || "";
-      return init;
-    }
-  );
+  const weeks = getBusinessWeeks();
+
+  const [times, setTimes] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    for (const week of weeks)
+      for (const day of week.days)
+        init[day.isoDate] =
+          initialSchedule.value?.[day.isoDate] ||
+          initialSchedule.value?.[day.weekdayKey] ||
+          "";
+    return init;
+  });
   const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -65,42 +68,60 @@ export function CEScheduleSettings({ initialSchedule }: Props) {
     ? new Date(initialSchedule.updated_at).toLocaleString("es-CL", { timeZone: "America/Santiago" })
     : null;
 
-  const weekDates = getWeekDates();
-
   return (
     <div className="max-w-lg">
       <p className="text-sm text-gray-500 mb-6">
         Ingresa los horarios de corte del Centro de Envíos en formato 24h (ej: 14:45).
-        El horario de venta cierra 6 horas antes del corte.
+        Consúltalos en{" "}
+        <a
+          href="https://www.mercadolibre.cl/preferencias-de-venta/horarios-de-envio"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-blue-600 hover:underline"
+        >
+          Preferencias de venta → Horarios de envío
+        </a>
+        . El horario de venta cierra 6 horas antes del corte.
         {updatedAt && (
           <span className="block mt-1 text-xs text-gray-400">Última actualización: {updatedAt}</span>
         )}
       </p>
 
-      <div className="space-y-3">
-        {DAYS.map((d) => {
-          const { date, isPast } = weekDates[d.key];
-          const dateLabel = `${d.label} ${date.getDate()} ${MONTH_SHORT[date.getMonth()]}`;
-          return (
-          <div key={d.key} className="flex items-center gap-4">
-            <span className={`w-40 text-sm font-medium ${isPast ? "text-gray-400" : "text-gray-700"}`}>{dateLabel}</span>
-            <input
-              type="text"
-              value={times[d.key]}
-              onChange={(e) => setTimes((prev) => ({ ...prev, [d.key]: e.target.value }))}
-              disabled={isPast}
-              placeholder="HH:MM"
-              maxLength={5}
-              className={`w-20 px-3 py-1.5 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${isPast ? "border-gray-100 text-gray-400 cursor-not-allowed" : "border-gray-200 text-gray-900"}`}
-            />
-            {times[d.key] && !isPast && (
-              <span className="text-xs text-gray-400">
-                Venta cierra a las {subtractHours(times[d.key], 6)}
-              </span>
-            )}
+      <div className="space-y-6">
+        {weeks.map((week) => (
+          <div key={week.title}>
+            <h3 className="text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">
+              {week.title}
+            </h3>
+            <div className="space-y-3">
+              {week.days.map((day) => (
+                <div key={day.isoDate} className="flex items-center gap-4">
+                  <span className={`w-40 text-sm font-medium ${day.isPast ? "text-gray-400" : "text-gray-700"}`}>
+                    {day.label}
+                  </span>
+                  <input
+                    type="text"
+                    value={times[day.isoDate] ?? ""}
+                    onChange={(e) => setTimes((prev) => ({ ...prev, [day.isoDate]: e.target.value }))}
+                    disabled={day.isPast}
+                    placeholder="HH:MM"
+                    maxLength={5}
+                    className={`w-20 px-3 py-1.5 border rounded-lg text-sm bg-white focus:outline-none focus:ring-2 focus:ring-blue-500 ${
+                      day.isPast
+                        ? "border-gray-100 text-gray-400 cursor-not-allowed"
+                        : "border-gray-200 text-gray-900"
+                    }`}
+                  />
+                  {times[day.isoDate] && !day.isPast && (
+                    <span className="text-xs text-gray-400">
+                      Venta cierra a las {subtractHours(times[day.isoDate], 6)}
+                    </span>
+                  )}
+                </div>
+              ))}
+            </div>
           </div>
-          );
-        })}
+        ))}
       </div>
 
       <div className="mt-6 flex items-center gap-3">
@@ -121,7 +142,7 @@ export function CEScheduleSettings({ initialSchedule }: Props) {
 function subtractHours(time: string, hours: number): string {
   const [h, m] = time.split(":").map(Number);
   const total = h * 60 + m - hours * 60;
-  const hh = Math.floor(((total % 1440) + 1440) % 1440 / 60);
+  const hh = Math.floor((((total % 1440) + 1440) % 1440) / 60);
   const mm = ((total % 60) + 60) % 60;
   return `${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`;
 }
