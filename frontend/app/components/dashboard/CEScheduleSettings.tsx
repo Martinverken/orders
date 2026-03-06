@@ -15,7 +15,7 @@ function getBusinessWeeks(): { title: string; days: { isoDate: string; label: st
   const currentMonday = new Date(today);
   currentMonday.setDate(today.getDate() - (dow === 0 ? 6 : dow - 1));
 
-  return [0, 1].map((weekOffset) => {
+  return [1, 0].map((weekOffset) => {
     const weekStart = new Date(currentMonday);
     weekStart.setDate(currentMonday.getDate() + weekOffset * 7);
     const days = Array.from({ length: 5 }, (_, i) => {
