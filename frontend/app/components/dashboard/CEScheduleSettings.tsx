@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { saveCESchedule } from "@/app/lib/api";
 import { CESchedule } from "@/app/types";
 
@@ -34,6 +35,7 @@ interface Props {
 }
 
 export function CEScheduleSettings({ initialSchedule }: Props) {
+  const router = useRouter();
   const weeks = getBusinessWeeks();
 
   const [times, setTimes] = useState<Record<string, string>>(() => {
@@ -55,8 +57,10 @@ export function CEScheduleSettings({ initialSchedule }: Props) {
     setSaved(false);
     setError(null);
     try {
-      await saveCESchedule(times);
+      const toSave = Object.fromEntries(Object.entries(times).filter(([, v]) => v.trim()));
+      await saveCESchedule(toSave);
       setSaved(true);
+      router.refresh();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Error al guardar");
     } finally {
