@@ -3,6 +3,7 @@ import time
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from config import get_settings
 from integrations.base import BaseIntegration, IntegrationError
 from integrations.falabella.client import FalabellaClient
 from integrations.falabella.mapper import parse_falabella_datetime
@@ -30,7 +31,7 @@ def _get_delivery_date(order: Order) -> datetime | None:
     ML CE (xd_drop_off): substatus_history[dropped_off].date → acción del vendedor
     ML CE (otros): shipment.status_history.date_shipped
     """
-    if order.source == "shopify":
+    if order.source.startswith("shopify"):
         # DB trigger captures first transition to "delivered" (Welivery COMPLETADO)
         return order.first_delivered_at or order.first_shipped_at or None
 
@@ -103,7 +104,7 @@ def _is_order_resolved(order: Order) -> bool:
         else:  # falaflex: seller delivers to customer
             return order.status == "delivered"
 
-    if order.source == "shopify":
+    if order.source.startswith("shopify"):
         return order.status == "delivered"
 
     if order.source == "mercadolibre":
@@ -153,10 +154,17 @@ class SyncService:
             "falabella": FalabellaClient(),
             "mercadolibre": MercadoLibreClient(),
         }
-        try:
-            self.integrations["shopify"] = ShopifyClient()
-        except IntegrationError as e:
-            logger.info(f"Shopify integration not configured: {e}")
+        settings = get_settings()
+        _SHOPIFY_STORES = [
+            ("shopify_verken", settings.shopify_verken_url, settings.shopify_verken_token),
+            ("shopify_kaut",   settings.shopify_kaut_url,   settings.shopify_kaut_token),
+        ]
+        for source_name, url, token in _SHOPIFY_STORES:
+            if url and token:
+                try:
+                    self.integrations[source_name] = ShopifyClient(url, token, source_name)
+                except IntegrationError as e:
+                    logger.info(f"Shopify store {source_name} not configured: {e}")
 
     async def run_full_sync(self) -> list[SyncResult]:
         results = []
@@ -281,7 +289,7 @@ class SyncService:
                 # Estado terminal alcanzado — comparar fecha real de envío/entrega vs plazo
                 if order.source == "falabella":
                     was_late = _falabella_was_late(order)
-                elif order.source == "shopify":
+                elif order.source.startswith("shopify"):
                     date_val = _get_delivery_date(order)
                     was_late = date_val > order.limit_delivery_date if date_val else past_deadline
                 else:

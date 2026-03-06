@@ -56,7 +56,8 @@ export const URGENCY_CLASSES: Record<OrderUrgency, string> = {
 export const SOURCE_LABEL: Record<string, string> = {
   falabella: "Falabella",
   mercadolibre: "Mercado Libre",
-  shopify: "Shopify",
+  shopify_verken: "Shopify Verken",
+  shopify_kaut: "Shopify Kaut",
 };
 
 export const STATUS_LABEL: Record<string, string> = {

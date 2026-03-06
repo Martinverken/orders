@@ -36,9 +36,11 @@ class Settings(BaseSettings):
     daily_sync_minute: int = 0
     scheduler_timezone: str = "America/Santiago"
 
-    # Shopify
-    shopify_store_url: str = ""       # e.g. "mystore.myshopify.com"
-    shopify_access_token: str = ""    # Admin API token (scope: read_orders)
+    # Shopify — one entry per store
+    shopify_verken_url: str = ""      # e.g. "verken.myshopify.com"
+    shopify_verken_token: str = ""    # Admin API token (scope: read_orders)
+    shopify_kaut_url: str = ""        # e.g. "kaut.myshopify.com"
+    shopify_kaut_token: str = ""      # Admin API token (scope: read_orders)
 
     # CORS
     allowed_origins: str = "http://localhost:3000"

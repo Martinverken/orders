@@ -8,7 +8,7 @@ _PENDING_LIKE = ["pending", "ready_to_ship"]
 
 
 def _extract_logistics_operator(source: str, raw_data: dict) -> str | None:
-    if source == "shopify":
+    if source.startswith("shopify"):
         return "Welivery"
     if source == "mercadolibre":
         return raw_data.get("delivery_mode") or None
@@ -22,7 +22,7 @@ def _extract_logistics_operator(source: str, raw_data: dict) -> str | None:
 
 
 def _extract_city_commune(source: str, raw_data: dict) -> tuple[str | None, str | None]:
-    if source == "shopify":
+    if source.startswith("shopify"):
         addr = raw_data.get("shipping_address") or {}
         city = addr.get("city") or None
         commune = addr.get("address2") or addr.get("province") or None

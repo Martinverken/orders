@@ -8,7 +8,6 @@ from typing import AsyncIterator
 
 import httpx
 
-from config import get_settings
 from integrations.base import BaseIntegration, IntegrationError
 from integrations.shopify.mapper import to_order_create
 from models.order import OrderCreate
@@ -19,19 +18,19 @@ _API_VERSION = "2024-01"
 
 
 class ShopifyClient(BaseIntegration):
-    def __init__(self):
-        settings = get_settings()
-        if not settings.shopify_store_url or not settings.shopify_access_token:
-            raise IntegrationError("shopify", "SHOPIFY_STORE_URL and SHOPIFY_ACCESS_TOKEN must be set")
-        self.base_url = f"https://{settings.shopify_store_url}/admin/api/{_API_VERSION}"
+    def __init__(self, store_url: str, access_token: str, source_name: str):
+        if not store_url or not access_token:
+            raise IntegrationError(source_name, f"store_url and access_token must be set for {source_name}")
+        self._source_name = source_name
+        self.base_url = f"https://{store_url}/admin/api/{_API_VERSION}"
         self.headers = {
-            "X-Shopify-Access-Token": settings.shopify_access_token,
+            "X-Shopify-Access-Token": access_token,
             "Content-Type": "application/json",
         }
 
     @property
     def source_name(self) -> str:
-        return "shopify"
+        return self._source_name
 
     async def fetch_pending_orders(self) -> AsyncIterator[OrderCreate]:
         """Yield OrderCreate for all eligible Shopify orders not yet delivered."""
@@ -53,16 +52,16 @@ class ShopifyClient(BaseIntegration):
                     resp = client.get(url, headers=self.headers, params=params if params else None)
                     resp.raise_for_status()
                 except httpx.HTTPStatusError as e:
-                    raise IntegrationError("shopify", f"HTTP {e.response.status_code}: {e.response.text}")
+                    raise IntegrationError(self._source_name, f"HTTP {e.response.status_code}: {e.response.text}")
                 except httpx.RequestError as e:
-                    raise IntegrationError("shopify", f"Request error: {e}")
+                    raise IntegrationError(self._source_name, f"Request error: {e}")
 
                 data = resp.json()
                 orders = data.get("orders") or []
 
                 for raw in orders:
                     fetched += 1
-                    mapped = to_order_create(raw)
+                    mapped = to_order_create(raw, source=self._source_name)
                     if mapped is None:
                         skipped_ineligible += 1
                         continue
@@ -80,7 +79,7 @@ class ShopifyClient(BaseIntegration):
                 params = None  # params are already encoded in the next URL
 
         logger.info(
-            f"[shopify] Fetched {fetched} orders total: "
+            f"[{self._source_name}] Fetched {fetched} orders total: "
             f"{fetched - skipped_ineligible - skipped_delivered} pending, "
             f"{skipped_delivered} delivered, "
             f"{skipped_ineligible} ineligible"

@@ -9,6 +9,8 @@ const SOURCES = [
   { value: "", label: "Todas las fuentes" },
   { value: "falabella", label: "Falabella" },
   { value: "mercadolibre", label: "Mercado Libre" },
+  { value: "shopify_verken", label: "Shopify Verken" },
+  { value: "shopify_kaut", label: "Shopify Kaut" },
 ];
 
 const URGENCIES = [

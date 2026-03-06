@@ -11,6 +11,8 @@ def _extract_logistics_operator(order: Order) -> str | None:
     """Extract logistics operator from raw_data depending on source."""
     if not order.raw_data:
         return None
+    if order.source.startswith("shopify"):
+        return "Welivery"
     if order.source == "falabella":
         return order.raw_data.get("ShippingProvider") or order.raw_data.get("ShippingProviderType")
     if order.source == "mercadolibre":
@@ -22,7 +24,7 @@ def _should_fetch_comprobante(order: Order) -> bool:
     """ML Flex, Falabella Direct, and all Shopify orders are handled by Welivery."""
     if not order.raw_data:
         return False
-    if order.source == "shopify":
+    if order.source.startswith("shopify"):
         return True
     if order.source == "mercadolibre":
         return order.raw_data.get("delivery_mode") == "Flex"
@@ -35,7 +37,7 @@ def _get_welivery_id(order: Order) -> str | None:
     """Construct the Welivery reference ID based on source."""
     if not order.raw_data:
         return None
-    if order.source == "shopify":
+    if order.source.startswith("shopify"):
         name = str(order.raw_data.get("name", "")).lstrip("#")
         return name or None
     if order.source == "mercadolibre":

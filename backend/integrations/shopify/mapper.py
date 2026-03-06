@@ -128,7 +128,7 @@ def _get_product_info(order: dict) -> tuple[str | None, int | None]:
 
 # ── Main mapper ──────────────────────────────────────────────────────────────
 
-def to_order_create(raw: dict) -> OrderCreate | None:
+def to_order_create(raw: dict, source: str = "shopify") -> OrderCreate | None:
     """Convert raw Shopify order dict to canonical OrderCreate.
 
     Returns None if the order is not eligible.
@@ -156,7 +156,7 @@ def to_order_create(raw: dict) -> OrderCreate | None:
 
     return OrderCreate(
         external_id=str(raw["id"]),
-        source="shopify",
+        source=source,
         status="pending",
         created_at_source=created_at_source,
         limit_delivery_date=limit_delivery_date,
