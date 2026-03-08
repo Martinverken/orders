@@ -155,11 +155,12 @@ export async function getCESchedule(): Promise<CESchedule> {
   return data.data ?? { value: {}, updated_at: null };
 }
 
-export async function saveCESchedule(schedule: Record<string, string>): Promise<void> {
-  await apiFetch("/api/settings/ce-schedule", {
-    method: "PUT",
-    body: JSON.stringify(schedule),
-  });
+export async function saveCESchedule(schedule: Record<string, string>): Promise<Record<string, string>> {
+  const resp = await apiFetch<{ success: boolean; data: Record<string, string> }>(
+    "/api/settings/ce-schedule",
+    { method: "PUT", body: JSON.stringify(schedule) }
+  );
+  return resp.data ?? {};
 }
 
 export async function getDelayMetrics(): Promise<HistoricalMetrics> {

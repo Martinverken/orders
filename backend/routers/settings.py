@@ -36,4 +36,4 @@ def update_ce_schedule(body: dict = Body(...)):
                 cleaned[key] = val
     settings_repo.set("ml_ce_schedule", cleaned)
     reload_ce_schedule(cleaned)
-    return {"success": True}
+    return {"success": True, "data": cleaned}

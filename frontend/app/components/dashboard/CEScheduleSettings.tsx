@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useRouter } from "next/navigation";
-import { getCESchedule, saveCESchedule } from "@/app/lib/api";
+import { saveCESchedule } from "@/app/lib/api";
 import { CESchedule } from "@/app/types";
 
 const FULL_DAY = ["Domingo", "Lunes", "Martes", "Miércoles", "Jueves", "Viernes", "Sábado"];
@@ -58,14 +58,12 @@ export function CEScheduleSettings({ initialSchedule }: Props) {
     setError(null);
     try {
       const toSave = Object.fromEntries(Object.entries(times).filter(([, v]) => v.trim()));
-      await saveCESchedule(toSave);
-      // Re-fetch from DB to confirm save and update display
-      const fresh = await getCESchedule();
+      const savedData = await saveCESchedule(toSave);
       setTimes(() => {
         const next: Record<string, string> = {};
         for (const week of weeks)
           for (const day of week.days)
-            next[day.isoDate] = fresh.value?.[day.isoDate] || fresh.value?.[day.weekdayKey] || "";
+            next[day.isoDate] = savedData[day.isoDate] || savedData[day.weekdayKey] || "";
         return next;
       });
       setSaved(true);
