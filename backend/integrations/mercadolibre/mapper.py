@@ -29,6 +29,14 @@ def _end_of_day_santiago(dt: datetime) -> datetime:
     return local.replace(hour=23, minute=59, second=0, microsecond=0)
 
 
+def _next_business_day_eod(dt: datetime) -> datetime:
+    """End-of-day Santiago del siguiente día hábil (lun-vie) a partir de dt."""
+    d = dt.astimezone(_SANTIAGO) + timedelta(days=1)
+    while d.weekday() >= 5:  # 5=sábado, 6=domingo
+        d += timedelta(days=1)
+    return d.replace(hour=23, minute=59, second=0, microsecond=0)
+
+
 def _resolve_ce_deadline_from_schedule(date_handling_dt: datetime) -> datetime | None:
     """Find CE dispatch deadline using the weekly cutoff schedule.
 
@@ -152,7 +160,18 @@ def resolve_delivery_deadline(
             if date_str:
                 dt = parse_ml_datetime(date_str)
                 if dt:
-                    return _end_of_day_santiago(dt) if is_flex else dt
+                    if not is_flex:
+                        return dt
+                    base = _end_of_day_santiago(dt)
+                    # Excepción buyer_absent: el conductor visitó pero el cliente estaba ausente
+                    # → extender límite al siguiente día hábil
+                    substatus = (shipment_raw or {}).get("substatus") or ""
+                    substatus_history = (shipment_raw or {}).get("substatus_history") or []
+                    if substatus == "buyer_absent" or any(
+                        e.get("substatus") == "buyer_absent" for e in substatus_history
+                    ):
+                        return _next_business_day_eod(base)
+                    return base
 
     # Last resort: top-level estimated_delivery_time (present after deadline passes)
     if shipment.estimated_delivery_time:

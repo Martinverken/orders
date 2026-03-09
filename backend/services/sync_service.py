@@ -128,17 +128,33 @@ def _is_order_resolved(order: Order) -> bool:
 
 
 def _ml_was_late(order: Order) -> bool:
-    date_val = _get_delivery_date(order)
-    if date_val:
-        return date_val > order.limit_delivery_date
-    # For CE orders (xd_drop_off, cross_docking): use first_shipped_at set by DB trigger.
-    # Avoids false OVERDUE when the seller shipped on time but substatus_history is missing.
     raw = order.raw_data or {}
     shipment = raw.get("shipment") or {}
     logistic_type = str(shipment.get("logistic_type", "")).lower()
+
+    effective_limit = order.limit_delivery_date
+    if logistic_type == "self_service":
+        # Excepción buyer_absent: si el conductor marcó cliente ausente antes del plazo,
+        # ML permite entregar al siguiente día hábil → extender el límite efectivo.
+        substatus = str(shipment.get("substatus") or "")
+        substatus_history = shipment.get("substatus_history") or []
+        if substatus == "buyer_absent" or any(
+            e.get("substatus") == "buyer_absent" for e in substatus_history
+        ):
+            from integrations.mercadolibre.mapper import _next_business_day_eod
+            effective_limit = _next_business_day_eod(effective_limit)
+            logger.info(
+                f"[flex] buyer_absent for {order.external_id} — "
+                f"extending deadline to {effective_limit}"
+            )
+
+    date_val = _get_delivery_date(order)
+    if date_val:
+        return date_val > effective_limit
+    # CE: usar first_shipped_at si disponible
     if logistic_type != "self_service":
         if order.first_shipped_at:
-            return order.first_shipped_at > order.limit_delivery_date
+            return order.first_shipped_at > effective_limit
         return False  # No date available → benefit of the doubt
     # Flex: no delivery date in DB → fall back to stored urgency
     return order.urgency == OrderUrgency.OVERDUE
