@@ -11,6 +11,7 @@ from integrations.mercadolibre.client import MercadoLibreClient
 from integrations.mercadolibre.mapper import parse_ml_datetime
 from integrations.shopify.client import ShopifyClient
 from integrations.walmart.client import WalmartClient
+from integrations.paris.client import ParisClient
 from repositories.order_repository import OrderRepository
 from repositories.sync_log_repository import SyncLogRepository
 from repositories.delayed_order_repository import DelayedOrderRepository
@@ -36,7 +37,7 @@ def _get_delivery_date(order: Order) -> datetime | None:
         # DB trigger captures first transition to "delivered" (Welivery COMPLETADO)
         return order.first_delivered_at or order.first_shipped_at or None
 
-    if order.source in ("falabella", "walmart"):
+    if order.source in ("falabella", "walmart", "paris"):
         # DB trigger captures first 'shipped' (Regular/Standard) and first 'delivered' (Direct) timestamps
         # immutably — prevents later UpdatedAt changes from affecting classification.
         if order.first_shipped_at:
@@ -99,8 +100,8 @@ def _is_order_resolved(order: Order) -> bool:
     Nota: el order.status de ML siempre es 'paid' mientras está activo.
     El estado relevante está en raw_data['shipment']['status'].
     """
-    if order.source == "walmart":
-        # Walmart Standard: shipped = entregado al carrier de Walmart → terminal
+    if order.source in ("walmart", "paris"):
+        # Walmart Standard / Paris: shipped = entregado al carrier → terminal
         return order.status in ("shipped", "delivered")
 
     if order.source == "falabella":
@@ -184,6 +185,12 @@ class SyncService:
                 self.integrations["walmart"] = WalmartClient()
             except IntegrationError as e:
                 logger.info(f"Walmart not configured: {e}")
+        # Paris (Cencosud) — optional, only if credentials are configured
+        if settings.paris_api_key:
+            try:
+                self.integrations["paris"] = ParisClient()
+            except IntegrationError as e:
+                logger.info(f"Paris not configured: {e}")
         _SHOPIFY_STORES = [
             ("shopify_verken", settings.shopify_verken_url, settings.shopify_verken_token),
             ("shopify_kaut",   settings.shopify_kaut_url,   settings.shopify_kaut_token),
@@ -316,7 +323,7 @@ class SyncService:
 
             if _is_order_resolved(order):
                 # Estado terminal alcanzado — comparar fecha real de envío/entrega vs plazo
-                if order.source in ("falabella", "walmart"):
+                if order.source in ("falabella", "walmart", "paris"):
                     was_late = _falabella_was_late(order)
                 elif order.source.startswith("shopify"):
                     date_val = _get_delivery_date(order)

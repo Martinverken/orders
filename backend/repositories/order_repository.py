@@ -14,6 +14,9 @@ def _extract_logistics_operator(source: str, raw_data: dict) -> str | None:
         return raw_data.get("delivery_mode") or None
     if source == "walmart":
         return "standard"
+    if source == "paris":
+        # TODO: Adjust once real Paris API response is known
+        return raw_data.get("shipping_provider") or "standard"
     spt = (raw_data.get("ShippingProviderType") or "").strip().lower()
     if spt == "regular":
         provider = (raw_data.get("ShippingProvider") or "").strip().lower()
@@ -52,6 +55,12 @@ def _extract_city_commune(source: str, raw_data: dict) -> tuple[str | None, str 
         addr = shipping.get("postalAddress") or {}
         city = addr.get("city") or None
         commune = addr.get("state") or None
+        return city, commune
+    if source == "paris":
+        # TODO: Adjust field paths once real Paris API response is known
+        addr = raw_data.get("shipping_address") or {}
+        city = addr.get("city") or None
+        commune = addr.get("commune") or addr.get("state") or None
         return city, commune
     return None, None
 

@@ -41,6 +41,10 @@ class Settings(BaseSettings):
     walmart_client_secret: str = ""   # OAuth2 client_secret
     walmart_base_url: str = "https://marketplace.walmartapis.com/v3"
 
+    # Paris (Cencosud) — STUB: confirm base_url from developers.ecomm.cencosud.com
+    paris_api_key: str = ""           # API key or Bearer token from Cencosud Seller Center
+    paris_base_url: str = "https://api.ecomm.cencosud.com"  # TODO: confirm actual URL
+
     # Shopify — one entry per store
     shopify_verken_url: str = ""      # e.g. "verken.myshopify.com"
     shopify_verken_token: str = ""    # Admin API token (scope: read_orders)
