@@ -9,6 +9,7 @@ from apscheduler.triggers.interval import IntervalTrigger
 from config import get_settings
 from routers import orders, sync, dashboard
 from routers import settings as settings_router
+from shipping.router import router as shipping_router
 from jobs.daily_sync import run_daily_sync_sync, run_sync_only_sync
 
 logging.basicConfig(
@@ -70,6 +71,7 @@ app.include_router(orders.router)
 app.include_router(sync.router)
 app.include_router(dashboard.router)
 app.include_router(settings_router.router)
+app.include_router(shipping_router)
 
 
 @app.get("/health")

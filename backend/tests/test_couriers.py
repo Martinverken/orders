@@ -93,28 +93,42 @@ class TestWelivery:
 
 class TestStarken:
     def test_santiago_available(self):
-        q = quote_starken(weight_kg=5.0, sum_sides_cm=100.0, commune="Santiago")
+        q = quote_starken(weight_kg=5.0, commune="Santiago")
         assert q.available is True
         assert q.price_net == 2412  # 3-6 kg bracket for Santiago
         assert q.price == math.ceil(2412 * 1.19)
 
     def test_unknown_locality(self):
-        q = quote_starken(weight_kg=5.0, sum_sides_cm=100.0, commune="NoExiste")
+        q = quote_starken(weight_kg=5.0, commune="NoExiste")
         assert q.available is False
         assert "no encontrada" in q.reason
 
     def test_accent_normalization(self):
-        q = quote_starken(weight_kg=1.0, sum_sides_cm=50.0, commune="Viña del Mar")
+        q = quote_starken(weight_kg=1.0, commune="Viña del Mar")
         assert q.available is True
 
     def test_over_100kg(self):
-        q = quote_starken(weight_kg=150.0, sum_sides_cm=300.0, commune="Santiago")
+        q = quote_starken(weight_kg=150.0, commune="Santiago")
         assert q.available is True
         assert q.tier == "Sobrepeso"
 
     def test_over_1000kg(self):
-        q = quote_starken(weight_kg=1001.0, sum_sides_cm=300.0, commune="Santiago")
+        q = quote_starken(weight_kg=1001.0, commune="Santiago")
         assert q.available is False
+
+    def test_volumetric_weight_used_when_larger(self):
+        """Light but bulky product: volumetric weight should determine bracket."""
+        # 1 kg real, but 50x50x50 cm = 125000/4000 = 31.25 kg volumetric
+        q = quote_starken(weight_kg=1.0, commune="Santiago", height_cm=50, width_cm=50, length_cm=50)
+        assert q.available is True
+        assert q.tier == "Pesado"  # 31.25 kg > 30 threshold
+
+    def test_real_weight_used_when_larger(self):
+        """Heavy but compact product: real weight should determine bracket."""
+        # 35 kg real, but 10x10x10 = 1000/4000 = 0.25 kg volumetric
+        q = quote_starken(weight_kg=35.0, commune="Santiago", height_cm=10, width_cm=10, length_cm=10)
+        assert q.available is True
+        assert q.tier == "Pesado"
 
 
 class TestQuoteAll:
@@ -133,3 +147,14 @@ class TestQuoteAll:
         available = [q for q in quotes if q.available]
         assert len(available) == 1
         assert available[0].courier == "Starken"
+
+    def test_dimensions_passed_to_starken(self):
+        """Volumetric weight should affect Starken quote via quote_all."""
+        # 1 kg real, 50x50x50 = 31.25 kg volumetric
+        quotes = quote_all(
+            weight_kg=1.0, sum_sides_cm=150.0, commune="Santiago",
+            height_cm=50, width_cm=50, length_cm=50,
+        )
+        starken = [q for q in quotes if q.courier == "Starken"][0]
+        assert starken.available is True
+        assert starken.tier == "Pesado"  # priced by volumetric weight

@@ -186,13 +186,31 @@ def _starken_price(prices: list[int], weight_kg: float) -> int | None:
     return base_price + math.ceil(extra_kg * per_kg)
 
 
-def quote_starken(weight_kg: float, sum_sides_cm: float, commune: str) -> CourierQuote:
-    """Calculate Starken shipping cost."""
-    if weight_kg > 1000:
+def _volumetric_weight(height_cm: float, width_cm: float, length_cm: float) -> float:
+    """Starken volumetric weight: (h × w × l) / 4000."""
+    return (height_cm * width_cm * length_cm) / 4000
+
+
+def quote_starken(
+    weight_kg: float,
+    commune: str,
+    height_cm: float = 0,
+    width_cm: float = 0,
+    length_cm: float = 0,
+) -> CourierQuote:
+    """Calculate Starken shipping cost.
+
+    Uses 'volumen courier' = max(peso_real, (h×w×l)/4000) as the
+    billable weight for tariff lookup.
+    """
+    vol_weight = _volumetric_weight(height_cm, width_cm, length_cm)
+    billable_kg = max(weight_kg, vol_weight)
+
+    if billable_kg > 1000:
         return CourierQuote(
             courier="Starken",
             available=False,
-            reason=f"Peso ({weight_kg} kg) excede máximo 1000 kg",
+            reason=f"Peso tarificable ({billable_kg:.1f} kg) excede máximo 1000 kg",
         )
 
     tariffs = _load_starken_tariffs()
@@ -206,22 +224,22 @@ def quote_starken(weight_kg: float, sum_sides_cm: float, commune: str) -> Courie
         )
 
     prices = tariffs[key]
-    price_net = _starken_price(prices, weight_kg)
+    price_net = _starken_price(prices, billable_kg)
 
     if price_net is None or price_net == 0:
         return CourierQuote(
             courier="Starken",
             available=False,
-            reason=f"Sin tarifa para {weight_kg} kg en '{commune}'",
+            reason=f"Sin tarifa para {billable_kg:.1f} kg en '{commune}'",
         )
 
     price_iva = math.ceil(price_net * 1.19)
 
-    # Determine tier name from weight bracket
+    # Determine tier name from billable weight bracket
     tier = "Estándar"
-    if weight_kg > 100:
+    if billable_kg > 100:
         tier = "Sobrepeso"
-    elif weight_kg > 30:
+    elif billable_kg > 30:
         tier = "Pesado"
 
     return CourierQuote(
@@ -235,10 +253,17 @@ def quote_starken(weight_kg: float, sum_sides_cm: float, commune: str) -> Courie
 
 # ── Cotización global ────────────────────────────────────────────────────────
 
-def quote_all(weight_kg: float, sum_sides_cm: float, commune: str) -> list[CourierQuote]:
+def quote_all(
+    weight_kg: float,
+    sum_sides_cm: float,
+    commune: str,
+    height_cm: float = 0,
+    width_cm: float = 0,
+    length_cm: float = 0,
+) -> list[CourierQuote]:
     """Get quotes from all couriers for a given product + destination."""
     return [
         quote_rapiboy(weight_kg, sum_sides_cm, commune),
         quote_welivery(weight_kg, sum_sides_cm, commune),
-        quote_starken(weight_kg, sum_sides_cm, commune),
+        quote_starken(weight_kg, commune, height_cm=height_cm, width_cm=width_cm, length_cm=length_cm),
     ]
