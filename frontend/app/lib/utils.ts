@@ -57,6 +57,7 @@ export const SOURCE_LABEL: Record<string, string> = {
   falabella: "Falabella",
   mercadolibre: "Mercado Libre",
   walmart: "Walmart",
+  paris: "Paris",
   shopify_verken: "Shopify Verken",
   shopify_kaut: "Shopify Kaut",
 };
@@ -109,8 +110,19 @@ export function getCarrier(raw_data?: Record<string, unknown>): string {
   // Walmart: always Transporte Interno
   if (raw_data.purchaseOrderId !== undefined) return "Transporte Interno";
 
-  // Shopify: always Welivery
-  if (raw_data.financial_status !== undefined && raw_data.line_items !== undefined) return "Welivery";
+  // Paris: carrier from first subOrder
+  if (raw_data.subOrders !== undefined) {
+    const subs = raw_data.subOrders as Record<string, unknown>[];
+    return subs?.[0]?.carrier ? String(subs[0].carrier) : "Enviame";
+  }
+
+  // Shopify: detect carrier from tags
+  if (raw_data.financial_status !== undefined && raw_data.line_items !== undefined) {
+    const tags = ((raw_data.tags as string) || "").toLowerCase().split(",").map((t) => t.trim());
+    if (tags.includes("skn")) return "Starken";
+    if (tags.includes("rapiboy")) return "Rapiboy";
+    return "Welivery";
+  }
 
   // ML: delivery_mode computed by mapper ("Flex" | "Centro de Envíos" | ...)
   if (raw_data.delivery_mode) return String(raw_data.delivery_mode);
@@ -151,6 +163,11 @@ export function getOrderNumber(raw_data?: Record<string, unknown>, fallback?: st
   if (raw_data?.name && raw_data?.financial_status !== undefined) return String(raw_data.name);
   // Walmart: purchaseOrderId
   if (raw_data?.purchaseOrderId) return String(raw_data.purchaseOrderId);
+  // Paris: originOrderNumber or subOrderNumber
+  if (raw_data?.subOrders !== undefined) {
+    const subs = raw_data.subOrders as Record<string, unknown>[];
+    return subs?.[0]?.subOrderNumber ? String(subs[0].subOrderNumber) : (raw_data.originOrderNumber ? String(raw_data.originOrderNumber) : fallback ?? "");
+  }
   // Falabella
   if (raw_data?.OrderNumber) return String(raw_data.OrderNumber);
   // ML: pack_id (top-level helper stored by mapper)
@@ -167,6 +184,16 @@ export function getTrackingUrl(raw_data?: Record<string, unknown>, tracking?: st
   // Shopify: Welivery tracking URL using order number
   if (raw_data.financial_status !== undefined && raw_data.name) {
     return `https://welivery.cl/tracking/index.php?wid=${tracking}`;
+  }
+
+  // Walmart: enviame tracking
+  if (raw_data.purchaseOrderId !== undefined) {
+    return `https://tracking.enviame.io/${tracking}`;
+  }
+
+  // Paris: enviame tracking
+  if (raw_data.subOrders !== undefined) {
+    return `https://tracking.enviame.io/${tracking}`;
   }
 
   const spt = ((raw_data.ShippingProviderType as string) || "").toLowerCase();
@@ -192,6 +219,21 @@ export function getTrackingCode(raw_data?: Record<string, unknown>): string {
   // Shopify: order name without "#" is the Welivery reference
   if (raw_data.financial_status !== undefined && raw_data.name) {
     return String(raw_data.name).replace(/^#/, "");
+  }
+  // Walmart: trackingInfo from orderLines
+  if (raw_data.purchaseOrderId !== undefined) {
+    const orderLines = raw_data.orderLines as Record<string, unknown> | undefined;
+    const lineList = orderLines?.orderLine as Record<string, unknown>[] | undefined;
+    if (lineList?.length) {
+      const trackingInfo = lineList[0]?.trackingInfo as Record<string, unknown> | undefined;
+      if (trackingInfo?.trackingNumber) return String(trackingInfo.trackingNumber);
+    }
+    return "";
+  }
+  // Paris: trackingNumber from first subOrder
+  if (raw_data.subOrders !== undefined) {
+    const subs = raw_data.subOrders as Record<string, unknown>[];
+    return subs?.[0]?.trackingNumber ? String(subs[0].trackingNumber) : "";
   }
   // Falabella
   if (raw_data.TrackingCode) return String(raw_data.TrackingCode);
@@ -246,6 +288,16 @@ export function getProductDetails(raw_data?: Record<string, unknown>, product_na
         sku = (item?.sku as string) ?? null;
       }
     }
+    // Paris: subOrders[0].items[0].sellerSku or .sku
+    if (!sku) {
+      const subs = raw_data?.subOrders as Record<string, unknown>[] | undefined;
+      if (subs?.length) {
+        const items = subs[0]?.items as Record<string, unknown>[] | undefined;
+        if (items?.length) {
+          sku = (items[0]?.sellerSku as string) || (items[0]?.sku as string) || null;
+        }
+      }
+    }
   }
   return { title: product_name ?? null, sku, quantity: product_quantity ?? null };
 }
@@ -264,6 +316,16 @@ export function getShippingDestination(raw_data?: Record<string, unknown>): Ship
     return {
       city: addr.city ? String(addr.city) : null,
       comuna: addr.province ? String(addr.province) : null,
+    };
+  }
+
+  // Paris: shippingAddress from first subOrder
+  if (raw_data.subOrders !== undefined) {
+    const subs = raw_data.subOrders as Record<string, unknown>[];
+    const addr = subs?.[0]?.shippingAddress as Record<string, unknown> | undefined;
+    return {
+      city: addr?.city ? String(addr.city) : null,
+      comuna: addr?.communaCode ? String(addr.communaCode) : null,
     };
   }
 
@@ -312,6 +374,9 @@ export function getShippingDestination(raw_data?: Record<string, unknown>): Ship
 export function getCreatedAt(raw_data?: Record<string, unknown>): string | null {
   // Shopify
   if (raw_data?.financial_status !== undefined && raw_data?.created_at) return String(raw_data.created_at);
+  // Paris
+  if (raw_data?.createdAt && raw_data?.subOrders !== undefined) return String(raw_data.createdAt);
+  if (raw_data?.originOrderDate && raw_data?.subOrders !== undefined) return String(raw_data.originOrderDate);
   // Falabella
   if (raw_data?.CreatedAt) return String(raw_data.CreatedAt);
   // ML: nested in order object

@@ -10,6 +10,7 @@ const SOURCES = [
   { value: "falabella", label: "Falabella" },
   { value: "mercadolibre", label: "Mercado Libre" },
   { value: "walmart", label: "Walmart" },
+  { value: "paris", label: "Paris" },
   { value: "shopify_verken", label: "Shopify Verken" },
   { value: "shopify_kaut", label: "Shopify Kaut" },
 ];
@@ -27,6 +28,7 @@ const LOGISTICS_OPERATORS = [
   { value: "regular - blue express", label: "Blue Express" },
   { value: "regular - chilexpress", label: "Chilexpress" },
   { value: "Transporte Interno", label: "Transporte Interno (Walmart)" },
+  { value: "Enviame", label: "Enviame (Paris)" },
 ];
 
 export function HistoricalFilterBar({ cities = [] }: { cities?: string[] }) {
