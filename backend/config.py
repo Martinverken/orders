@@ -36,6 +36,11 @@ class Settings(BaseSettings):
     daily_sync_minute: int = 0
     scheduler_timezone: str = "America/Santiago"
 
+    # Walmart
+    walmart_client_id: str = ""       # OAuth2 client_id from Walmart Developer Portal
+    walmart_client_secret: str = ""   # OAuth2 client_secret
+    walmart_base_url: str = "https://marketplace.walmartapis.com/v3"
+
     # Shopify — one entry per store
     shopify_verken_url: str = ""      # e.g. "verken.myshopify.com"
     shopify_verken_token: str = ""    # Admin API token (scope: read_orders)

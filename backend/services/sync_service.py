@@ -10,6 +10,7 @@ from integrations.falabella.mapper import parse_falabella_datetime
 from integrations.mercadolibre.client import MercadoLibreClient
 from integrations.mercadolibre.mapper import parse_ml_datetime
 from integrations.shopify.client import ShopifyClient
+from integrations.walmart.client import WalmartClient
 from repositories.order_repository import OrderRepository
 from repositories.sync_log_repository import SyncLogRepository
 from repositories.delayed_order_repository import DelayedOrderRepository
@@ -35,18 +36,20 @@ def _get_delivery_date(order: Order) -> datetime | None:
         # DB trigger captures first transition to "delivered" (Welivery COMPLETADO)
         return order.first_delivered_at or order.first_shipped_at or None
 
-    if order.source == "falabella":
-        # DB trigger captures first 'shipped' (Regular) and first 'delivered' (Direct) timestamps
+    if order.source in ("falabella", "walmart"):
+        # DB trigger captures first 'shipped' (Regular/Standard) and first 'delivered' (Direct) timestamps
         # immutably — prevents later UpdatedAt changes from affecting classification.
         if order.first_shipped_at:
             return order.first_shipped_at
         if order.first_delivered_at:
             return order.first_delivered_at
-        # Fallback for rows pre-dating the trigger
-        raw = order.raw_data or {}
-        items = raw.get("_items") or []
-        first_item = items[0] if isinstance(items, list) and items else {}
-        return parse_falabella_datetime(first_item.get("UpdatedAt"))
+        # Fallback for rows pre-dating the trigger (Falabella only)
+        if order.source == "falabella":
+            raw = order.raw_data or {}
+            items = raw.get("_items") or []
+            first_item = items[0] if isinstance(items, list) and items else {}
+            return parse_falabella_datetime(first_item.get("UpdatedAt"))
+        return None
 
     if order.source == "mercadolibre":
         raw = order.raw_data or {}
@@ -96,6 +99,10 @@ def _is_order_resolved(order: Order) -> bool:
     Nota: el order.status de ML siempre es 'paid' mientras está activo.
     El estado relevante está en raw_data['shipment']['status'].
     """
+    if order.source == "walmart":
+        # Walmart Standard: shipped = entregado al carrier de Walmart → terminal
+        return order.status in ("shipped", "delivered")
+
     if order.source == "falabella":
         raw = order.raw_data or {}
         shipping_type = str(raw.get("ShippingProviderType", "")).lower()
@@ -171,6 +178,12 @@ class SyncService:
             "mercadolibre": MercadoLibreClient(),
         }
         settings = get_settings()
+        # Walmart — optional, only if credentials are configured
+        if settings.walmart_client_id and settings.walmart_client_secret:
+            try:
+                self.integrations["walmart"] = WalmartClient()
+            except IntegrationError as e:
+                logger.info(f"Walmart not configured: {e}")
         _SHOPIFY_STORES = [
             ("shopify_verken", settings.shopify_verken_url, settings.shopify_verken_token),
             ("shopify_kaut",   settings.shopify_kaut_url,   settings.shopify_kaut_token),
@@ -303,7 +316,7 @@ class SyncService:
 
             if _is_order_resolved(order):
                 # Estado terminal alcanzado — comparar fecha real de envío/entrega vs plazo
-                if order.source == "falabella":
+                if order.source in ("falabella", "walmart"):
                     was_late = _falabella_was_late(order)
                 elif order.source.startswith("shopify"):
                     date_val = _get_delivery_date(order)
