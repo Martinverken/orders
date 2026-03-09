@@ -1,4 +1,5 @@
 """Tests for courier cost calculation logic."""
+import math
 import pytest
 from shipping.couriers import quote_rapiboy, quote_welivery, quote_starken, quote_all
 
@@ -91,10 +92,29 @@ class TestWelivery:
 
 
 class TestStarken:
-    def test_placeholder_unavailable(self):
+    def test_santiago_available(self):
         q = quote_starken(weight_kg=5.0, sum_sides_cm=100.0, commune="Santiago")
+        assert q.available is True
+        assert q.price_net == 2412  # 3-6 kg bracket for Santiago
+        assert q.price == math.ceil(2412 * 1.19)
+
+    def test_unknown_locality(self):
+        q = quote_starken(weight_kg=5.0, sum_sides_cm=100.0, commune="NoExiste")
         assert q.available is False
-        assert "pendientes" in q.reason
+        assert "no encontrada" in q.reason
+
+    def test_accent_normalization(self):
+        q = quote_starken(weight_kg=1.0, sum_sides_cm=50.0, commune="Viña del Mar")
+        assert q.available is True
+
+    def test_over_100kg(self):
+        q = quote_starken(weight_kg=150.0, sum_sides_cm=300.0, commune="Santiago")
+        assert q.available is True
+        assert q.tier == "Sobrepeso"
+
+    def test_over_1000kg(self):
+        q = quote_starken(weight_kg=1001.0, sum_sides_cm=300.0, commune="Santiago")
+        assert q.available is False
 
 
 class TestQuoteAll:
@@ -108,7 +128,8 @@ class TestQuoteAll:
         available = [q for q in quotes if q.available]
         assert len(available) == 2  # Rapiboy + Welivery
 
-    def test_outside_flex_none_available(self):
+    def test_outside_flex_starken_only(self):
         quotes = quote_all(weight_kg=5.0, sum_sides_cm=100.0, commune="Valparaíso")
         available = [q for q in quotes if q.available]
-        assert len(available) == 0
+        assert len(available) == 1
+        assert available[0].courier == "Starken"
