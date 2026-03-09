@@ -257,7 +257,7 @@ function MetricsTableView({
           <th className="pb-3 font-medium pr-4">Operador logístico</th>
           <th className="pb-3 font-medium text-right pr-4">Total</th>
           <th className="pb-3 font-medium text-right pr-4">A tiempo</th>
-          <th className="pb-3 font-medium text-right pr-4">% cumplim.</th>
+          <th className="pb-3 font-medium text-right pr-4">% cumplim. <span className="text-gray-400 font-normal">(obj. &ge;95%)</span></th>
           <th className="pb-3 font-medium text-right pr-4">Atrasados</th>
           <th className="pb-3 font-medium text-right">Atraso Promedio</th>
         </tr>
