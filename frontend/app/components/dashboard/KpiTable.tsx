@@ -24,13 +24,10 @@ function formatWeek(period: string): string {
   return `${fmt(monday)} – ${fmt(sunday)}`;
 }
 
-function PctBadge({ pct }: { pct: number }) {
-  const cls =
-    pct <= 5
-      ? "bg-green-100 text-green-700"
-      : pct <= 15
-      ? "bg-amber-100 text-amber-700"
-      : "bg-red-100 text-red-700";
+function ComplianceBadge({ pct }: { pct: number }) {
+  const cls = pct >= 95
+    ? "bg-green-100 text-green-700"
+    : "bg-red-100 text-red-700";
   return (
     <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${cls}`}>
       {pct}%
@@ -38,9 +35,8 @@ function PctBadge({ pct }: { pct: number }) {
   );
 }
 
-function PctBar({ pct }: { pct: number }) {
-  const color =
-    pct <= 5 ? "bg-green-500" : pct <= 15 ? "bg-amber-500" : "bg-red-500";
+function ComplianceBar({ pct }: { pct: number }) {
+  const color = pct >= 95 ? "bg-green-500" : "bg-red-500";
   return (
     <div className="w-24 h-2 bg-gray-100 rounded-full overflow-hidden">
       <div className={`h-full rounded-full ${color}`} style={{ width: `${Math.min(pct, 100)}%` }} />
@@ -222,7 +218,7 @@ function MetricsTable({
           <th className="pb-3 font-medium text-right pr-4">Total</th>
           <th className="pb-3 font-medium text-right pr-4">A tiempo</th>
           <th className="pb-3 font-medium text-right pr-4">Atrasados</th>
-          <th className="pb-3 font-medium text-right pr-4">% Atraso</th>
+          <th className="pb-3 font-medium text-right pr-4">% Cumplim.</th>
           <th className="pb-3 font-medium pr-4"></th>
         </tr>
       </thead>
@@ -247,10 +243,10 @@ function MetricsTable({
               )}
             </td>
             <td className="py-3 text-right pr-4">
-              <PctBadge pct={row.pct_delayed} />
+              <ComplianceBadge pct={100 - row.pct_delayed} />
             </td>
             <td className="py-3 pr-4">
-              <PctBar pct={row.pct_delayed} />
+              <ComplianceBar pct={100 - row.pct_delayed} />
             </td>
           </tr>
         ))}
