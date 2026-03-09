@@ -73,6 +73,8 @@ export interface DelayMetric {
 export interface HistoricalMetrics {
   delayed: DelayMetric[];
   on_time: OnTimeMetric[];
+  delayed_weekly: DelayMetric[];
+  on_time_weekly: OnTimeMetric[];
 }
 
 export interface OrderCase {

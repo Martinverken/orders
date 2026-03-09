@@ -395,7 +395,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                 </p>
               </div>
               <div className="px-6 py-6">
-                <DelayMetricsTable metrics={delayMetrics ?? { delayed: [], on_time: [] }} />
+                <DelayMetricsTable metrics={delayMetrics ?? { delayed: [], on_time: [], delayed_weekly: [], on_time_weekly: [] }} />
               </div>
             </div>
           </>

@@ -187,9 +187,9 @@ export async function getDelayMetrics(): Promise<HistoricalMetrics> {
     const data = await apiFetch<{ success: boolean; data: unknown }>("/api/dashboard/metrics/delays");
     const raw = data.data as HistoricalMetrics;
     // Guard against old API format (array) or missing fields
-    if (!raw || Array.isArray(raw)) return { delayed: [], on_time: [] };
-    return { delayed: raw.delayed ?? [], on_time: raw.on_time ?? [] };
+    if (!raw || Array.isArray(raw)) return { delayed: [], on_time: [], delayed_weekly: [], on_time_weekly: [] };
+    return { delayed: raw.delayed ?? [], on_time: raw.on_time ?? [], delayed_weekly: raw.delayed_weekly ?? [], on_time_weekly: raw.on_time_weekly ?? [] };
   } catch {
-    return { delayed: [], on_time: [] };
+    return { delayed: [], on_time: [], delayed_weekly: [], on_time_weekly: [] };
   }
 }

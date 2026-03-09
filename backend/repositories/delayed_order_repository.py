@@ -406,14 +406,17 @@ class DelayedOrderRepository:
         return {"monthly": build_list(monthly), "weekly": build_list(weekly)}
 
     def get_historical_metrics(self) -> dict:
-        """Return both on-time and delayed metrics grouped by month/source/logistics_operator."""
+        """Return on-time and delayed metrics grouped by month and week, per source/logistics_operator."""
+        from datetime import timedelta
         result = self.db.table(self.table).select(
             "source,limit_delivery_date,days_delayed,logistics_operator"
         ).execute()
         rows = result.data or []
 
-        delayed_buckets: dict[tuple, list[float]] = defaultdict(list)
-        on_time_buckets: dict[tuple, int] = defaultdict(int)
+        delayed_monthly: dict[tuple, list[float]] = defaultdict(list)
+        on_time_monthly: dict[tuple, int] = defaultdict(int)
+        delayed_weekly: dict[tuple, list[float]] = defaultdict(list)
+        on_time_weekly: dict[tuple, int] = defaultdict(int)
 
         for r in rows:
             raw_date = r.get("limit_delivery_date", "")
@@ -423,30 +426,39 @@ class DelayedOrderRepository:
             if not raw_date or not source or days is None:
                 continue
             month = str(raw_date)[:7]
-            if float(days) > 0:
-                delayed_buckets[(month, source, operator)].append(float(days))
+            is_delayed = float(days) > 0
+            if is_delayed:
+                delayed_monthly[(month, source, operator)].append(float(days))
             else:
-                on_time_buckets[(month, source, operator)] += 1
+                on_time_monthly[(month, source, operator)] += 1
+            # Weekly bucket
+            try:
+                dt = datetime.fromisoformat(str(raw_date)[:10])
+                monday = dt - timedelta(days=dt.weekday())
+                week_key = monday.strftime("%Y-%m-%d")
+            except Exception:
+                continue
+            if is_delayed:
+                delayed_weekly[(week_key, source, operator)].append(float(days))
+            else:
+                on_time_weekly[(week_key, source, operator)] += 1
 
-        delayed = [
-            DelayMetric(
-                month=month,
-                source=source,
-                logistics_operator=operator,
-                count=len(days_list),
-                avg_days_delayed=round(sum(days_list) / len(days_list), 1),
-            )
-            for (month, source, operator), days_list in sorted(delayed_buckets.items())
-        ]
+        def build_delayed(buckets):
+            return [
+                DelayMetric(month=period, source=src, logistics_operator=op,
+                            count=len(dl), avg_days_delayed=round(sum(dl) / len(dl), 1))
+                for (period, src, op), dl in sorted(buckets.items())
+            ]
 
-        on_time = [
-            OnTimeMetric(
-                month=month,
-                source=source,
-                logistics_operator=operator,
-                count=count,
-            )
-            for (month, source, operator), count in sorted(on_time_buckets.items())
-        ]
+        def build_on_time(buckets):
+            return [
+                OnTimeMetric(month=period, source=src, logistics_operator=op, count=cnt)
+                for (period, src, op), cnt in sorted(buckets.items())
+            ]
 
-        return {"delayed": delayed, "on_time": on_time}
+        return {
+            "delayed": build_delayed(delayed_monthly),
+            "on_time": build_on_time(on_time_monthly),
+            "delayed_weekly": build_delayed(delayed_weekly),
+            "on_time_weekly": build_on_time(on_time_weekly),
+        }

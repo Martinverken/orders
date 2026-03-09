@@ -46,5 +46,7 @@ def get_delay_metrics():
         "data": {
             "delayed": [m.model_dump() for m in metrics["delayed"]],
             "on_time": [m.model_dump() for m in metrics["on_time"]],
+            "delayed_weekly": [m.model_dump() for m in metrics["delayed_weekly"]],
+            "on_time_weekly": [m.model_dump() for m in metrics["on_time_weekly"]],
         },
     }
