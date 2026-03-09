@@ -2,6 +2,7 @@
 import math
 import pytest
 from shipping.couriers import quote_rapiboy, quote_welivery, quote_starken, quote_all
+from shipping.models import classify_size
 
 
 class TestRapiboy:
@@ -158,3 +159,32 @@ class TestQuoteAll:
         starken = [q for q in quotes if q.courier == "Starken"][0]
         assert starken.available is True
         assert starken.tier == "Pesado"  # priced by volumetric weight
+
+
+class TestSizeClassification:
+    def test_pequeno(self):
+        assert classify_size(50, 5) == "Pequeño"
+
+    def test_pequeno_at_boundary(self):
+        assert classify_size(60, 20) == "Pequeño"
+
+    def test_mediano(self):
+        assert classify_size(80, 10) == "Mediano"
+
+    def test_mediano_at_boundary(self):
+        assert classify_size(120, 20) == "Mediano"
+
+    def test_grande(self):
+        assert classify_size(150, 15) == "Grande"
+
+    def test_grande_at_boundary(self):
+        assert classify_size(180, 20) == "Grande"
+
+    def test_extragrande_by_sides(self):
+        assert classify_size(200, 10) == "Extragrande"
+
+    def test_extragrande_by_weight(self):
+        assert classify_size(50, 25) == "Extragrande"
+
+    def test_extragrande_both(self):
+        assert classify_size(200, 25) == "Extragrande"

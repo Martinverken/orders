@@ -1,21 +1,27 @@
 """SKU master CRUD operations."""
 from database import get_supabase
-from shipping.models import SKU, SKUCreate
+from shipping.models import SKU, SKUCreate, classify_size
 
 _TABLE = "sku_master"
+
+
+def _to_sku(row: dict) -> SKU:
+    """Build SKU with computed size_category."""
+    row["size_category"] = classify_size(row.get("sum_sides_cm", 0), row.get("weight_kg", 0))
+    return SKU(**row)
 
 
 def list_skus() -> list[SKU]:
     """Get all SKUs ordered by product name."""
     result = get_supabase().table(_TABLE).select("*").order("product_name").execute()
-    return [SKU(**row) for row in result.data]
+    return [_to_sku(row) for row in result.data]
 
 
 def get_sku_by_code(sku: str) -> SKU | None:
     """Get a single SKU by its code."""
     result = get_supabase().table(_TABLE).select("*").eq("sku", sku).execute()
     if result.data:
-        return SKU(**result.data[0])
+        return _to_sku(result.data[0])
     return None
 
 
@@ -23,7 +29,7 @@ def get_sku_by_id(sku_id: str) -> SKU | None:
     """Get a single SKU by its ID."""
     result = get_supabase().table(_TABLE).select("*").eq("id", sku_id).execute()
     if result.data:
-        return SKU(**result.data[0])
+        return _to_sku(result.data[0])
     return None
 
 
@@ -37,7 +43,7 @@ def upsert_sku(data: SKUCreate) -> SKU:
         .upsert(payload, on_conflict="sku")
         .execute()
     )
-    return SKU(**result.data[0])
+    return _to_sku(result.data[0])
 
 
 def delete_sku(sku_id: str) -> bool:
@@ -56,4 +62,4 @@ def search_skus(query: str) -> list[SKU]:
         .order("product_name")
         .execute()
     )
-    return [SKU(**row) for row in result.data]
+    return [_to_sku(row) for row in result.data]

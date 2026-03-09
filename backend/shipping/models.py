@@ -14,10 +14,29 @@ class SKUCreate(BaseModel):
     length_cm: float = Field(gt=0)
 
 
+def classify_size(sum_sides_cm: float, weight_kg: float) -> str:
+    """Classify a SKU into a size category.
+
+    Rules (evaluated top-down, first match wins):
+    - Extragrande: sum_sides > 180 OR weight > 20
+    - Grande:      sum_sides <= 180 AND weight <= 20
+    - Mediano:     sum_sides <= 120 AND weight <= 20
+    - Pequeño:     sum_sides <= 60  AND weight <= 20
+    """
+    if sum_sides_cm > 180 or weight_kg > 20:
+        return "Extragrande"
+    if sum_sides_cm > 120:
+        return "Grande"
+    if sum_sides_cm > 60:
+        return "Mediano"
+    return "Pequeño"
+
+
 class SKU(SKUCreate):
     """Full SKU record from DB."""
     id: str
     sum_sides_cm: float
+    size_category: str = ""
     created_at: datetime
     updated_at: datetime
 
@@ -38,5 +57,6 @@ class ShippingQuoteResponse(BaseModel):
     product_name: str
     weight_kg: float
     sum_sides_cm: float
+    size_category: str = ""
     commune: Optional[str] = None
     quotes: list[CourierQuote]

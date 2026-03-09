@@ -1,6 +1,6 @@
 """API endpoints for SKU master and shipping cost calculator."""
 from fastapi import APIRouter, HTTPException
-from shipping.models import SKUCreate, SKU, ShippingQuoteResponse
+from shipping.models import SKUCreate, SKU, ShippingQuoteResponse, classify_size
 from shipping import repository
 from shipping.couriers import quote_all
 
@@ -62,6 +62,7 @@ def get_shipping_quote(sku_code: str, commune: str):
         product_name=sku.product_name,
         weight_kg=sku.weight_kg,
         sum_sides_cm=sku.sum_sides_cm,
+        size_category=sku.size_category,
         commune=commune,
         quotes=quotes,
     )
@@ -81,6 +82,7 @@ def calculate_quote(weight_kg: float, height_cm: float, width_cm: float, length_
     return {
         "weight_kg": weight_kg,
         "sum_sides_cm": sum_sides,
+        "size_category": classify_size(sum_sides, weight_kg),
         "commune": commune,
         "quotes": quotes,
     }
