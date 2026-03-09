@@ -56,6 +56,7 @@ export const URGENCY_CLASSES: Record<OrderUrgency, string> = {
 export const SOURCE_LABEL: Record<string, string> = {
   falabella: "Falabella",
   mercadolibre: "Mercado Libre",
+  walmart: "Walmart",
   shopify_verken: "Shopify Verken",
   shopify_kaut: "Shopify Kaut",
 };
@@ -105,6 +106,9 @@ const SHIPPING_PROVIDER_TYPE_LABEL: Record<string, string> = {
 export function getCarrier(raw_data?: Record<string, unknown>): string {
   if (!raw_data) return "";
 
+  // Walmart: always Transporte Interno
+  if (raw_data.purchaseOrderId !== undefined) return "Transporte Interno";
+
   // Shopify: always Welivery
   if (raw_data.financial_status !== undefined && raw_data.line_items !== undefined) return "Welivery";
 
@@ -145,6 +149,8 @@ export function getCarrier(raw_data?: Record<string, unknown>): string {
 export function getOrderNumber(raw_data?: Record<string, unknown>, fallback?: string): string {
   // Shopify: order name e.g. "#1234"
   if (raw_data?.name && raw_data?.financial_status !== undefined) return String(raw_data.name);
+  // Walmart: purchaseOrderId
+  if (raw_data?.purchaseOrderId) return String(raw_data.purchaseOrderId);
   // Falabella
   if (raw_data?.OrderNumber) return String(raw_data.OrderNumber);
   // ML: pack_id (top-level helper stored by mapper)
@@ -224,6 +230,15 @@ export function getProductDetails(raw_data?: Record<string, unknown>, product_na
       const fItems = raw_data?._items as Record<string, unknown>[] | undefined;
       if (fItems?.length) sku = (fItems[0]?.SellerSku as string) ?? (fItems[0]?.Sku as string) ?? null;
     }
+    // Walmart: orderLines.orderLine[0].item.sku
+    if (!sku) {
+      const orderLines = raw_data?.orderLines as Record<string, unknown> | undefined;
+      const lineList = orderLines?.orderLine as Record<string, unknown>[] | undefined;
+      if (lineList?.length) {
+        const item = lineList[0]?.item as Record<string, unknown> | undefined;
+        sku = (item?.sku as string) ?? null;
+      }
+    }
   }
   return { title: product_name ?? null, sku, quantity: product_quantity ?? null };
 }
@@ -242,6 +257,16 @@ export function getShippingDestination(raw_data?: Record<string, unknown>): Ship
     return {
       city: addr.city ? String(addr.city) : null,
       comuna: addr.province ? String(addr.province) : null,
+    };
+  }
+
+  // Walmart: shippingInfo.postalAddress.city
+  if (raw_data.purchaseOrderId !== undefined) {
+    const shipping = raw_data.shippingInfo as Record<string, unknown> | undefined;
+    const postal = shipping?.postalAddress as Record<string, unknown> | undefined;
+    return {
+      city: postal?.city ? String(postal.city) : null,
+      comuna: postal?.city ? String(postal.city) : null,
     };
   }
 
