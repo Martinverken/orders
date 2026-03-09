@@ -3,7 +3,8 @@
 Eligibility rules:
   - financial_status == "paid"
   - tags include "ebox"   (case-insensitive)
-  - tags include "welivery" OR "SKN" (case-insensitive)
+  - tags include "welivery" (case-insensitive)
+  - Future: "SKN" tag will use Starken transit matrix (code ready, not active)
 
 Delivery promise:
   Welivery orders (tag "welivery"):
@@ -49,8 +50,8 @@ def check_eligibility(order: dict) -> dict:
     tags = order.get("tags") or ""
     if not has_tag(tags, "ebox"):
         reasons.append("missing_ebox")
-    if not has_tag(tags, "welivery") and not has_tag(tags, "SKN"):
-        reasons.append("missing_courier_tag")
+    if not has_tag(tags, "welivery"):
+        reasons.append("missing_welivery")
     return {"eligible": len(reasons) == 0, "reasons": reasons}
 
 

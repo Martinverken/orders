@@ -29,16 +29,17 @@ class TestEligibility:
         assert result["eligible"] is False
         assert "missing_ebox" in result["reasons"]
 
-    def test_missing_courier_tag(self, shopify_raw):
+    def test_missing_welivery(self, shopify_raw):
         shopify_raw["tags"] = "ebox"
         result = check_eligibility(shopify_raw)
         assert result["eligible"] is False
-        assert "missing_courier_tag" in result["reasons"]
+        assert "missing_welivery" in result["reasons"]
 
-    def test_skn_tag_eligible(self, shopify_raw):
+    def test_skn_tag_not_eligible_yet(self, shopify_raw):
+        """SKN tag alone is not enough — welivery required for now."""
         shopify_raw["tags"] = "ebox, SKN"
         result = check_eligibility(shopify_raw)
-        assert result["eligible"] is True
+        assert result["eligible"] is False
 
 
 class TestHasTag:
@@ -171,40 +172,17 @@ class TestStarkenTransit:
 
 
 class TestSKNMapper:
-    """Test SKN-tagged Shopify orders use Starken transit deadline."""
+    """Test SKN-tagged Shopify orders — not active yet, code ready for future."""
 
-    def _make_skn_order(self, created_at="2026-03-10T10:00:00-04:00", commune="ANTOFAGASTA"):
-        return {
+    def test_skn_only_not_eligible(self):
+        """SKN without welivery tag is not eligible (SKN not activated yet)."""
+        raw = {
             "id": 8001,
             "name": "#2001",
             "financial_status": "paid",
             "tags": "ebox, SKN",
-            "created_at": created_at,
+            "created_at": "2026-03-10T10:00:00-04:00",
             "line_items": [{"title": "Mesa Escritorio", "quantity": 1}],
-            "shipping_address": {"city": commune},
+            "shipping_address": {"city": "ANTOFAGASTA"},
         }
-
-    def test_skn_order_mapped(self):
-        raw = self._make_skn_order()
-        result = to_order_create(raw, source="shopify_kaut")
-        assert result is not None
-        assert result.source == "shopify_kaut"
-        assert result.product_name == "Mesa Escritorio"
-        # Tue 10am → prep=Tue, +2 transit (Antofagasta) = Thu Mar 12
-        assert result.limit_delivery_date.day == 12
-
-    def test_skn_unknown_commune_returns_none(self):
-        raw = self._make_skn_order(commune="Mordor")
         assert to_order_create(raw) is None
-
-    def test_skn_no_shipping_address_returns_none(self):
-        raw = self._make_skn_order()
-        del raw["shipping_address"]
-        assert to_order_create(raw) is None
-
-    def test_skn_after_cutoff(self):
-        """Tue 14:00, Antofagasta (2 days) → prep=Wed, deadline=Fri Mar 13."""
-        raw = self._make_skn_order(created_at="2026-03-10T14:00:00-04:00")
-        result = to_order_create(raw)
-        assert result is not None
-        assert result.limit_delivery_date.day == 13
