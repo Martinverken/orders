@@ -56,6 +56,8 @@ def list_historical_orders(
     has_case: Optional[bool] = Query(None),
     order_number: Optional[str] = Query(None),
     month: Optional[str] = Query(None),
+    date_from: Optional[str] = Query(None),
+    date_to: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     per_page: int = Query(25, ge=1, le=100),
 ):
@@ -73,6 +75,8 @@ def list_historical_orders(
         has_case=has_case,
         order_number=order_number,
         month=month,
+        date_from=date_from,
+        date_to=date_to,
         page=page,
         per_page=per_page,
     )

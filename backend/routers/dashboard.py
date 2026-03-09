@@ -32,6 +32,12 @@ def get_summary(
     return {"success": True, "data": summary.model_dump()}
 
 
+@router.get("/metrics/kpi")
+def get_kpi_metrics():
+    data = delayed_repo.get_kpi_metrics()
+    return {"success": True, "data": data}
+
+
 @router.get("/metrics/delays")
 def get_delay_metrics():
     metrics = delayed_repo.get_historical_metrics()

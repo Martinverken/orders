@@ -1,4 +1,4 @@
-import { ActiveOrderWithCases, CESchedule, DashboardSummary, HistoricalMetrics, HistoricalOrdersPage, Order, OrderCase, OrdersPage, SyncStatusResponse } from "@/app/types";
+import { ActiveOrderWithCases, CESchedule, DashboardSummary, HistoricalMetrics, HistoricalOrdersPage, KpiMetrics, Order, OrderCase, OrdersPage, SyncStatusResponse } from "@/app/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -72,6 +72,8 @@ export async function getHistoricalOrders(params?: {
   has_case?: boolean;
   order_number?: string;
   month?: string;
+  date_from?: string;
+  date_to?: string;
   page?: number;
   per_page?: number;
 }): Promise<HistoricalOrdersPage> {
@@ -84,6 +86,8 @@ export async function getHistoricalOrders(params?: {
   if (params?.has_case !== undefined) query.set("has_case", String(params.has_case));
   if (params?.order_number) query.set("order_number", params.order_number);
   if (params?.month) query.set("month", params.month);
+  if (params?.date_from) query.set("date_from", params.date_from);
+  if (params?.date_to) query.set("date_to", params.date_to);
   if (params?.page) query.set("page", String(params.page));
   if (params?.per_page) query.set("per_page", String(params.per_page));
   return apiFetch<HistoricalOrdersPage>(`/api/orders/history?${query}`);
@@ -167,6 +171,15 @@ export async function saveCESchedule(schedule: Record<string, string>): Promise<
     { method: "PUT", body: JSON.stringify(schedule) }
   );
   return resp.data ?? {};
+}
+
+export async function getKpiMetrics(): Promise<KpiMetrics> {
+  try {
+    const data = await apiFetch<{ success: boolean; data: KpiMetrics }>("/api/dashboard/metrics/kpi");
+    return data.data;
+  } catch {
+    return { monthly: [], weekly: [] };
+  }
 }
 
 export async function getDelayMetrics(): Promise<HistoricalMetrics> {

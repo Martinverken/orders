@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { getActiveOrdersWithCases, getCESchedule, getDashboardSummary, getDelayMetrics, getDistinctCities, getDistinctHistoricalCities, getHistoricalOrders, getOrders, getSyncStatus } from "@/app/lib/api";
+import { getActiveOrdersWithCases, getCESchedule, getDashboardSummary, getDelayMetrics, getDistinctCities, getDistinctHistoricalCities, getHistoricalOrders, getKpiMetrics, getOrders, getSyncStatus } from "@/app/lib/api";
 import { SummaryCards } from "@/app/components/dashboard/SummaryCards";
 import { OrdersTable } from "@/app/components/dashboard/OrdersTable";
 import { SyncStatus } from "@/app/components/dashboard/SyncStatus";
@@ -8,6 +8,7 @@ import { HistoricalFilterBar } from "@/app/components/dashboard/HistoricalFilter
 import { HistoricalOrdersTable } from "@/app/components/dashboard/HistoricalOrdersTable";
 import { TicketsTable } from "@/app/components/dashboard/TicketsTable";
 import { DelayMetricsTable } from "@/app/components/dashboard/DelayMetricsTable";
+import { KpiTable } from "@/app/components/dashboard/KpiTable";
 import { CEScheduleSettings } from "@/app/components/dashboard/CEScheduleSettings";
 import { CEScheduleModal } from "@/app/components/dashboard/CEScheduleModal";
 
@@ -30,6 +31,8 @@ interface PageProps {
     h_city?: string;
     h_commune?: string;
     h_order_number?: string;
+    h_date_from?: string;
+    h_date_to?: string;
     h_page?: string;
     // Tab
     tab?: string;
@@ -100,6 +103,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   let ticketsPage = null;
   let activeWithCases = null;
   let delayMetrics = null;
+  let kpiMetrics = null;
 
   if (tab === "pedidos") {
     const page = Number(params.page || 1);
@@ -118,6 +122,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         city: params.h_city,
         commune: params.h_commune,
         order_number: params.h_order_number,
+        date_from: params.h_date_from,
+        date_to: params.h_date_to,
         page: hPage,
         per_page: 25,
       }),
@@ -131,7 +137,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   } else if (tab === "configuracion") {
     // no extra data needed
   } else {
-    delayMetrics = await getDelayMetrics();
+    [delayMetrics, kpiMetrics] = await Promise.all([
+      getDelayMetrics(),
+      getKpiMetrics(),
+    ]);
   }
 
   const page = Number(params.page || 1);
@@ -153,6 +162,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     h_city: params.h_city,
     h_commune: params.h_commune,
     h_order_number: params.h_order_number,
+    h_date_from: params.h_date_from,
+    h_date_to: params.h_date_to,
   };
 
   return (
@@ -363,17 +374,31 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
         {/* ── Estadísticas ── */}
         {tab === "estadisticas" && (
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-            <div className="px-6 py-4 border-b border-gray-100">
-              <h2 className="text-base font-medium text-gray-900">Estadísticas de entregas</h2>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Pedidos resueltos agrupados por mes, marketplace y operador logístico
-              </p>
+          <>
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+              <div className="px-6 py-4 border-b border-gray-100">
+                <h2 className="text-base font-medium text-gray-900">KPI Operaciones — % Atraso</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Porcentaje de pedidos atrasados sobre el total, agrupado por mes y semana
+                </p>
+              </div>
+              <div className="px-6 py-6">
+                <KpiTable metrics={kpiMetrics ?? { monthly: [], weekly: [] }} />
+              </div>
             </div>
-            <div className="px-6 py-6">
-              <DelayMetricsTable metrics={delayMetrics ?? { delayed: [], on_time: [] }} />
+
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+              <div className="px-6 py-4 border-b border-gray-100">
+                <h2 className="text-base font-medium text-gray-900">Detalle por marketplace y operador</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Pedidos resueltos agrupados por mes, marketplace y operador logístico
+                </p>
+              </div>
+              <div className="px-6 py-6">
+                <DelayMetricsTable metrics={delayMetrics ?? { delayed: [], on_time: [] }} />
+              </div>
             </div>
-          </div>
+          </>
         )}
 
       </main>

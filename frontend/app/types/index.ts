@@ -117,6 +117,18 @@ export interface HistoricalOrdersPage {
   pages: number;
 }
 
+export interface KpiPeriod {
+  period: string;
+  total: number;
+  delayed: number;
+  pct_delayed: number;
+}
+
+export interface KpiMetrics {
+  monthly: KpiPeriod[];
+  weekly: KpiPeriod[];
+}
+
 export interface CESchedule {
   value: Record<string, string>;  // {"monday":"11:00","thursday":"14:45",...}
   updated_at: string | null;

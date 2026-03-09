@@ -137,6 +137,8 @@ class DelayedOrderRepository:
         has_case: bool | None = None,
         order_number: str | None = None,
         month: str | None = None,
+        date_from: str | None = None,
+        date_to: str | None = None,
         page: int = 1,
         per_page: int = 25,
     ) -> dict:
@@ -154,6 +156,10 @@ class DelayedOrderRepository:
             else:
                 next_m = f"{y}-{m+1:02d}-01"
             query = query.gte("limit_delivery_date", f"{month}-01").lt("limit_delivery_date", next_m)
+        if date_from:
+            query = query.gte("limit_delivery_date", date_from)
+        if date_to:
+            query = query.lte("limit_delivery_date", date_to)
         if was_delayed is True:
             query = query.gt("days_delayed", 0)
         elif was_delayed is False:
@@ -355,6 +361,49 @@ class DelayedOrderRepository:
             for (month, source, operator), days_list in sorted(buckets.items())
         ]
         return metrics
+
+    def get_kpi_metrics(self) -> dict:
+        """Return aggregate % delayed grouped by month and by week (ISO Monday-Sunday)."""
+        result = self.db.table(self.table).select(
+            "limit_delivery_date,days_delayed"
+        ).execute()
+        rows = result.data or []
+
+        monthly: dict[str, dict] = defaultdict(lambda: {"total": 0, "delayed": 0})
+        weekly: dict[str, dict] = defaultdict(lambda: {"total": 0, "delayed": 0})
+
+        for r in rows:
+            raw_date = r.get("limit_delivery_date", "")
+            days = r.get("days_delayed")
+            if not raw_date or days is None:
+                continue
+            month = str(raw_date)[:7]
+            monthly[month]["total"] += 1
+            if float(days) > 0:
+                monthly[month]["delayed"] += 1
+            # ISO week (Monday-based)
+            try:
+                dt = datetime.fromisoformat(str(raw_date)[:10])
+                iso_year, iso_week, _ = dt.isocalendar()
+                # Compute Monday of that ISO week for display
+                from datetime import timedelta
+                monday = dt - timedelta(days=dt.weekday())
+                week_key = monday.strftime("%Y-%m-%d")
+            except Exception:
+                continue
+            weekly[week_key]["total"] += 1
+            if float(days) > 0:
+                weekly[week_key]["delayed"] += 1
+
+        def build_list(buckets: dict) -> list[dict]:
+            out = []
+            for key in sorted(buckets.keys()):
+                b = buckets[key]
+                pct = round(b["delayed"] / b["total"] * 100, 1) if b["total"] > 0 else 0
+                out.append({"period": key, "total": b["total"], "delayed": b["delayed"], "pct_delayed": pct})
+            return out
+
+        return {"monthly": build_list(monthly), "weekly": build_list(weekly)}
 
     def get_historical_metrics(self) -> dict:
         """Return both on-time and delayed metrics grouped by month/source/logistics_operator."""
