@@ -1,9 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { HistoricalMetrics, HistoricalOrder } from "@/app/types";
-import { getHistoricalOrders } from "@/app/lib/api";
+import { HistoricalMetrics, HistoricalOrder, OrderCase } from "@/app/types";
+import { getHistoricalOrders, addOrderCase } from "@/app/lib/api";
 import { SOURCE_LABEL, formatDeadline, getCreatedAt, getOrderNumber, getProductDetails, getShippingDestination, getTrackingCode, getTrackingUrl } from "@/app/lib/utils";
+import { CaseHistoryModal } from "./CaseHistoryModal";
 
 interface Props {
   metrics: HistoricalMetrics;
@@ -69,6 +70,45 @@ function mergeMetrics(metrics: HistoricalMetrics): Map<string, MergedRow> {
   return map;
 }
 
+function TicketButton({ orderId, orderLabel, initialCases }: { orderId: string; orderLabel: string; initialCases: OrderCase[] }) {
+  const [open, setOpen] = useState(false);
+  const [cases, setCases] = useState<OrderCase[]>(initialCases);
+
+  const handleAdd = async (data: { case_number?: string | null; case_status?: string | null; comments?: string | null }) => {
+    const created = await addOrderCase(orderId, data);
+    setCases((prev) => [...prev, created]);
+    return created;
+  };
+
+  const topStatus = cases.find((c) => c.case_status === "pending")?.case_status
+    ?? cases.find((c) => c.case_status === "created")?.case_status
+    ?? cases[0]?.case_status;
+
+  return (
+    <>
+      <button
+        onClick={() => setOpen(true)}
+        className="flex items-center gap-1.5 text-xs border border-gray-200 rounded-full px-2.5 py-1 hover:bg-gray-50 transition-colors"
+      >
+        {cases.length > 0 && topStatus && (
+          <span className={`inline-block w-2 h-2 rounded-full ${topStatus === "pending" ? "bg-amber-400" : topStatus === "created" ? "bg-blue-400" : "bg-green-400"}`} />
+        )}
+        <span className="text-gray-600">
+          {cases.length > 0 ? `${cases.length} ticket${cases.length > 1 ? "s" : ""}` : "+ Ticket"}
+        </span>
+      </button>
+      {open && (
+        <CaseHistoryModal
+          orderLabel={orderLabel}
+          initialCases={cases}
+          onClose={() => setOpen(false)}
+          onAddCase={handleAdd}
+        />
+      )}
+    </>
+  );
+}
+
 function DelayDetailModal({ row, onClose }: { row: MergedRow; onClose: () => void }) {
   const [orders, setOrders] = useState<HistoricalOrder[] | null>(null);
   const [loading, setLoading] = useState(true);
@@ -89,7 +129,7 @@ function DelayDetailModal({ row, onClose }: { row: MergedRow; onClose: () => voi
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40" onClick={onClose}>
       <div
-        className="bg-white rounded-xl shadow-2xl max-w-5xl w-full mx-4 max-h-[85vh] flex flex-col"
+        className="bg-white rounded-xl shadow-2xl max-w-6xl w-full mx-4 max-h-[85vh] flex flex-col"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
@@ -121,7 +161,8 @@ function DelayDetailModal({ row, onClose }: { row: MergedRow; onClose: () => voi
                   <th className="pb-3 pr-4 font-medium">Fecha Entrega</th>
                   <th className="pb-3 pr-4 font-medium">Retraso</th>
                   <th className="pb-3 pr-4 font-medium">Tracking</th>
-                  <th className="pb-3 font-medium">Ciudad</th>
+                  <th className="pb-3 pr-4 font-medium">Ciudad</th>
+                  <th className="pb-3 font-medium">Tickets</th>
                 </tr>
               </thead>
               <tbody>
@@ -133,7 +174,7 @@ function DelayDetailModal({ row, onClose }: { row: MergedRow; onClose: () => voi
                   const hrs = Math.round(order.days_delayed * 24);
                   return (
                     <tr key={order.id} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className="py-2.5 pr-4 font-mono text-xs text-gray-700">{orderNumber}</td>
+                      <td className={`py-2.5 pr-4 font-mono text-xs ${(order.cases?.length ?? 0) > 0 ? "text-amber-600 font-semibold" : "text-gray-700"}`}>{orderNumber}</td>
                       <td className="py-2.5 pr-4 font-mono text-xs text-gray-600 max-w-[140px] truncate">{product.sku || "—"}</td>
                       <td className="py-2.5 pr-4 text-xs text-gray-600">{order.status || "—"}</td>
                       <td className="py-2.5 pr-4 text-xs text-gray-600 whitespace-nowrap">{formatDeadline(getCreatedAt(order.raw_data))}</td>
@@ -145,7 +186,14 @@ function DelayDetailModal({ row, onClose }: { row: MergedRow; onClose: () => voi
                           <a href={trackingUrl} target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">{tracking}</a>
                         ) : (tracking || "—")}
                       </td>
-                      <td className="py-2.5 text-xs text-gray-600 capitalize">{order.raw_data ? getShippingDestination(order.raw_data).city?.toLowerCase() || "—" : "—"}</td>
+                      <td className="py-2.5 pr-4 text-xs text-gray-600 capitalize">{order.raw_data ? getShippingDestination(order.raw_data).city?.toLowerCase() || "—" : "—"}</td>
+                      <td className="py-2.5">
+                        <TicketButton
+                          orderId={order.id}
+                          orderLabel={orderNumber}
+                          initialCases={order.cases ?? []}
+                        />
+                      </td>
                     </tr>
                   );
                 })}
