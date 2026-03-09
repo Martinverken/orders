@@ -72,6 +72,14 @@ def to_order_create(raw: dict) -> OrderCreate | None:
     line_list = order_lines_raw.get("orderLine") or []
     if isinstance(line_list, dict):
         line_list = [line_list]
+    # Walmart Chile wraps nested arrays in an object:
+    # {"charges": {"charge": [...]}, "orderLineStatuses": {"orderLineStatus": [...]}}
+    # Unwrap before parsing so Pydantic gets plain lists.
+    for ln in line_list:
+        if isinstance(ln.get("charges"), dict):
+            ln["charges"] = ln["charges"].get("charge") or []
+        if isinstance(ln.get("orderLineStatuses"), dict):
+            ln["orderLineStatuses"] = ln["orderLineStatuses"].get("orderLineStatus") or []
     order_lines = [WalmartOrderLine(**ln) for ln in line_list]
 
     # Resolve status
@@ -95,6 +103,13 @@ def to_order_create(raw: dict) -> OrderCreate | None:
         logger.warning(
             f"Walmart order {order.purchaseOrderId} has no estimatedShipDate — skipping"
         )
+        return None
+
+    # Skip orders whose delivery deadline date has already passed (compare dates, not datetimes)
+    today = datetime.now(_SANTIAGO).date()
+    deadline_date = limit_delivery_date.astimezone(_SANTIAGO).date() if limit_delivery_date.tzinfo else limit_delivery_date.date()
+    if deadline_date < today:
+        logger.debug(f"Walmart order {order.purchaseOrderId} skipped: deadline {deadline_date} already passed")
         return None
 
     # Extract product info from first order line

@@ -1,10 +1,16 @@
 """Shopify Admin REST API client.
 
 Fetches paid orders with tags 'ebox' + 'welivery'.
-Uses Shopify's own fulfillment_status to detect delivered orders.
+fulfillment_status in Shopify means "prepared in warehouse", NOT delivered to customer.
+Welivery handles last-mile delivery — orders stay active until removed from feed.
+
+Only fetches orders created in the last LOOKBACK_DAYS days to avoid importing
+old historical orders. New orders are picked up each sync cycle.
 """
 import logging
+from datetime import datetime, timedelta
 from typing import AsyncIterator
+from zoneinfo import ZoneInfo
 
 import httpx
 
@@ -15,6 +21,7 @@ from models.order import OrderCreate
 logger = logging.getLogger(__name__)
 
 _API_VERSION = "2024-01"
+_LOOKBACK_DAYS = 14  # Only fetch orders from the last 14 days
 
 
 class ShopifyClient(BaseIntegration):
@@ -35,16 +42,17 @@ class ShopifyClient(BaseIntegration):
     async def fetch_pending_orders(self) -> AsyncIterator[OrderCreate]:
         """Yield OrderCreate for all eligible Shopify orders not yet delivered."""
         url = f"{self.base_url}/orders.json"
+        since = datetime.now(ZoneInfo("America/Santiago")) - timedelta(days=_LOOKBACK_DAYS)
         params = {
             "financial_status": "paid",
             "status": "any",
             "limit": 250,
+            "created_at_min": since.isoformat(),
             "fields": "id,name,order_number,tags,financial_status,fulfillment_status,created_at,line_items,shipping_address",
         }
 
         fetched = 0
         skipped_ineligible = 0
-        skipped_delivered = 0
 
         with httpx.Client(timeout=30) as client:
             while url:
@@ -66,11 +74,6 @@ class ShopifyClient(BaseIntegration):
                         skipped_ineligible += 1
                         continue
 
-                    # Skip orders already fulfilled in Shopify — left_feed logic archives them
-                    if raw.get("fulfillment_status") == "fulfilled":
-                        skipped_delivered += 1
-                        continue
-
                     yield mapped
 
                 # Cursor-based pagination via Link header
@@ -80,8 +83,7 @@ class ShopifyClient(BaseIntegration):
 
         logger.info(
             f"[{self._source_name}] Fetched {fetched} orders total: "
-            f"{fetched - skipped_ineligible - skipped_delivered} pending, "
-            f"{skipped_delivered} delivered, "
+            f"{fetched - skipped_ineligible} eligible, "
             f"{skipped_ineligible} ineligible"
         )
 

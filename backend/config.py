@@ -41,9 +41,9 @@ class Settings(BaseSettings):
     walmart_client_secret: str = ""   # OAuth2 client_secret
     walmart_base_url: str = "https://marketplace.walmartapis.com/v3"
 
-    # Paris (Cencosud) — STUB: confirm base_url from developers.ecomm.cencosud.com
-    paris_api_key: str = ""           # API key or Bearer token from Cencosud Seller Center
-    paris_base_url: str = "https://api.ecomm.cencosud.com"  # TODO: confirm actual URL
+    # Paris (Cencosud)
+    paris_api_key: str = ""           # Bearer token from Cencosud Developer Portal
+    paris_base_url: str = "https://api-developers.ecomm.cencosud.com/v1"
 
     # Shopify — one entry per store
     shopify_verken_url: str = ""      # e.g. "verken.myshopify.com"
@@ -61,6 +61,9 @@ class Settings(BaseSettings):
     @property
     def allowed_origins_list(self) -> list[str]:
         return [o.strip() for o in self.allowed_origins.split(",") if o.strip()]
+
+    # ML Centro de Envíos cutoff schedule (JSON)
+    ml_ce_cutoff_schedule: str = ""
 
     class Config:
         env_file = ".env"

@@ -1,7 +1,7 @@
 """Paris (Cencosud) marketplace integration.
 
 Auth: Bearer token (API key from Cencosud Developer Portal)
-Orders endpoint: GET /api/v1/orders (TODO: confirm exact path)
+Orders endpoint: GET /v1/orders
 Pagination: offset-based, response has {"data": [...], "count": N}
 Shipping: Standard only, identical to Falabella Regular
 
@@ -10,7 +10,9 @@ Docs: https://developers.ecomm.cencosud.com/docs
 
 import httpx
 import logging
+from datetime import datetime, timedelta
 from typing import AsyncIterator
+from zoneinfo import ZoneInfo
 
 from config import get_settings
 from integrations.base import BaseIntegration, IntegrationError
@@ -20,6 +22,7 @@ from models.order import OrderCreate
 logger = logging.getLogger(__name__)
 
 PAGE_SIZE = 100
+_LOOKBACK_DAYS = 30
 
 
 class ParisClient(BaseIntegration):
@@ -44,19 +47,19 @@ class ParisClient(BaseIntegration):
     async def fetch_pending_orders(self) -> AsyncIterator[OrderCreate]:
         """Yield OrderCreate for all actionable Paris orders.
 
-        Fetches all orders and filters by subOrder status in the mapper.
-        Paris API may support status filtering via query params — adjust if confirmed.
+        Fetches orders created in the last LOOKBACK_DAYS days.
+        Filters by subOrder status in the mapper.
         """
         async with httpx.AsyncClient(timeout=30.0) as client:
+            since = (datetime.now(ZoneInfo("America/Santiago")) - timedelta(days=_LOOKBACK_DAYS)).strftime("%Y-%m-%d")
+
             offset = 0
             while True:
-                # TODO: Confirm exact endpoint path and query params
-                # The URL pattern from the docs reference suggests /api/v1/seller/orders
-                # or similar. Adjust once confirmed.
-                url = f"{self.base_url}/api/v1/orders"
+                url = f"{self.base_url}/orders"
                 params = {
                     "limit": PAGE_SIZE,
                     "offset": offset,
+                    "gteCreatedAt": since,
                 }
 
                 logger.info(f"[paris] Fetching orders: offset={offset}")

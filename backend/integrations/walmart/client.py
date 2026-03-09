@@ -2,7 +2,7 @@ import base64
 import httpx
 import logging
 import time
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from typing import AsyncIterator
 
 from config import get_settings
@@ -63,6 +63,7 @@ class WalmartClient(BaseIntegration):
                     "Accept": "application/json",
                     "WM_SVC.NAME": "Walmart Marketplace",
                     "WM_QOS.CORRELATION_ID": f"verken-{int(now)}",
+                    "WM_MARKET": "cl",
                 },
                 content="grant_type=client_credentials",
             )
@@ -89,9 +90,10 @@ class WalmartClient(BaseIntegration):
 
     def _build_headers(self, token: str) -> dict:
         return {
-            "Authorization": f"Bearer {token}",
+            "WM_SEC.ACCESS_TOKEN": token,
             "WM_SVC.NAME": "Walmart Marketplace",
             "WM_QOS.CORRELATION_ID": f"verken-{int(time.time())}",
+            "WM_MARKET": "cl",
             "Accept": "application/json",
         }
 
@@ -105,6 +107,11 @@ class WalmartClient(BaseIntegration):
         async with httpx.AsyncClient(timeout=30.0) as client:
             token = await self._ensure_token(client)
 
+            # Walmart Chile requires createdStartDate
+            since = (datetime.now(timezone.utc) - timedelta(days=30)).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+            seen_ids: set[str] = set()  # Deduplicate across pages
+
             for wm_status in ("Created", "Acknowledged", "Shipped"):
                 next_cursor: str | None = None
                 page = 0
@@ -114,10 +121,9 @@ class WalmartClient(BaseIntegration):
                         "limit": PAGE_SIZE,
                         "status": wm_status,
                         "productInfo": "true",
+                        "createdStartDate": since,
                     }
                     if next_cursor:
-                        # Walmart uses nextCursor which contains the full query string
-                        # We parse it to extract cursor params
                         params["nextCursor"] = next_cursor
 
                     url = f"{self.base_url}/orders"
@@ -131,7 +137,6 @@ class WalmartClient(BaseIntegration):
                             params=params,
                             headers=self._build_headers(token),
                         )
-                        # Token may have expired mid-pagination
                         if response.status_code == 401:
                             token = await self._ensure_token(client)
                             response = await client.get(
@@ -150,7 +155,6 @@ class WalmartClient(BaseIntegration):
                     except Exception as e:
                         raise IntegrationError("walmart", str(e))
 
-                    # Navigate response envelope: {"list": {"meta": {...}, "elements": {"order": [...]}}}
                     list_obj = body.get("list") or {}
                     meta = list_obj.get("meta") or {}
                     elements = list_obj.get("elements") or {}
@@ -162,12 +166,21 @@ class WalmartClient(BaseIntegration):
                     if not raw_orders:
                         break
 
+                    new_on_page = 0
                     for raw_order in raw_orders:
+                        po_id = raw_order.get("purchaseOrderId", "")
+                        if po_id in seen_ids:
+                            continue
+                        seen_ids.add(po_id)
+                        new_on_page += 1
                         order = mapper.to_order_create(raw_order)
                         if order:
                             yield order
 
-                    # Check for more pages
+                    # If all orders on this page were duplicates, stop paginating
+                    if new_on_page == 0:
+                        break
+
                     next_cursor = meta.get("nextCursor")
                     if not next_cursor:
                         break

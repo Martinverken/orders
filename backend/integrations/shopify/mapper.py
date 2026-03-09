@@ -146,6 +146,12 @@ def to_order_create(raw: dict, source: str = "shopify") -> OrderCreate | None:
         logger.warning(f"Shopify order {raw.get('name')}: cannot compute promise: {e}")
         return None
 
+    # Skip orders whose delivery deadline date has already passed (compare dates, not datetimes)
+    today = datetime.now(_SANTIAGO_TZ).date()
+    if limit_delivery_date.date() < today:
+        logger.debug(f"Shopify order {raw.get('name')} skipped: deadline {limit_delivery_date.date()} already passed")
+        return None
+
     product_name, product_quantity = _get_product_info(raw)
 
     created_raw = raw.get("created_at")
@@ -154,10 +160,16 @@ def to_order_create(raw: dict, source: str = "shopify") -> OrderCreate | None:
     except ValueError:
         created_at_source = None
 
+    # Map Shopify fulfillment_status to internal status:
+    # - null/unfulfilled → pending (not yet prepared)
+    # - fulfilled → ready_to_ship (prepared in warehouse, pending Welivery delivery)
+    fulfillment = raw.get("fulfillment_status")
+    status = "ready_to_ship" if fulfillment == "fulfilled" else "pending"
+
     return OrderCreate(
         external_id=str(raw["id"]),
         source=source,
-        status="pending",
+        status=status,
         created_at_source=created_at_source,
         limit_delivery_date=limit_delivery_date,
         product_name=product_name,

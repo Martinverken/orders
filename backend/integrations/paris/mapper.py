@@ -2,9 +2,17 @@
 
 Converts raw Paris API response into canonical OrderCreate.
 Paris shipping logic is identical to Falabella Regular:
-- Carrier picks up from warehouse
+- Carrier (BLUEXPRESS) picks up from warehouse
 - Deadline = dispatchDate (when seller must hand package to carrier)
 - Terminal state: shipped (carrier took it)
+
+Status IDs (confirmed from real data):
+  2  = cancelled
+  4  = delivered
+  14 = shipped
+  18 = deleted
+  22 = returned_to_seller
+  (1, 3, etc. = pending/ready_to_ship — not yet seen in prod data)
 
 Docs: https://developers.ecomm.cencosud.com/docs
 """
@@ -20,16 +28,55 @@ logger = logging.getLogger(__name__)
 
 _SANTIAGO = ZoneInfo("America/Santiago")
 
+# Map statusId → canonical status
+_STATUS_ID_MAP = {
+    1: "pending",
+    2: "cancelled",
+    3: "ready_to_ship",
+    4: "delivered",
+    5: "ready_to_ship",
+    14: "shipped",
+    18: "cancelled",
+    22: "cancelled",
+}
+
+# Fallback: map status.name → canonical status
+_STATUS_NAME_MAP = {
+    "pending": "pending",
+    "pendiente": "pending",
+    "created": "pending",
+    "creada": "pending",
+    "confirmed": "ready_to_ship",
+    "confirmada": "ready_to_ship",
+    "ready_to_ship": "ready_to_ship",
+    "ready to ship": "ready_to_ship",
+    "listo para despacho": "ready_to_ship",
+    "por despachar": "ready_to_ship",
+    "shipped": "shipped",
+    "despachada": "shipped",
+    "en camino": "shipped",
+    "in_transit": "shipped",
+    "delivered": "delivered",
+    "entregada": "delivered",
+    "canceled": "cancelled",
+    "cancelled": "cancelled",
+    "cancelada": "cancelled",
+    "deleted": "cancelled",
+    "returned_to_seller": "cancelled",
+}
+
 
 def parse_paris_datetime(value: str | None) -> datetime | None:
     """Parse datetime string from Paris API.
 
-    Paris uses ISO dates: "2019-08-24" or "2019-08-24T10:00:00".
+    Paris uses ISO dates: "2026-02-24" or "2026-02-24T17:30:46.000Z".
     """
     if not value:
         return None
     formats = [
+        "%Y-%m-%dT%H:%M:%S.%f%z",
         "%Y-%m-%dT%H:%M:%S%z",
+        "%Y-%m-%dT%H:%M:%S.%f",
         "%Y-%m-%dT%H:%M:%S",
         "%Y-%m-%d %H:%M:%S",
         "%Y-%m-%d",
@@ -47,41 +94,19 @@ def parse_paris_datetime(value: str | None) -> datetime | None:
 
 
 def _resolve_status(sub_order: ParisSubOrder) -> str:
-    """Map Paris subOrder status to canonical status.
+    """Map Paris subOrder status to canonical status."""
+    # Prefer statusId (numeric, reliable)
+    if sub_order.statusId is not None:
+        mapped = _STATUS_ID_MAP.get(sub_order.statusId)
+        if mapped:
+            return mapped
 
-    Paris uses statusId + status.name. Common patterns:
-    - statusId values and their meaning need confirmation from real data.
-    - We use status.name as fallback with reasonable mapping.
-    """
+    # Fallback to status.name
     status_name = ""
     if sub_order.status and sub_order.status.name:
         status_name = sub_order.status.name.lower().strip()
 
-    # Map known status names to canonical statuses
-    # TODO: Confirm exact status names from Paris once real orders flow in
-    _STATUS_MAP = {
-        "pending": "pending",
-        "pendiente": "pending",
-        "created": "pending",
-        "creada": "pending",
-        "confirmed": "ready_to_ship",
-        "confirmada": "ready_to_ship",
-        "ready_to_ship": "ready_to_ship",
-        "ready to ship": "ready_to_ship",
-        "listo para despacho": "ready_to_ship",
-        "por despachar": "ready_to_ship",
-        "shipped": "shipped",
-        "despachada": "shipped",
-        "en camino": "shipped",
-        "in_transit": "shipped",
-        "delivered": "delivered",
-        "entregada": "delivered",
-        "canceled": "cancelled",
-        "cancelled": "cancelled",
-        "cancelada": "cancelled",
-    }
-
-    return _STATUS_MAP.get(status_name, status_name or "unknown")
+    return _STATUS_NAME_MAP.get(status_name, status_name or "unknown")
 
 
 def to_order_create(raw: dict) -> OrderCreate | None:
@@ -107,7 +132,7 @@ def to_order_create(raw: dict) -> OrderCreate | None:
 
     # Skip terminal statuses
     if status in ("delivered", "cancelled"):
-        logger.info(f"[paris] Order {order.id} is {status} — skipping")
+        logger.info(f"[paris] Order {order.originOrderNumber} is {status} — skipping")
         return None
 
     # Resolve delivery deadline from dispatchDate
@@ -119,7 +144,14 @@ def to_order_create(raw: dict) -> OrderCreate | None:
         limit_delivery_date = limit_delivery_date.replace(hour=23, minute=59, second=0)
 
     if not limit_delivery_date:
-        logger.warning(f"[paris] Order {order.id} has no dispatchDate — skipping")
+        logger.warning(f"[paris] Order {order.originOrderNumber} has no dispatchDate — skipping")
+        return None
+
+    # Skip orders whose delivery deadline date has already passed (compare dates, not datetimes)
+    today = datetime.now(_SANTIAGO).date()
+    deadline_date = limit_delivery_date.astimezone(_SANTIAGO).date() if limit_delivery_date.tzinfo else limit_delivery_date.date()
+    if deadline_date < today:
+        logger.debug(f"[paris] Order {order.originOrderNumber} skipped: deadline {deadline_date} already passed")
         return None
 
     # Extract product info from first item of first subOrder
@@ -135,8 +167,11 @@ def to_order_create(raw: dict) -> OrderCreate | None:
         # Paris doesn't have quantity per item in subOrder; default to 1
         product_quantity = 1
 
+    # Use subOrderNumber as external_id (Paris always works with sub-orders, 10 digits)
+    external_id = sub.subOrderNumber or str(order.id)
+
     return OrderCreate(
-        external_id=str(order.id),
+        external_id=external_id,
         source="paris",
         status=status,
         created_at_source=parse_paris_datetime(order.createdAt or order.originOrderDate),

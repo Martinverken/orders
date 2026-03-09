@@ -1,0 +1,37 @@
+name: Backend Tests
+
+on:
+  push:
+    branches: [main]
+    paths: ['backend/**']
+  pull_request:
+    paths: ['backend/**']
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: 'pip'
+          cache-dependency-path: backend/requirements.txt
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run tests
+        run: pytest -v --tb=short
+        env:
+          SUPABASE_URL: "https://fake.supabase.co"
+          SUPABASE_SERVICE_ROLE_KEY: "fake-key"
+          FALABELLA_USER_ID: "fake"
+          FALABELLA_API_KEY: "fake"
+          RESEND_API_KEY: "fake"
+          EMAIL_RECIPIENTS: "test@test.com"
