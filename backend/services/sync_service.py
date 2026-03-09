@@ -316,12 +316,18 @@ class SyncService:
                     on_time.append(order)
             elif left_feed:
                 # Desapareció del feed
-                # ML Flex: desaparecer del feed = entregado al cliente final
+                # ML Flex: desaparecer del feed puede significar entrega o cancelación.
+                # Si shipment.status == 'ready_to_ship' → nunca fue despachada → cancelada.
+                # Si fue despachada (shipped/out_for_delivery/etc.) → asumimos entregada.
                 if order.source == "mercadolibre":
                     raw = order.raw_data or {}
                     shipment = raw.get("shipment") or {}
                     if str(shipment.get("logistic_type", "")).lower() == "self_service":
-                        order = order.model_copy(update={"status": "delivered"})
+                        shipment_status = str(shipment.get("status", "")).lower()
+                        if shipment_status == "ready_to_ship":
+                            order = order.model_copy(update={"status": "cancelled"})
+                        else:
+                            order = order.model_copy(update={"status": "delivered"})
                 if past_deadline:
                     # Desapareció después del plazo → atrasado
                     late.append(order)
