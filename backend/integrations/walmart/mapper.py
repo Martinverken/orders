@@ -118,7 +118,7 @@ def to_order_create(raw: dict) -> OrderCreate | None:
     if order_lines:
         first = order_lines[0]
         if first.item:
-            product_name = first.item.productName
+            product_name = first.item.productName or first.item.sku
         qty = first.orderLineQuantity
         if qty and qty.amount:
             try:

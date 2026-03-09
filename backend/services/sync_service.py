@@ -336,6 +336,12 @@ class SyncService:
                     on_time.append(order)
             elif left_feed:
                 # Desapareció del feed
+
+                # Shopify (Welivery/Starken): solo archivar cuando status=delivered.
+                # Si desapareció del feed por deadline pasado pero no entregado → mantener activo.
+                if order.source.startswith("shopify") and order.status != "delivered":
+                    continue  # keep in active orders until courier delivers
+
                 # ML Flex: desaparecer del feed puede significar entrega o cancelación.
                 # Si shipment.status == 'ready_to_ship' → nunca fue despachada → cancelada.
                 # Si fue despachada (shipped/out_for_delivery/etc.) → asumimos entregada.

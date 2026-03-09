@@ -1,6 +1,7 @@
 """Tests for Shopify order mapper."""
 import pytest
-from datetime import date
+from datetime import date, datetime
+from zoneinfo import ZoneInfo
 from integrations.shopify.mapper import (
     to_order_create,
     has_tag,
@@ -8,6 +9,7 @@ from integrations.shopify.mapper import (
     is_business_day,
     compute_delivery_promise,
 )
+from shipping.transit import compute_starken_deadline, get_transit_days
 
 
 class TestEligibility:
@@ -27,11 +29,16 @@ class TestEligibility:
         assert result["eligible"] is False
         assert "missing_ebox" in result["reasons"]
 
-    def test_missing_welivery(self, shopify_raw):
+    def test_missing_courier_tag(self, shopify_raw):
         shopify_raw["tags"] = "ebox"
         result = check_eligibility(shopify_raw)
         assert result["eligible"] is False
-        assert "missing_welivery" in result["reasons"]
+        assert "missing_courier_tag" in result["reasons"]
+
+    def test_skn_tag_eligible(self, shopify_raw):
+        shopify_raw["tags"] = "ebox, SKN"
+        result = check_eligibility(shopify_raw)
+        assert result["eligible"] is True
 
 
 class TestHasTag:
@@ -113,3 +120,91 @@ class TestBusinessDay:
 
     def test_holiday_is_not_business(self):
         assert is_business_day(date(2026, 1, 1)) is False  # Año Nuevo
+
+
+# ── Starken transit tests ─────────────────────────────────────────────────────
+
+_STG = ZoneInfo("America/Santiago")
+
+
+class TestStarkenTransit:
+    def test_known_locality(self):
+        days = get_transit_days("ANTOFAGASTA")
+        assert days is not None
+        assert days == 2
+
+    def test_accent_normalization(self):
+        days = get_transit_days("Valparaíso")
+        assert days is not None
+
+    def test_unknown_locality_returns_none(self):
+        assert get_transit_days("Mordor") is None
+
+    def test_deadline_weekday_before_cutoff(self):
+        """Tue 10am → prep=Tue, +2 transit = Thu."""
+        dt = datetime(2026, 3, 10, 10, 0, 0, tzinfo=_STG)
+        deadline = compute_starken_deadline(dt, "ANTOFAGASTA")  # 2 days transit
+        assert deadline is not None
+        # prep=Tue Mar 10 (before cutoff), +2 cal days = Mar 12
+        assert deadline.day == 12
+        assert deadline.hour == 23
+
+    def test_deadline_weekday_after_cutoff(self):
+        """Tue 14:00 → prep=Wed, +2 transit = Fri."""
+        dt = datetime(2026, 3, 10, 14, 0, 0, tzinfo=_STG)
+        deadline = compute_starken_deadline(dt, "ANTOFAGASTA")  # 2 days transit
+        # prep=Wed Mar 11 (next bday), +2 cal days = Mar 13
+        assert deadline is not None
+        assert deadline.day == 13
+
+    def test_deadline_sunday(self):
+        """Sun → prep=Mon, +2 transit = Wed."""
+        dt = datetime(2026, 3, 8, 10, 0, 0, tzinfo=_STG)
+        deadline = compute_starken_deadline(dt, "ANTOFAGASTA")  # 2 days transit
+        # prep=Mon Mar 9 (next bday), +2 cal days = Mar 11
+        assert deadline is not None
+        assert deadline.day == 11
+
+    def test_deadline_unknown_commune(self):
+        dt = datetime(2026, 3, 10, 10, 0, 0, tzinfo=_STG)
+        assert compute_starken_deadline(dt, "Mordor") is None
+
+
+class TestSKNMapper:
+    """Test SKN-tagged Shopify orders use Starken transit deadline."""
+
+    def _make_skn_order(self, created_at="2026-03-10T10:00:00-04:00", commune="ANTOFAGASTA"):
+        return {
+            "id": 8001,
+            "name": "#2001",
+            "financial_status": "paid",
+            "tags": "ebox, SKN",
+            "created_at": created_at,
+            "line_items": [{"title": "Mesa Escritorio", "quantity": 1}],
+            "shipping_address": {"city": commune},
+        }
+
+    def test_skn_order_mapped(self):
+        raw = self._make_skn_order()
+        result = to_order_create(raw, source="shopify_kaut")
+        assert result is not None
+        assert result.source == "shopify_kaut"
+        assert result.product_name == "Mesa Escritorio"
+        # Tue 10am → prep=Tue, +2 transit (Antofagasta) = Thu Mar 12
+        assert result.limit_delivery_date.day == 12
+
+    def test_skn_unknown_commune_returns_none(self):
+        raw = self._make_skn_order(commune="Mordor")
+        assert to_order_create(raw) is None
+
+    def test_skn_no_shipping_address_returns_none(self):
+        raw = self._make_skn_order()
+        del raw["shipping_address"]
+        assert to_order_create(raw) is None
+
+    def test_skn_after_cutoff(self):
+        """Tue 14:00, Antofagasta (2 days) → prep=Wed, deadline=Fri Mar 13."""
+        raw = self._make_skn_order(created_at="2026-03-10T14:00:00-04:00")
+        result = to_order_create(raw)
+        assert result is not None
+        assert result.limit_delivery_date.day == 13

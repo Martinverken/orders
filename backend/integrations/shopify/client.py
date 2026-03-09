@@ -1,8 +1,8 @@
 """Shopify Admin REST API client.
 
-Fetches paid orders with tags 'ebox' + 'welivery'.
+Fetches paid orders with tags 'ebox' + ('welivery' | 'SKN').
 fulfillment_status in Shopify means "prepared in warehouse", NOT delivered to customer.
-Welivery handles last-mile delivery — orders stay active until removed from feed.
+Welivery/Starken handle last-mile delivery — orders stay active until removed from feed.
 
 Only fetches orders created in the last LOOKBACK_DAYS days to avoid importing
 old historical orders. New orders are picked up each sync cycle.

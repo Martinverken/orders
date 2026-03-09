@@ -3,14 +3,19 @@
 Eligibility rules:
   - financial_status == "paid"
   - tags include "ebox"   (case-insensitive)
-  - tags include "welivery" (case-insensitive)
+  - tags include "welivery" OR "SKN" (case-insensitive)
 
 Delivery promise:
-  - Timezone: America/Santiago
-  - Cutoff: 13:00
-  - Business days: Mon–Sat, excluding Chilean public holidays
-  - Express (tag "express"): promise = base_date 23:59:59
-  - Standard:                promise = base_date + 2 business days, 23:59:59
+  Welivery orders (tag "welivery"):
+    - Cutoff: 13:00 Santiago
+    - Express (tag "express"): promise = base_date 23:59:59
+    - Standard:                promise = base_date + 2 business days, 23:59:59
+
+  Starken orders (tag "SKN"):
+    - Cutoff: 13:00 Santiago
+    - Prep: next business day
+    - Transit: max days from Starken transit matrix (by destination commune)
+    - Promise = prep_date + transit calendar days, 23:59:59
 """
 import logging
 from datetime import date, datetime, timedelta
@@ -18,6 +23,7 @@ from zoneinfo import ZoneInfo
 
 from models.order import OrderCreate
 from integrations.shopify.holidays import is_holiday
+from shipping.transit import compute_starken_deadline
 
 logger = logging.getLogger(__name__)
 
@@ -43,8 +49,8 @@ def check_eligibility(order: dict) -> dict:
     tags = order.get("tags") or ""
     if not has_tag(tags, "ebox"):
         reasons.append("missing_ebox")
-    if not has_tag(tags, "welivery"):
-        reasons.append("missing_welivery")
+    if not has_tag(tags, "welivery") and not has_tag(tags, "SKN"):
+        reasons.append("missing_courier_tag")
     return {"eligible": len(reasons) == 0, "reasons": reasons}
 
 
@@ -128,6 +134,12 @@ def _get_product_info(order: dict) -> tuple[str | None, int | None]:
 
 # ── Main mapper ──────────────────────────────────────────────────────────────
 
+def _get_commune(raw: dict) -> str | None:
+    """Extract commune/city from shipping_address."""
+    addr = raw.get("shipping_address") or {}
+    return addr.get("city") or addr.get("province") or None
+
+
 def to_order_create(raw: dict, source: str = "shopify") -> OrderCreate | None:
     """Convert raw Shopify order dict to canonical OrderCreate.
 
@@ -140,17 +152,24 @@ def to_order_create(raw: dict, source: str = "shopify") -> OrderCreate | None:
         )
         return None
 
+    tags = raw.get("tags") or ""
+    is_skn = has_tag(tags, "SKN")
+
     try:
-        limit_delivery_date = compute_delivery_promise(raw)
+        if is_skn:
+            limit_delivery_date = _compute_skn_promise(raw)
+        else:
+            limit_delivery_date = compute_delivery_promise(raw)
     except Exception as e:
         logger.warning(f"Shopify order {raw.get('name')}: cannot compute promise: {e}")
         return None
 
-    # Skip orders whose delivery deadline date has already passed (compare dates, not datetimes)
-    today = datetime.now(_SANTIAGO_TZ).date()
-    if limit_delivery_date.date() < today:
-        logger.debug(f"Shopify order {raw.get('name')} skipped: deadline {limit_delivery_date.date()} already passed")
+    if limit_delivery_date is None:
+        logger.warning(f"Shopify order {raw.get('name')}: SKN commune not in transit matrix")
         return None
+
+    # Don't skip past-deadline orders — they stay as OVERDUE until courier delivers.
+    # The cleanup logic in sync_service handles archival only when status=delivered.
 
     product_name, product_quantity = _get_product_info(raw)
 
@@ -162,7 +181,7 @@ def to_order_create(raw: dict, source: str = "shopify") -> OrderCreate | None:
 
     # Map Shopify fulfillment_status to internal status:
     # - null/unfulfilled → pending (not yet prepared)
-    # - fulfilled → ready_to_ship (prepared in warehouse, pending Welivery delivery)
+    # - fulfilled → ready_to_ship (prepared in warehouse, pending courier delivery)
     fulfillment = raw.get("fulfillment_status")
     status = "ready_to_ship" if fulfillment == "fulfilled" else "pending"
 
@@ -176,3 +195,22 @@ def to_order_create(raw: dict, source: str = "shopify") -> OrderCreate | None:
         product_quantity=product_quantity,
         raw_data=raw,
     )
+
+
+def _compute_skn_promise(raw: dict) -> datetime | None:
+    """Compute delivery promise for a Starken (SKN) order.
+
+    Uses the Starken transit matrix to determine delivery deadline
+    based on the destination commune from shipping_address.
+
+    Returns None if commune is not found in the transit matrix.
+    """
+    created_raw = raw.get("created_at") or ""
+    dt = datetime.fromisoformat(created_raw).astimezone(_SANTIAGO_TZ)
+
+    commune = _get_commune(raw)
+    if not commune:
+        logger.warning(f"Shopify SKN order {raw.get('name')}: no shipping commune")
+        return None
+
+    return compute_starken_deadline(dt, commune)
