@@ -186,8 +186,20 @@ export function getTrackingUrl(raw_data?: Record<string, unknown>, tracking?: st
     return `https://welivery.cl/tracking/index.php?wid=${tracking}`;
   }
 
-  // Walmart: enviame tracking
+  // Walmart: use trackingURL from API if available, otherwise enviame generic
   if (raw_data.purchaseOrderId !== undefined) {
+    // Check if tracking is already a full URL from trackingURL field
+    if (tracking.startsWith("http")) return tracking;
+    // Try to extract trackingURL from raw data
+    const orderLines = raw_data.orderLines as Record<string, unknown> | undefined;
+    const lineList = orderLines?.orderLine as Record<string, unknown>[] | undefined;
+    if (lineList?.length) {
+      const statuses = lineList[0]?.orderLineStatuses as Record<string, unknown>[] | undefined;
+      if (statuses?.length) {
+        const trackingInfo = statuses[0]?.trackingInfo as Record<string, unknown> | undefined;
+        if (trackingInfo?.trackingURL) return String(trackingInfo.trackingURL);
+      }
+    }
     return `https://tracking.enviame.io/${tracking}`;
   }
 
@@ -220,13 +232,17 @@ export function getTrackingCode(raw_data?: Record<string, unknown>): string {
   if (raw_data.financial_status !== undefined && raw_data.name) {
     return String(raw_data.name).replace(/^#/, "");
   }
-  // Walmart: trackingInfo from orderLines
+  // Walmart: trackingInfo nested in orderLineStatuses[0].trackingInfo
   if (raw_data.purchaseOrderId !== undefined) {
     const orderLines = raw_data.orderLines as Record<string, unknown> | undefined;
     const lineList = orderLines?.orderLine as Record<string, unknown>[] | undefined;
     if (lineList?.length) {
-      const trackingInfo = lineList[0]?.trackingInfo as Record<string, unknown> | undefined;
-      if (trackingInfo?.trackingNumber) return String(trackingInfo.trackingNumber);
+      // orderLineStatuses is unwrapped by mapper to a plain array
+      const statuses = lineList[0]?.orderLineStatuses as Record<string, unknown>[] | undefined;
+      if (statuses?.length) {
+        const trackingInfo = statuses[0]?.trackingInfo as Record<string, unknown> | undefined;
+        if (trackingInfo?.trackingNumber) return String(trackingInfo.trackingNumber);
+      }
     }
     return "";
   }
