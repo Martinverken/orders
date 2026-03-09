@@ -9,6 +9,7 @@ import { CaseHistoryModal } from "./CaseHistoryModal";
 
 interface Props {
   orders: Order[];
+  orderIdsWithCases?: string[];
 }
 
 type SortCol = "created_at_source" | "limit_delivery_date" | "synced_at";
@@ -104,7 +105,8 @@ function ActiveTicketButton({ order }: { order: Order }) {
   );
 }
 
-export function OrdersTable({ orders }: Props) {
+export function OrdersTable({ orders, orderIdsWithCases = [] }: Props) {
+  const caseSet = useMemo(() => new Set(orderIdsWithCases), [orderIdsWithCases]);
   const [sortCol, setSortCol] = useState<SortCol | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
 
@@ -166,7 +168,7 @@ export function OrdersTable({ orders }: Props) {
             const destination = getShippingDestination(order.raw_data);
             return (
               <tr key={order.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
-                <td className="py-3 pr-4 text-gray-400 text-xs">{idx + 1}</td>
+                <td className={`py-3 pr-4 text-xs font-medium ${caseSet.has(order.id) ? "text-amber-600 bg-amber-50 rounded" : "text-gray-400"}`}>{idx + 1}</td>
                 <td className="py-3 pr-4 font-mono text-gray-700 text-xs">{orderNumber}</td>
                 <td className="py-3 pr-4 max-w-[160px]">
                   {product.sku || product.title ? (

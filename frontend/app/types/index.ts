@@ -23,6 +23,7 @@ export interface OrdersPage {
   page: number;
   per_page: number;
   pages: number;
+  order_ids_with_cases?: string[];
 }
 
 export interface DashboardSummary {

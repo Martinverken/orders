@@ -234,6 +234,18 @@ class DelayedOrderRepository:
             for r in (orders_result.data or [])
         ]
 
+    def get_order_ids_with_cases(self, order_ids: list[str]) -> set[str]:
+        """Return the subset of order_ids that have at least one case."""
+        if not order_ids:
+            return set()
+        result = (
+            self.db.table("order_cases")
+            .select("order_id")
+            .in_("order_id", order_ids)
+            .execute()
+        )
+        return {r["order_id"] for r in (result.data or []) if r.get("order_id")}
+
     def get_cases_for_active_order(self, order_id: str) -> list:
         from models.order import OrderCase
         result = self.db.table("order_cases").select("*").eq("order_id", order_id).order("created_at").execute()

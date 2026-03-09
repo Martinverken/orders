@@ -125,7 +125,7 @@ def refresh_comprobantes():
     return {"success": True, "updated": updated}
 
 
-@router.get("", response_model=OrdersPage)
+@router.get("")
 def list_orders(
     source: Optional[str] = Query(None, description="falabella | mercadolibre"),
     status: Optional[str] = Query(None),
@@ -137,12 +137,18 @@ def list_orders(
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
 ):
-    return order_repo.get_paginated(
+    result = order_repo.get_paginated(
         source=source, status=status, urgency=urgency,
         product_name=product_name, logistics_operator=logistics_operator,
         city=city, commune=commune,
         page=page, per_page=per_page,
     )
+    order_ids = [o.id for o in result.data]
+    ids_with_cases = delayed_repo.get_order_ids_with_cases(order_ids) if order_ids else set()
+    return {
+        **result.model_dump(),
+        "order_ids_with_cases": list(ids_with_cases),
+    }
 
 
 @router.get("/overdue", response_model=dict)

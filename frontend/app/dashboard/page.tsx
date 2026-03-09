@@ -253,7 +253,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               </div>
 
               <div className="px-6 py-4">
-                <OrdersTable orders={ordersPage.data} />
+                <OrdersTable orders={ordersPage.data} orderIdsWithCases={ordersPage.order_ids_with_cases} />
               </div>
 
               {ordersPage.pages > 1 && (

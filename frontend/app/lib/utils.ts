@@ -230,6 +230,13 @@ export function getProductDetails(raw_data?: Record<string, unknown>, product_na
       const fItems = raw_data?._items as Record<string, unknown>[] | undefined;
       if (fItems?.length) sku = (fItems[0]?.SellerSku as string) ?? (fItems[0]?.Sku as string) ?? null;
     }
+    // Shopify: line_items[0].sku
+    if (!sku) {
+      const lineItems = raw_data?.line_items as Record<string, unknown>[] | undefined;
+      if (lineItems?.length) {
+        sku = (lineItems[0]?.sku as string) || null;
+      }
+    }
     // Walmart: orderLines.orderLine[0].item.sku
     if (!sku) {
       const orderLines = raw_data?.orderLines as Record<string, unknown> | undefined;

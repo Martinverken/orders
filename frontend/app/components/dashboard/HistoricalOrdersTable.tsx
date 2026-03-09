@@ -133,7 +133,7 @@ function OrderRow({ order, idx }: { order: HistoricalOrder; idx: number }) {
 
   return (
     <tr className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
-      <td className="py-3 pr-4 text-gray-400 text-xs">{idx + 1}</td>
+      <td className={`py-3 pr-4 text-xs font-medium ${(order.cases?.length ?? 0) > 0 ? "text-amber-600 bg-amber-50 rounded" : "text-gray-400"}`}>{idx + 1}</td>
       <td className="py-3 pr-4 font-mono text-gray-700 text-xs">{orderNumber}</td>
       <td className="py-3 pr-4 max-w-[160px]">
         {product.sku || product.title ? (
