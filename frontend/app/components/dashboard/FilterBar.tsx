@@ -43,6 +43,7 @@ export function FilterBar({ cities = [] }: { cities?: string[] }) {
   const router = useRouter();
   const params = useSearchParams();
   const [productInput, setProductInput] = useState(params.get("product_name") || "");
+  const [orderNumberInput, setOrderNumberInput] = useState(params.get("order_number") || "");
   const [communes, setCommunes] = useState<string[]>([]);
 
   const currentCity = params.get("city") || "";
@@ -65,8 +66,13 @@ export function FilterBar({ cities = [] }: { cities?: string[] }) {
     update("product_name", productInput.trim());
   }
 
+  function applyOrderNumber() {
+    update("order_number", orderNumberInput.trim());
+  }
+
   function clearAll() {
     setProductInput("");
+    setOrderNumberInput("");
     router.push("/dashboard");
   }
 
@@ -77,7 +83,8 @@ export function FilterBar({ cities = [] }: { cities?: string[] }) {
     params.get("product_name") ||
     params.get("logistics_operator") ||
     params.get("city") ||
-    params.get("commune");
+    params.get("commune") ||
+    params.get("order_number");
 
   return (
     <div className="flex flex-wrap gap-3 items-center">
@@ -138,6 +145,16 @@ export function FilterBar({ cities = [] }: { cities?: string[] }) {
           <option key={c} value={c}>{c}</option>
         ))}
       </select>
+
+      <input
+        type="text"
+        placeholder="N° orden..."
+        value={orderNumberInput}
+        onChange={(e) => setOrderNumberInput(e.target.value)}
+        onBlur={applyOrderNumber}
+        onKeyDown={(e) => e.key === "Enter" && applyOrderNumber()}
+        className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 w-36"
+      />
 
       <input
         type="text"

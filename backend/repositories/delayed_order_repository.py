@@ -135,6 +135,8 @@ class DelayedOrderRepository:
         city: str | None = None,
         commune: str | None = None,
         has_case: bool | None = None,
+        order_number: str | None = None,
+        month: str | None = None,
         page: int = 1,
         per_page: int = 25,
     ) -> dict:
@@ -142,6 +144,16 @@ class DelayedOrderRepository:
         query = self.db.table(self.table).select(select_expr, count="exact")
         if source:
             query = query.eq("source", source)
+        if order_number:
+            query = query.ilike("external_id", f"%{order_number}%")
+        if month:
+            # month is "YYYY-MM", compute next month start
+            y, m = int(month[:4]), int(month[5:7])
+            if m == 12:
+                next_m = f"{y+1}-01-01"
+            else:
+                next_m = f"{y}-{m+1:02d}-01"
+            query = query.gte("limit_delivery_date", f"{month}-01").lt("limit_delivery_date", next_m)
         if was_delayed is True:
             query = query.gt("days_delayed", 0)
         elif was_delayed is False:

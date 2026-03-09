@@ -183,12 +183,15 @@ class OrderRepository:
         logistics_operator: Optional[str] = None,
         city: Optional[str] = None,
         commune: Optional[str] = None,
+        order_number: Optional[str] = None,
         page: int = 1,
         per_page: int = 20,
     ) -> OrdersPage:
         query = self.db.table(self.table).select("*", count="exact")
         if source:
             query = query.eq("source", source)
+        if order_number:
+            query = query.ilike("external_id", f"%{order_number}%")
         status_parts = _split_filter(status)
         if status_parts:
             query = query.in_("status", status_parts)
@@ -239,11 +242,14 @@ class OrderRepository:
         logistics_operator: Optional[str] = None,
         city: Optional[str] = None,
         commune: Optional[str] = None,
+        order_number: Optional[str] = None,
     ) -> dict:
         """Count orders by stored urgency column, respecting active filters."""
         query = self.db.table(self.table).select("urgency")
         if source:
             query = query.eq("source", source)
+        if order_number:
+            query = query.ilike("external_id", f"%{order_number}%")
         status_parts = _split_filter(status)
         if status_parts:
             query = query.in_("status", status_parts)

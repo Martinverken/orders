@@ -54,6 +54,8 @@ def list_historical_orders(
     city: Optional[str] = Query(None),
     commune: Optional[str] = Query(None),
     has_case: Optional[bool] = Query(None),
+    order_number: Optional[str] = Query(None),
+    month: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     per_page: int = Query(25, ge=1, le=100),
 ):
@@ -69,6 +71,8 @@ def list_historical_orders(
         city=city,
         commune=commune,
         has_case=has_case,
+        order_number=order_number,
+        month=month,
         page=page,
         per_page=per_page,
     )
@@ -134,13 +138,14 @@ def list_orders(
     logistics_operator: Optional[str] = Query(None),
     city: Optional[str] = Query(None),
     commune: Optional[str] = Query(None),
+    order_number: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
 ):
     result = order_repo.get_paginated(
         source=source, status=status, urgency=urgency,
         product_name=product_name, logistics_operator=logistics_operator,
-        city=city, commune=commune,
+        city=city, commune=commune, order_number=order_number,
         page=page, per_page=per_page,
     )
     order_ids = [o.id for o in result.data]

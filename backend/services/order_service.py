@@ -17,6 +17,7 @@ class OrderService:
         logistics_operator=None,
         city=None,
         commune=None,
+        order_number=None,
     ) -> OrderSummary:
         counts = self.order_repo.get_summary_counts(
             source=source,
@@ -26,6 +27,7 @@ class OrderService:
             logistics_operator=logistics_operator,
             city=city,
             commune=commune,
+            order_number=order_number,
         )
         last_sync = self.sync_log_repo.get_last_sync()
         return OrderSummary(

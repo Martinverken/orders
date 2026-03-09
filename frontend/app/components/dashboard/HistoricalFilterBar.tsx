@@ -35,6 +35,7 @@ export function HistoricalFilterBar({ cities = [] }: { cities?: string[] }) {
   const router = useRouter();
   const params = useSearchParams();
   const [communes, setCommunes] = useState<string[]>([]);
+  const [orderNumberInput, setOrderNumberInput] = useState(params.get("h_order_number") || "");
 
   const currentCity = params.get("h_city") || "";
   useEffect(() => {
@@ -54,9 +55,14 @@ export function HistoricalFilterBar({ cities = [] }: { cities?: string[] }) {
     router.push(`/dashboard?${next.toString()}`);
   }
 
+  function applyOrderNumber() {
+    update("h_order_number", orderNumberInput.trim());
+  }
+
   function clearAll() {
+    setOrderNumberInput("");
     const next = new URLSearchParams(params.toString());
-    ["h_source", "h_urgency", "h_logistics_operator", "h_city", "h_commune", "h_page"].forEach(
+    ["h_source", "h_urgency", "h_logistics_operator", "h_city", "h_commune", "h_order_number", "h_page"].forEach(
       (k) => next.delete(k)
     );
     router.push(`/dashboard?${next.toString()}`);
@@ -67,7 +73,8 @@ export function HistoricalFilterBar({ cities = [] }: { cities?: string[] }) {
     params.get("h_urgency") ||
     params.get("h_logistics_operator") ||
     params.get("h_city") ||
-    params.get("h_commune");
+    params.get("h_commune") ||
+    params.get("h_order_number");
 
   return (
     <div className="flex flex-wrap gap-3 items-center">
@@ -122,6 +129,16 @@ export function HistoricalFilterBar({ cities = [] }: { cities?: string[] }) {
           <option key={c} value={c}>{c}</option>
         ))}
       </select>
+
+      <input
+        type="text"
+        placeholder="N° orden..."
+        value={orderNumberInput}
+        onChange={(e) => setOrderNumberInput(e.target.value)}
+        onBlur={applyOrderNumber}
+        onKeyDown={(e) => e.key === "Enter" && applyOrderNumber()}
+        className="px-3 py-2 border border-gray-200 rounded-lg text-sm bg-white text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 w-36"
+      />
 
       {hasFilters && (
         <button

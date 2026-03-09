@@ -22,6 +22,7 @@ interface OrderFilters {
   logistics_operator?: string;
   city?: string;
   commune?: string;
+  order_number?: string;
 }
 
 function buildFilterQuery(filters: OrderFilters): URLSearchParams {
@@ -33,6 +34,7 @@ function buildFilterQuery(filters: OrderFilters): URLSearchParams {
   if (filters.logistics_operator) query.set("logistics_operator", filters.logistics_operator);
   if (filters.city) query.set("city", filters.city);
   if (filters.commune) query.set("commune", filters.commune);
+  if (filters.order_number) query.set("order_number", filters.order_number);
   return query;
 }
 
@@ -68,6 +70,8 @@ export async function getHistoricalOrders(params?: {
   city?: string;
   commune?: string;
   has_case?: boolean;
+  order_number?: string;
+  month?: string;
   page?: number;
   per_page?: number;
 }): Promise<HistoricalOrdersPage> {
@@ -78,6 +82,8 @@ export async function getHistoricalOrders(params?: {
   if (params?.city) query.set("city", params.city);
   if (params?.commune) query.set("commune", params.commune);
   if (params?.has_case !== undefined) query.set("has_case", String(params.has_case));
+  if (params?.order_number) query.set("order_number", params.order_number);
+  if (params?.month) query.set("month", params.month);
   if (params?.page) query.set("page", String(params.page));
   if (params?.per_page) query.set("per_page", String(params.per_page));
   return apiFetch<HistoricalOrdersPage>(`/api/orders/history?${query}`);

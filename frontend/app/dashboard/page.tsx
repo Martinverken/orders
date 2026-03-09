@@ -21,6 +21,7 @@ interface PageProps {
     logistics_operator?: string;
     city?: string;
     commune?: string;
+    order_number?: string;
     page?: string;
     // Pedidos históricos filters (h_ prefix)
     h_source?: string;
@@ -28,6 +29,7 @@ interface PageProps {
     h_logistics_operator?: string;
     h_city?: string;
     h_commune?: string;
+    h_order_number?: string;
     h_page?: string;
     // Tab
     tab?: string;
@@ -63,6 +65,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     logistics_operator: params.logistics_operator,
     city: params.city,
     commune: params.commune,
+    order_number: params.order_number,
   };
 
   // Always fetch CE schedule (needed for Friday modal on any tab)
@@ -114,6 +117,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         logistics_operator: params.h_logistics_operator,
         city: params.h_city,
         commune: params.h_commune,
+        order_number: params.h_order_number,
         page: hPage,
         per_page: 25,
       }),
@@ -142,11 +146,13 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     logistics_operator: params.logistics_operator,
     city: params.city,
     commune: params.commune,
+    order_number: params.order_number,
     h_source: params.h_source,
     h_urgency: params.h_urgency,
     h_logistics_operator: params.h_logistics_operator,
     h_city: params.h_city,
     h_commune: params.h_commune,
+    h_order_number: params.h_order_number,
   };
 
   return (
