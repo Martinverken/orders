@@ -126,6 +126,6 @@ def compute_starken_deadline(order_created: datetime, commune: str) -> datetime 
 
     return datetime(
         deadline_date.year, deadline_date.month, deadline_date.day,
-        23, 59, 59,
+        18, 0, 0,
         tzinfo=_SANTIAGO_TZ,
     )

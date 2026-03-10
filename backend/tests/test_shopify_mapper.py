@@ -82,10 +82,10 @@ class TestMapper:
 
 class TestDeliveryPromise:
     def test_weekday_before_cutoff_standard(self, shopify_raw):
-        """Tue 10am → base=Tue, +2 bdays = Thu, promise at 23:59:59."""
+        """Tue 10am → base=Tue, +2 bdays = Thu, promise at 18:00."""
         promise = compute_delivery_promise(shopify_raw)
-        assert promise.hour == 23
-        assert promise.minute == 59
+        assert promise.hour == 18
+        assert promise.minute == 0
         # Tue Mar 10 + 2 bdays = Thu Mar 12
         assert promise.day == 12
 
@@ -148,7 +148,7 @@ class TestStarkenTransit:
         assert deadline is not None
         # prep=Tue Mar 10 (before cutoff), +2 cal days = Mar 12
         assert deadline.day == 12
-        assert deadline.hour == 23
+        assert deadline.hour == 18
 
     def test_deadline_weekday_after_cutoff(self):
         """Tue 14:00 → prep=Wed, +2 transit = Fri."""

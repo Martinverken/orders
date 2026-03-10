@@ -322,11 +322,12 @@ class OrderRepository:
                     handoff_dt = handoff_raw
                 u = compute_urgency(handoff_dt, row_status).value
             elif perspective == "cliente":
-                # For cliente: only count Direct/Flex/Shopify (orders with real client deadline)
+                # Regular/CE don't have a client delivery date → always on_time
                 is_client_delivery = method in ("Direct/Flex", "Express")
                 if not is_client_delivery:
-                    continue  # Regular/CE don't have a client delivery date
-                u = r.get("urgency") or ""
+                    u = "on_time"
+                else:
+                    u = r.get("urgency") or ""
             else:
                 u = r.get("urgency") or ""
 

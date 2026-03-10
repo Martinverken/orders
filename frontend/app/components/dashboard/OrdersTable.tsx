@@ -212,7 +212,13 @@ export function OrdersTable({ orders, orderIdsWithCases = [], perspective = "bod
                 <td className="py-3 pr-4 text-gray-600 whitespace-nowrap text-sm">
                   {perspective === "bodega"
                     ? formatDeadline(order.limit_handoff_date || order.limit_delivery_date, order.source)
-                    : formatDeadline(order.limit_delivery_date, order.source)}
+                    : (() => {
+                        const method = getShippingMethod(order.source, order.raw_data);
+                        const isClientDelivery = method === "Direct/Flex" || method === "Express";
+                        return isClientDelivery
+                          ? formatDeadline(order.limit_delivery_date, order.source)
+                          : <span className="text-gray-400">—</span>;
+                      })()}
                 </td>
                 <td className="py-3 pr-4 font-mono text-xs text-gray-600">
                   {trackingUrl ? (

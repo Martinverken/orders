@@ -25,12 +25,12 @@ from zoneinfo import ZoneInfo
 from models.order import OrderCreate
 from integrations.shopify.holidays import is_holiday
 from shipping.transit import compute_starken_deadline
+from utils.business_days import compute_handoff_deadline as _compute_handoff_deadline
 
 logger = logging.getLogger(__name__)
 
 _SANTIAGO_TZ = ZoneInfo("America/Santiago")
 _CUTOFF_HOUR = 13
-_WAREHOUSE_CLOSE_HOUR = 18
 
 
 # ── Tag helpers ─────────────────────────────────────────────────────────────
@@ -114,19 +114,16 @@ def compute_delivery_promise(order: dict) -> datetime:
 
     return datetime(
         promise_date.year, promise_date.month, promise_date.day,
-        23, 59, 59,
+        18, 0, 0,
         tzinfo=_SANTIAGO_TZ,
     )
 
 
 def compute_handoff_date(order: dict) -> datetime:
-    """Compute warehouse handoff deadline: base_date at 18:00 Santiago."""
-    base = _compute_base_date(order)
-    return datetime(
-        base.year, base.month, base.day,
-        _WAREHOUSE_CLOSE_HOUR, 0, 0,
-        tzinfo=_SANTIAGO_TZ,
-    )
+    """Compute warehouse handoff deadline: cutoff 13:00 → same/next BD at 18:00."""
+    created_raw = order.get("created_at") or ""
+    created_dt = datetime.fromisoformat(created_raw).astimezone(_SANTIAGO_TZ)
+    return _compute_handoff_deadline(created_dt)
 
 
 # ── Product info ─────────────────────────────────────────────────────────────

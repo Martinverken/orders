@@ -1,12 +1,12 @@
 from models.order import OrderCreate
 from integrations.falabella.schemas import FalabellaOrder
+from utils.business_days import compute_handoff_deadline
 from datetime import datetime
 from zoneinfo import ZoneInfo
 import logging
 
 _SANTIAGO = ZoneInfo("America/Santiago")
 _DIRECT_PROVIDER_TYPES = {"falaflex", "direct"}
-_WAREHOUSE_CLOSE_HOUR = 18
 
 logger = logging.getLogger(__name__)
 
@@ -110,13 +110,10 @@ def to_order_create(raw: dict) -> OrderCreate | None:
 
     # Compute limit_handoff_date:
     # Regular: handoff = limit_delivery_date (PromisedShippingTime IS the handoff deadline)
-    # Direct/Flex: handoff = delivery day at 18:00 (warehouse close)
-    if shipping_provider_type in _DIRECT_PROVIDER_TYPES:
-        handoff_day = limit_delivery_date.astimezone(_SANTIAGO).date()
-        limit_handoff_date = datetime(
-            handoff_day.year, handoff_day.month, handoff_day.day,
-            _WAREHOUSE_CLOSE_HOUR, 0, 0, tzinfo=_SANTIAGO,
-        )
+    # Direct/Flex: cutoff 13:00 → handoff at 18:00 (same day or next business day)
+    created_at_source = parse_falabella_datetime(order.CreatedAt)
+    if shipping_provider_type in _DIRECT_PROVIDER_TYPES and created_at_source:
+        limit_handoff_date = compute_handoff_deadline(created_at_source)
     else:
         limit_handoff_date = limit_delivery_date
 

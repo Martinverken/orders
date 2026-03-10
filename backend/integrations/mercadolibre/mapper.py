@@ -1,5 +1,6 @@
 from models.order import OrderCreate
 from integrations.mercadolibre.schemas import MLOrder, MLShipmentDetail
+from utils.business_days import compute_handoff_deadline
 from datetime import datetime, timezone, timedelta
 from zoneinfo import ZoneInfo
 import logging
@@ -8,7 +9,6 @@ import json
 import math
 
 _SANTIAGO = ZoneInfo("America/Santiago")
-_WAREHOUSE_CLOSE_HOUR = 18
 
 # Weekly CE cutoff schedule: {"monday": "11:00", "thursday": "14:45", ...}
 # sell_cutoff[day] = ce_cutoff[day] - 6h (always 6h buffer)
@@ -249,14 +249,11 @@ def to_order_create(order_raw: dict, shipment_raw: dict | None = None) -> OrderC
 
     # Compute limit_handoff_date:
     # CE: handoff = limit_delivery_date (CE cutoff IS the handoff deadline)
-    # Flex: handoff = delivery day at 18:00 (warehouse close)
+    # Flex: cutoff 13:00 → handoff at 18:00 (same day or next business day)
     is_flex = logistic_type == "self_service"
-    if is_flex:
-        handoff_day = limit_delivery_date.astimezone(_SANTIAGO).date()
-        limit_handoff_date = datetime(
-            handoff_day.year, handoff_day.month, handoff_day.day,
-            _WAREHOUSE_CLOSE_HOUR, 0, 0, tzinfo=_SANTIAGO,
-        )
+    created_at_source = parse_ml_datetime(order.date_created)
+    if is_flex and created_at_source:
+        limit_handoff_date = compute_handoff_deadline(created_at_source)
     else:
         limit_handoff_date = limit_delivery_date
 
