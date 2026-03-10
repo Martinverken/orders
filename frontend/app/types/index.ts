@@ -145,6 +145,8 @@ export interface KpiPeriod {
   total: number;
   delayed: number;
   pct_delayed: number;
+  bodega: number;
+  transportista: number;
 }
 
 export interface KpiMetrics {

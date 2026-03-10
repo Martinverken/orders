@@ -204,7 +204,17 @@ export function OrdersTable({ orders, orderIdsWithCases = [], perspective = "bod
                   <StatusBadge status={order.status} />
                 </td>
                 <td className="py-3 pr-4">
-                  <UrgencyBadge urgency={order.urgency} />
+                  {order.urgency === "overdue" ? (
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                      perspective === "bodega"
+                        ? "bg-orange-100 text-orange-700 border-orange-200"
+                        : "bg-purple-100 text-purple-700 border-purple-200"
+                    }`}>
+                      {perspective === "bodega" ? "Atrasado Bodega" : "Atrasado Transportista"}
+                    </span>
+                  ) : (
+                    <UrgencyBadge urgency={order.urgency} />
+                  )}
                 </td>
                 <td className="py-3 pr-4 text-gray-500 whitespace-nowrap text-sm">
                   {formatDeadline(order.created_at_source ?? null)}

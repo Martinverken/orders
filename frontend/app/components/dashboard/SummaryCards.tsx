@@ -121,20 +121,6 @@ export function SummaryCards({ summary }: Props) {
           );
         })}
       </div>
-      {summary.blame_counts && (summary.blame_counts.bodega > 0 || summary.blame_counts.transportista > 0) && (
-        <div className="grid grid-cols-2 lg:grid-cols-2 gap-4 mt-4">
-          <div className="bg-orange-50 border-l-4 border-orange-400 rounded-lg p-4">
-            <div className="text-xs text-gray-500 mb-1">Atrasos Bodega</div>
-            <div className="text-2xl font-bold text-orange-600">{summary.blame_counts.bodega_recent}</div>
-            <div className="text-xs text-gray-400 mt-1">últimos 30 días ({summary.blame_counts.bodega} total)</div>
-          </div>
-          <div className="bg-purple-50 border-l-4 border-purple-400 rounded-lg p-4">
-            <div className="text-xs text-gray-500 mb-1">Atrasos Transportista</div>
-            <div className="text-2xl font-bold text-purple-600">{summary.blame_counts.transportista_recent}</div>
-            <div className="text-xs text-gray-400 mt-1">últimos 30 días ({summary.blame_counts.transportista} total)</div>
-          </div>
-        </div>
-      )}
       {summary.last_sync_at && (
         <p className="text-xs text-gray-400 mt-1">
           Última sincronización: {formatRelative(summary.last_sync_at)}

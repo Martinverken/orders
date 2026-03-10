@@ -408,24 +408,32 @@ class DelayedOrderRepository:
         return metrics
 
     def get_kpi_metrics(self) -> dict:
-        """Return aggregate % delayed grouped by month and by week (ISO Monday-Sunday)."""
+        """Return aggregate % delayed grouped by month and by week (ISO Monday-Sunday).
+
+        Includes blame breakdown (bodega vs transportista) per period.
+        """
         result = self.db.table(self.table).select(
-            "limit_delivery_date,days_delayed"
+            "limit_delivery_date,days_delayed,blame"
         ).execute()
         rows = result.data or []
 
-        monthly: dict[str, dict] = defaultdict(lambda: {"total": 0, "delayed": 0})
-        weekly: dict[str, dict] = defaultdict(lambda: {"total": 0, "delayed": 0})
+        monthly: dict[str, dict] = defaultdict(lambda: {"total": 0, "delayed": 0, "bodega": 0, "transportista": 0})
+        weekly: dict[str, dict] = defaultdict(lambda: {"total": 0, "delayed": 0, "bodega": 0, "transportista": 0})
 
         for r in rows:
             raw_date = r.get("limit_delivery_date", "")
             days = r.get("days_delayed")
+            blame = r.get("blame")
             if not raw_date or days is None:
                 continue
             month = str(raw_date)[:7]
             monthly[month]["total"] += 1
             if float(days) > 0:
                 monthly[month]["delayed"] += 1
+                if blame == "bodega":
+                    monthly[month]["bodega"] += 1
+                elif blame == "transportista":
+                    monthly[month]["transportista"] += 1
             # ISO week (Monday-based)
             try:
                 dt = datetime.fromisoformat(str(raw_date)[:10])
@@ -439,13 +447,24 @@ class DelayedOrderRepository:
             weekly[week_key]["total"] += 1
             if float(days) > 0:
                 weekly[week_key]["delayed"] += 1
+                if blame == "bodega":
+                    weekly[week_key]["bodega"] += 1
+                elif blame == "transportista":
+                    weekly[week_key]["transportista"] += 1
 
         def build_list(buckets: dict) -> list[dict]:
             out = []
             for key in sorted(buckets.keys()):
                 b = buckets[key]
                 pct = round(b["delayed"] / b["total"] * 100, 1) if b["total"] > 0 else 0
-                out.append({"period": key, "total": b["total"], "delayed": b["delayed"], "pct_delayed": pct})
+                out.append({
+                    "period": key,
+                    "total": b["total"],
+                    "delayed": b["delayed"],
+                    "pct_delayed": pct,
+                    "bodega": b["bodega"],
+                    "transportista": b["transportista"],
+                })
             return out
 
         return {"monthly": build_list(monthly), "weekly": build_list(weekly)}

@@ -218,6 +218,8 @@ function MetricsTable({
           <th className="pb-3 font-medium text-right pr-4">Total</th>
           <th className="pb-3 font-medium text-right pr-4">A tiempo</th>
           <th className="pb-3 font-medium text-right pr-4">Atrasados</th>
+          <th className="pb-3 font-medium text-right pr-4">Bodega</th>
+          <th className="pb-3 font-medium text-right pr-4">Transportista</th>
           <th className="pb-3 font-medium text-right pr-4">% Cumplim. <span className="text-gray-400 font-normal">(obj. &ge;95%)</span></th>
           <th className="pb-3 font-medium pr-4"></th>
         </tr>
@@ -238,6 +240,20 @@ function MetricsTable({
                 >
                   {row.delayed}
                 </button>
+              ) : (
+                <span className="text-gray-400">0</span>
+              )}
+            </td>
+            <td className="py-3 text-right pr-4">
+              {row.bodega > 0 ? (
+                <span className="text-orange-600 font-medium">{row.bodega}</span>
+              ) : (
+                <span className="text-gray-400">0</span>
+              )}
+            </td>
+            <td className="py-3 text-right pr-4">
+              {row.transportista > 0 ? (
+                <span className="text-purple-600 font-medium">{row.transportista}</span>
               ) : (
                 <span className="text-gray-400">0</span>
               )}
