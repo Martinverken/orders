@@ -370,9 +370,9 @@ class OrderRepository:
             key = (src, method)
             bucket[key] = bucket.get(key, 0) + 1
 
-        # Also build a "total" breakdown (only actionable urgencies, matching card total)
+        # Also build a "total" breakdown (all card urgencies, including delivered_today)
         total_bucket: dict[tuple[str, str], int] = {}
-        for urg_key in ("overdue", "due_today", "tomorrow", "two_or_more_days"):
+        for urg_key in ("overdue", "due_today", "delivered_today", "tomorrow", "two_or_more_days"):
             for key, cnt in breakdown_buckets.get(urg_key, {}).items():
                 total_bucket[key] = total_bucket.get(key, 0) + cnt
         breakdown_buckets["total"] = total_bucket

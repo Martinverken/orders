@@ -54,6 +54,10 @@ export function SummaryCards({ summary, perspective = "bodega" }: Props) {
     : "border-purple-500 text-purple-600";
   const overdueBg = perspective === "bodega" ? "bg-orange-50" : "bg-purple-50";
 
+  // In bodega: due_today = pending orders due today. In cliente: delivered_today = shipped orders due today.
+  const todayCount = summary.due_today_count + summary.delivered_today_count;
+  const todayBreakdown = perspective === "bodega" ? "due_today" : "delivered_today";
+
   const cards = [
     {
       label: overdueLabel,
@@ -64,9 +68,9 @@ export function SummaryCards({ summary, perspective = "bodega" }: Props) {
       icon: "🔴",
     },
     {
-      label: "Entregar hoy",
-      value: summary.due_today_count,
-      breakdownKey: "due_today",
+      label: perspective === "bodega" ? "Entregar hoy" : "Entrega hoy",
+      value: todayCount,
+      breakdownKey: todayBreakdown,
       color: "border-amber-500 text-amber-600",
       bg: "bg-amber-50",
       icon: "🟡",
@@ -89,7 +93,7 @@ export function SummaryCards({ summary, perspective = "bodega" }: Props) {
     },
     {
       label: "Total paquetes",
-      value: summary.overdue_count + summary.due_today_count + summary.tomorrow_count + summary.two_or_more_days_count,
+      value: summary.overdue_count + todayCount + summary.tomorrow_count + summary.two_or_more_days_count,
       breakdownKey: "total",
       color: "border-gray-400 text-gray-600",
       bg: "bg-gray-50",
