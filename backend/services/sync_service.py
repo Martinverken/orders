@@ -143,17 +143,19 @@ def _ml_was_late(order: Order) -> bool:
 
     effective_limit = order.limit_delivery_date
     if logistic_type == "self_service":
-        # Excepción buyer_absent: si el conductor marcó cliente ausente antes del plazo,
+        # Excepción buyer_absent / buyer_rescheduled: si el conductor marcó cliente
+        # ausente o el comprador reprogramó la entrega antes del plazo,
         # ML permite entregar al siguiente día hábil → extender el límite efectivo.
+        _EXTEND_SUBSTATUSES = {"buyer_absent", "buyer_rescheduled"}
         substatus = str(shipment.get("substatus") or "")
         substatus_history = shipment.get("substatus_history") or []
-        if substatus == "buyer_absent" or any(
-            e.get("substatus") == "buyer_absent" for e in substatus_history
+        if substatus in _EXTEND_SUBSTATUSES or any(
+            e.get("substatus") in _EXTEND_SUBSTATUSES for e in substatus_history
         ):
             from integrations.mercadolibre.mapper import _next_business_day_eod
             effective_limit = _next_business_day_eod(effective_limit)
             logger.info(
-                f"[flex] buyer_absent for {order.external_id} — "
+                f"[flex] {substatus} for {order.external_id} — "
                 f"extending deadline to {effective_limit}"
             )
 

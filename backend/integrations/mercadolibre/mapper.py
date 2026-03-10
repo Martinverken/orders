@@ -163,12 +163,14 @@ def resolve_delivery_deadline(
                     if not is_flex:
                         return dt
                     base = _end_of_day_santiago(dt)
-                    # Excepción buyer_absent: el conductor visitó pero el cliente estaba ausente
+                    # Excepción buyer_absent / buyer_rescheduled: el conductor visitó
+                    # pero el cliente estaba ausente o reprogramó la entrega
                     # → extender límite al siguiente día hábil
+                    _EXTEND_SUBSTATUSES = {"buyer_absent", "buyer_rescheduled"}
                     substatus = (shipment_raw or {}).get("substatus") or ""
                     substatus_history = (shipment_raw or {}).get("substatus_history") or []
-                    if substatus == "buyer_absent" or any(
-                        e.get("substatus") == "buyer_absent" for e in substatus_history
+                    if substatus in _EXTEND_SUBSTATUSES or any(
+                        e.get("substatus") in _EXTEND_SUBSTATUSES for e in substatus_history
                     ):
                         return _next_business_day_eod(base)
                     return base
