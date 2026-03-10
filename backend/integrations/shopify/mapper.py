@@ -182,9 +182,9 @@ def to_order_create(raw: dict, source: str = "shopify") -> OrderCreate | None:
 
     # Map Shopify fulfillment_status to internal status:
     # - null/unfulfilled → pending (not yet prepared)
-    # - fulfilled → ready_to_ship (prepared in warehouse, pending courier delivery)
+    # - fulfilled → shipped (handed to Welivery/Starken courier — our responsibility ends)
     fulfillment = raw.get("fulfillment_status")
-    status = "ready_to_ship" if fulfillment == "fulfilled" else "pending"
+    status = "shipped" if fulfillment == "fulfilled" else "pending"
 
     return OrderCreate(
         external_id=str(raw["id"]),

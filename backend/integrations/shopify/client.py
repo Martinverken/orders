@@ -1,8 +1,8 @@
 """Shopify Admin REST API client.
 
 Fetches paid orders with tags 'ebox' + ('welivery' | 'SKN').
-fulfillment_status in Shopify means "prepared in warehouse", NOT delivered to customer.
-Welivery/Starken handle last-mile delivery — orders stay active until removed from feed.
+fulfillment_status=fulfilled in Shopify means "handed to courier" (Welivery/Starken).
+Same as Falabella Regular: shipped = terminal (our responsibility ends).
 
 Only fetches orders created in the last LOOKBACK_DAYS days to avoid importing
 old historical orders. New orders are picked up each sync cycle.

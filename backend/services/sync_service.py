@@ -113,7 +113,8 @@ def _is_order_resolved(order: Order) -> bool:
             return order.status == "delivered"
 
     if order.source.startswith("shopify"):
-        return order.status == "delivered"
+        # fulfilled in Shopify = handed to Welivery/Starken courier → terminal (like Falabella Regular)
+        return order.status in ("shipped", "delivered")
 
     if order.source == "mercadolibre":
         raw = order.raw_data or {}
@@ -337,10 +338,10 @@ class SyncService:
             elif left_feed:
                 # Desapareció del feed
 
-                # Shopify (Welivery/Starken): solo archivar cuando status=delivered.
-                # Si desapareció del feed por deadline pasado pero no entregado → mantener activo.
-                if order.source.startswith("shopify") and order.status != "delivered":
-                    continue  # keep in active orders until courier delivers
+                # Shopify (Welivery/Starken): si desapareció del feed pero no fue shipped/delivered,
+                # mantener activo (pendiente de preparación).
+                if order.source.startswith("shopify") and order.status not in ("shipped", "delivered"):
+                    continue  # keep in active orders until courier picks up
 
                 # ML Flex: desaparecer del feed puede significar entrega o cancelación.
                 # Si shipment.status == 'ready_to_ship' → nunca fue despachada → cancelada.

@@ -63,12 +63,12 @@ class TestMapper:
         assert result.product_name == "Pack Vitaminas"
         assert result.product_quantity == 3
 
-    def test_fulfilled_maps_to_ready_to_ship(self, shopify_raw):
-        """fulfilled = prepared in warehouse, not delivered to customer."""
+    def test_fulfilled_maps_to_shipped(self, shopify_raw):
+        """fulfilled = handed to courier (Welivery/Starken), terminal state."""
         shopify_raw["fulfillment_status"] = "fulfilled"
         result = to_order_create(shopify_raw)
         assert result is not None
-        assert result.status == "ready_to_ship"
+        assert result.status == "shipped"
 
     def test_not_eligible_returns_none(self, shopify_raw):
         shopify_raw["financial_status"] = "pending"
