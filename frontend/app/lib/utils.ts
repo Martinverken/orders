@@ -214,13 +214,15 @@ export function getOrderNumber(raw_data?: Record<string, unknown>, fallback?: st
   // Shopify: order name e.g. "#1234" + fulfillment index for multi-bulto
   if (raw_data?.name && raw_data?.financial_status !== undefined) {
     const fulIdx = raw_data._fulfillment_index;
-    const suffix = fulIdx !== undefined ? ` (bulto ${Number(fulIdx) + 1})` : "";
+    const fuls = Array.isArray(raw_data.fulfillments) ? raw_data.fulfillments : [];
+    const suffix = fulIdx !== undefined && fuls.length > 1 ? ` (bulto ${Number(fulIdx) + 1})` : "";
     return String(raw_data.name) + suffix;
   }
   // Walmart: purchaseOrderId + line index for multi-bulto
   if (raw_data?.purchaseOrderId) {
     const lineIdx = raw_data._line_index;
-    const suffix = lineIdx !== undefined ? ` (bulto ${Number(lineIdx) + 1})` : "";
+    const lines = Array.isArray(raw_data.orderLines) ? raw_data.orderLines : [];
+    const suffix = lineIdx !== undefined && lines.length > 1 ? ` (bulto ${Number(lineIdx) + 1})` : "";
     return String(raw_data.purchaseOrderId) + suffix;
   }
   // Paris: originOrderNumber or subOrderNumber + suborder index for multi-bulto
@@ -228,13 +230,14 @@ export function getOrderNumber(raw_data?: Record<string, unknown>, fallback?: st
     const subIdx = raw_data._suborder_index;
     const subs = raw_data.subOrders as Record<string, unknown>[];
     const base = subs?.[0]?.subOrderNumber ? String(subs[0].subOrderNumber) : (raw_data.originOrderNumber ? String(raw_data.originOrderNumber) : fallback ?? "");
-    const suffix = subIdx !== undefined ? ` (bulto ${Number(subIdx) + 1})` : "";
+    const suffix = subIdx !== undefined && subs.length > 1 ? ` (bulto ${Number(subIdx) + 1})` : "";
     return base + suffix;
   }
   // Falabella: OrderNumber + item index for multi-bulto orders
   if (raw_data?.OrderNumber) {
     const itemIndex = raw_data._item_index;
-    const suffix = itemIndex !== undefined ? ` (bulto ${Number(itemIndex) + 1})` : "";
+    const items = Array.isArray(raw_data._items) ? raw_data._items : [];
+    const suffix = itemIndex !== undefined && items.length > 1 ? ` (bulto ${Number(itemIndex) + 1})` : "";
     return String(raw_data.OrderNumber) + suffix;
   }
   // ML: pack_id (top-level helper stored by mapper)
