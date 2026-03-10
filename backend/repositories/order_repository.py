@@ -249,6 +249,17 @@ class OrderRepository:
         result = query.order(sort_field).range(offset, offset + per_page - 1).execute()
         total = result.count or 0
         orders = [Order(**r) for r in (result.data or [])]
+
+        # Cliente perspective: orders with real client delivery date first
+        if perspective == "cliente":
+            def _has_client_date(o: Order) -> int:
+                if o.source.startswith("shopify"):
+                    return 0  # Shopify always has client date
+                lo = (o.raw_data or {}).get("logistics_operator", "") or ""
+                method = _classify_shipping_method(o.source, lo)
+                return 0 if method in ("Direct/Flex", "Express") else 1
+            orders.sort(key=lambda o: (_has_client_date(o), o.limit_delivery_date))
+
         pages = (total + per_page - 1) // per_page if total else 0
         return OrdersPage(data=orders, total=total, page=page, per_page=per_page, pages=pages)
 

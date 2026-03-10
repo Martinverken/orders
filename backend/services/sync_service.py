@@ -122,54 +122,18 @@ def _falabella_was_late(order: Order) -> bool:
 
 
 def _is_order_resolved(order: Order) -> bool:
-    """Determina si el pedido llegó a un estado terminal desde nuestra perspectiva.
+    """Determina si el pedido fue entregado al cliente final.
 
-    Falabella Regular: 'shipped' = entregado al operador logístico de Falabella
-                       → nuestra responsabilidad termina ahí.
-    Falabella Direct:  nosotros entregamos → solo 'delivered' cuenta.
-
-    ML Centro de Envíos (fulfillment): nosotros llevamos el paquete al centro ML
-                       → shipment.status = 'ready_to_ship' o 'shipped' = resuelto.
-    ML Flex (self_service): nosotros entregamos al cliente final
-                       → shipment.status = 'delivered' = resuelto.
-
-    Nota: el order.status de ML siempre es 'paid' mientras está activo.
-    El estado relevante está en raw_data['shipment']['status'].
+    Todos los pedidos se archivan solo cuando llegan a estado 'delivered'.
+    Para ML, el estado relevante está en raw_data['shipment']['status'].
     """
-    if order.source in ("walmart", "paris"):
-        # Walmart Standard / Paris: shipped = entregado al carrier → terminal
-        return order.status in ("shipped", "delivered")
-
-    if order.source == "falabella":
-        raw = order.raw_data or {}
-        shipping_type = str(raw.get("ShippingProviderType", "")).lower()
-        if shipping_type in ("regular", "crossdocking"):
-            return order.status in ("shipped", "delivered")
-        else:  # falaflex: seller delivers to customer
-            return order.status == "delivered"
-
-    if order.source.startswith("shopify"):
-        # fulfilled in Shopify = handed to Welivery/Starken courier → terminal (like Falabella Regular)
-        return order.status in ("shipped", "delivered")
-
     if order.source == "mercadolibre":
         raw = order.raw_data or {}
         shipment = raw.get("shipment") or {}
-        logistic_type = str(shipment.get("logistic_type", "")).lower()
         shipment_status = str(shipment.get("status", "")).lower()
-        if logistic_type == "self_service":  # Flex: nosotros entregamos al cliente final
-            return shipment_status == "delivered"
-        if shipment_status == "shipped":  # Centro de Envíos: siempre terminal en shipped
-            return True
-        # xd_drop_off: ML puede tardar en actualizar a "shipped" pero el vendedor ya
-        # entregó en el punto ML → dropped_off (y substatuses posteriores) = resuelto.
-        if logistic_type == "xd_drop_off":
-            substatus_history = shipment.get("substatus_history") or []
-            _resolved = {"dropped_off", "picked_up", "in_hub", "in_packing_list"}
-            return any(e.get("substatus") in _resolved for e in substatus_history)
-        return False
+        return shipment_status == "delivered"
 
-    return order.status in ("shipped", "delivered")
+    return order.status == "delivered"
 
 
 def _ml_was_late(order: Order) -> bool:
@@ -340,17 +304,14 @@ class SyncService:
 
         Lógica de clasificación:
 
-        1. Si el pedido llegó a estado terminal (según _is_order_resolved):
-           - urgency=OVERDUE → atrasado (estado terminal llegó después del plazo)
-           - otro → a tiempo
+        1. Si el pedido llegó a 'delivered' (según _is_order_resolved):
+           - Compara fecha de entrega real vs fecha límite → atrasado o a tiempo.
 
-        2. Si pasó la fecha límite y sigue activo (pending/ready_to_ship o
-           shipped en Direct que aún no llega a delivered) → atrasado.
+        2. Si desapareció del feed → se asume resuelto:
+           - Pasó la fecha límite → atrasado.
+           - Antes del plazo → a tiempo.
 
-        3. Si desapareció del feed antes del plazo → a tiempo.
-
-        Falabella Regular: shipped = terminal (lo tomó el carrier de Falabella).
-        Falabella Direct:  shipped no es terminal, solo delivered cuenta.
+        3. Si sigue activo en el feed → se mantiene (OVERDUE si pasó la fecha).
         """
         now = datetime.now(_SANTIAGO_TZ)
         db_orders = self.order_repo.get_all_by_source(source)
@@ -361,14 +322,14 @@ class SyncService:
             left_feed = ext_id not in fetched_ids
 
             if _is_order_resolved(order):
-                # Estado terminal alcanzado — comparar fecha real de envío/entrega vs plazo
-                if order.source in ("falabella", "walmart", "paris"):
-                    was_late = _falabella_was_late(order)
-                elif order.source.startswith("shopify"):
-                    date_val = _get_delivery_date(order)
-                    was_late = date_val > order.limit_delivery_date if date_val else past_deadline
-                else:
+                # Entregado al cliente final — comparar fecha real de entrega vs plazo
+                date_val = _get_delivery_date(order)
+                if order.source == "mercadolibre":
                     was_late = _ml_was_late(order)
+                elif date_val:
+                    was_late = date_val > order.limit_delivery_date
+                else:
+                    was_late = past_deadline
                 if was_late:
                     late.append(order)
                 else:

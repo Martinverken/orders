@@ -290,7 +290,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               <p className="text-xs text-gray-500">
                 {perspective === "bodega"
                   ? "Paquetes que bodega debe entregar al transportista. La urgencia se calcula según la fecha y hora límite de entrega al transportista asignado."
-                  : "Seguimiento de entrega al cliente final. La urgencia se calcula según la fecha y hora límite de entrega al cliente final. Para los casos de los pedidos Regular/Centro de Envíos (salvo Shopify) la fecha de entrega al cliente no penaliza."}
+                  : "Seguimiento de entrega al cliente final. La urgencia se calcula según la fecha y hora límite de entrega al cliente final. Para los casos de los pedidos Regular/Centro Envíos de los marketplaces, no tienen fecha límite de entrega a cliente final."}
               </p>
             </div>
 

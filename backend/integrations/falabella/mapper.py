@@ -86,14 +86,6 @@ def to_order_create(raw: dict) -> OrderCreate | None:
     if shipping_provider_type in _DIRECT_PROVIDER_TYPES and status == "shipped":
         status = "ready_to_ship"
 
-    # Regular orders: "delivered" means Falabella's carrier handled it — our job ended
-    # at "shipped". The "delivered" status fetch (needed for Direct UpdatedAt) re-inserts
-    # these orders and breaks cleanup. Skip them here so the cleanup sees them as
-    # left_feed=True and archives them correctly.
-    if status == "delivered" and shipping_provider_type not in _DIRECT_PROVIDER_TYPES:
-        logger.info(f"Order {order.OrderId} is regular+delivered — skipping")
-        return None
-
     # Extract product info from items fetched by the client (_items key)
     product_name = None
     product_quantity = None

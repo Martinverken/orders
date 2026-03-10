@@ -29,9 +29,12 @@ class TestSkips:
         del falabella_raw["PromisedShippingTime"]
         assert to_order_create(falabella_raw) is None
 
-    def test_regular_delivered_skipped(self, falabella_raw):
+    def test_regular_delivered_accepted(self, falabella_raw):
+        """Regular+delivered orders are now accepted (archived on delivered)."""
         falabella_raw["Statuses"] = [{"Status": "delivered"}]
-        assert to_order_create(falabella_raw) is None
+        result = to_order_create(falabella_raw)
+        assert result is not None
+        assert result.status == "delivered"
 
 
 class TestDirectProvider:
