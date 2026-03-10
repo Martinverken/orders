@@ -9,6 +9,9 @@ _PENDING_LIKE = ["pending", "ready_to_ship"]
 
 def _extract_logistics_operator(source: str, raw_data: dict) -> str | None:
     if source.startswith("shopify"):
+        tags = (raw_data.get("tags") or "").lower()
+        if "express" in [t.strip() for t in tags.split(",")]:
+            return "Welivery - express"
         return "Welivery"
     if source == "mercadolibre":
         return raw_data.get("delivery_mode") or None
