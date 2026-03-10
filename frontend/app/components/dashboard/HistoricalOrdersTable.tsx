@@ -159,7 +159,16 @@ function OrderRow({ order, idx }: { order: HistoricalOrder; idx: number }) {
         {formatDeadline(getCreatedAt(order.raw_data))}
       </td>
       <td className="py-3 pr-4 text-gray-600 whitespace-nowrap text-sm">
-        {formatDeadline(order.limit_delivery_date)}
+        {formatDeadline(order.limit_handoff_date || order.limit_delivery_date)}
+      </td>
+      <td className="py-3 pr-4 text-gray-600 whitespace-nowrap text-sm">
+        {order.handoff_at ? formatDeadline(order.handoff_at) : "—"}
+      </td>
+      <td className="py-3 pr-4 text-gray-600 whitespace-nowrap text-sm">
+        {(() => {
+          const isClientDelivery = shippingMethod === "Direct/Flex" || shippingMethod === "Express" || order.source.startsWith("shopify");
+          return isClientDelivery ? formatDeadline(order.limit_delivery_date) : <span className="text-gray-400">—</span>;
+        })()}
       </td>
       <td className="py-3 pr-4 text-gray-600 whitespace-nowrap text-sm">
         {order.delivered_at ? formatDeadline(order.delivered_at) : "—"}
@@ -259,8 +268,10 @@ export function HistoricalOrdersTable({ orders }: Props) {
             <th className="pb-3 pr-4 font-medium">Estado</th>
             <th className="pb-3 pr-4 font-medium">Resultado</th>
             <SortableHeader label="Fecha Orden" col="created_at" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
-            <SortableHeader label="Fecha límite" col="limit_delivery_date" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
-            <SortableHeader label="Fecha entrega" col="delivered_at" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+            <th className="pb-3 pr-4 font-medium">Límite bodega</th>
+            <th className="pb-3 pr-4 font-medium">Entrega bodega</th>
+            <SortableHeader label="Límite cliente" col="limit_delivery_date" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+            <SortableHeader label="Entrega cliente" col="delivered_at" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
             <SortableHeader label="Retraso" col="days_delayed" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
             <th className="pb-3 pr-4 font-medium">Tracking</th>
             <th className="pb-3 pr-4 font-medium">Ciudad</th>

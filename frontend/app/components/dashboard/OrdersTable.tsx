@@ -153,10 +153,8 @@ export function OrdersTable({ orders, orderIdsWithCases = [], perspective = "bod
             <th className="pb-3 pr-4 font-medium">Estado</th>
             <th className="pb-3 pr-4 font-medium">Urgencia</th>
             <SortableHeader label="Fecha orden" col="created_at_source" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
-            <SortableHeader
-              label={perspective === "bodega" ? "Entrega transp." : "Entrega cliente"}
-              col="limit_delivery_date" sortCol={sortCol} sortDir={sortDir} onSort={handleSort}
-            />
+            <th className="pb-3 pr-4 font-medium">Límite bodega</th>
+            <SortableHeader label="Límite cliente" col="limit_delivery_date" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
             <th className="pb-3 pr-4 font-medium">Tracking</th>
             <th className="pb-3 pr-4 font-medium">Ciudad</th>
             <th className="pb-3 pr-4 font-medium">Comuna</th>
@@ -214,16 +212,15 @@ export function OrdersTable({ orders, orderIdsWithCases = [], perspective = "bod
                   {formatDeadline(order.created_at_source ?? null)}
                 </td>
                 <td className="py-3 pr-4 text-gray-600 whitespace-nowrap text-sm">
-                  {perspective === "bodega"
-                    ? formatDeadline(order.limit_handoff_date || order.limit_delivery_date, order.source)
-                    : (() => {
-                        const method = getShippingMethod(order.source, order.raw_data);
-                        const isShopify = order.source.startsWith("shopify");
-                        const isClientDelivery = method === "Direct/Flex" || method === "Express" || isShopify;
-                        return isClientDelivery
-                          ? formatDeadline(order.limit_delivery_date, order.source)
-                          : <span className="text-gray-400">—</span>;
-                      })()}
+                  {formatDeadline(order.limit_handoff_date || order.limit_delivery_date, order.source)}
+                </td>
+                <td className="py-3 pr-4 text-gray-600 whitespace-nowrap text-sm">
+                  {(() => {
+                    const isClientDelivery = shippingMethod === "Direct/Flex" || shippingMethod === "Express" || order.source.startsWith("shopify");
+                    return isClientDelivery
+                      ? formatDeadline(order.limit_delivery_date, order.source)
+                      : <span className="text-gray-400">—</span>;
+                  })()}
                 </td>
                 <td className="py-3 pr-4 font-mono text-xs text-gray-600">
                   {trackingUrl ? (
