@@ -1,5 +1,6 @@
 from repositories.order_repository import OrderRepository
 from repositories.sync_log_repository import SyncLogRepository
+from repositories.delayed_order_repository import DelayedOrderRepository
 from models.order import OrderSummary
 
 
@@ -7,6 +8,7 @@ class OrderService:
     def __init__(self):
         self.order_repo = OrderRepository()
         self.sync_log_repo = SyncLogRepository()
+        self.delayed_repo = DelayedOrderRepository()
 
     def get_dashboard_summary(
         self,
@@ -32,6 +34,7 @@ class OrderService:
             perspective=perspective,
         )
         last_sync = self.sync_log_repo.get_last_sync()
+        blame_counts = self.delayed_repo.get_blame_counts()
         return OrderSummary(
             total_orders=counts["total"],
             overdue_count=counts["overdue"],
@@ -43,4 +46,5 @@ class OrderService:
             last_sync_at=last_sync.started_at if last_sync else None,
             sources=["falabella", "mercadolibre"],
             breakdown=counts.get("breakdown"),
+            blame_counts=blame_counts,
         )

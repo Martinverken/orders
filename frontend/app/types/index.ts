@@ -35,6 +35,13 @@ export interface BreakdownItem {
   count: number;
 }
 
+export interface BlameCounts {
+  bodega: number;
+  transportista: number;
+  bodega_recent: number;
+  transportista_recent: number;
+}
+
 export interface DashboardSummary {
   total_orders: number;
   overdue_count: number;
@@ -46,6 +53,7 @@ export interface DashboardSummary {
   last_sync_at: string | null;
   sources: OrderSource[];
   breakdown?: Record<string, BreakdownItem[]>;
+  blame_counts?: BlameCounts;
 }
 
 export interface SyncLog {

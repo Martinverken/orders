@@ -450,6 +450,40 @@ class DelayedOrderRepository:
 
         return {"monthly": build_list(monthly), "weekly": build_list(weekly)}
 
+    def get_blame_counts(self) -> dict:
+        """Return counts of delays by blame (bodega vs transportista).
+
+        Returns last 30 days + all-time counts.
+        """
+        from datetime import timedelta
+        result = self.db.table(self.table).select(
+            "blame,days_delayed,resolved_at"
+        ).gt("days_delayed", 0).execute()
+        rows = result.data or []
+
+        cutoff = (datetime.utcnow() - timedelta(days=30)).isoformat()
+        total_bodega = total_transportista = 0
+        recent_bodega = recent_transportista = 0
+
+        for r in rows:
+            blame = r.get("blame")
+            resolved = r.get("resolved_at") or ""
+            if blame == "bodega":
+                total_bodega += 1
+                if resolved >= cutoff:
+                    recent_bodega += 1
+            elif blame == "transportista":
+                total_transportista += 1
+                if resolved >= cutoff:
+                    recent_transportista += 1
+
+        return {
+            "bodega": total_bodega,
+            "transportista": total_transportista,
+            "bodega_recent": recent_bodega,
+            "transportista_recent": recent_transportista,
+        }
+
     def get_historical_metrics(self) -> dict:
         """Return on-time and delayed metrics grouped by month and week, per source/logistics_operator."""
         from datetime import timedelta

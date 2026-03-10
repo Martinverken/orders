@@ -91,6 +91,7 @@ class OrderSummary(BaseModel):
     last_sync_at: Optional[datetime] = None
     sources: list[str]
     breakdown: Optional[dict[str, list[dict]]] = None  # per-urgency breakdown by source+method
+    blame_counts: Optional[dict[str, int]] = None  # bodega, transportista, bodega_recent, transportista_recent
 
 
 class OrdersPage(BaseModel):

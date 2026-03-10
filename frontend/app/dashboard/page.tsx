@@ -264,27 +264,34 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         {tab === "pedidos" && summary && ordersPage && (
           <>
             {/* Perspective toggle */}
-            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 w-fit">
-              <a
-                href={buildUrl(allParams, { tab: "pedidos", perspective: "bodega", page: "1" })}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                  perspective === "bodega"
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                Bodega
-              </a>
-              <a
-                href={buildUrl(allParams, { tab: "pedidos", perspective: "cliente", page: "1" })}
-                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                  perspective === "cliente"
-                    ? "bg-white text-gray-900 shadow-sm"
-                    : "text-gray-500 hover:text-gray-700"
-                }`}
-              >
-                Cliente Final
-              </a>
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+                <a
+                  href={buildUrl(allParams, { tab: "pedidos", perspective: "bodega", page: "1" })}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                    perspective === "bodega"
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  Bodega
+                </a>
+                <a
+                  href={buildUrl(allParams, { tab: "pedidos", perspective: "cliente", page: "1" })}
+                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                    perspective === "cliente"
+                      ? "bg-white text-gray-900 shadow-sm"
+                      : "text-gray-500 hover:text-gray-700"
+                  }`}
+                >
+                  Cliente Final
+                </a>
+              </div>
+              <p className="text-xs text-gray-500">
+                {perspective === "bodega"
+                  ? "Paquetes que bodega debe entregar al transportista. La urgencia se calcula según la fecha y hora límite de entrega al transportista asignado."
+                  : "Seguimiento de entrega al cliente final. La urgencia se calcula según la fecha y hora límite de entrega al cliente final. Para los casos de los pedidos Regular/Centro de Envíos (salvo Shopify) la fecha de entrega al cliente no penaliza."}
+              </p>
             </div>
 
             <SummaryCards summary={summary} />

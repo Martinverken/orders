@@ -322,8 +322,10 @@ class OrderRepository:
                     handoff_dt = handoff_raw
                 u = compute_urgency(handoff_dt, row_status).value
             elif perspective == "cliente":
-                # Regular/CE don't have a client delivery date → always on_time
-                is_client_delivery = method in ("Direct/Flex", "Express")
+                # Shopify always penalizes (Welivery delivers to client)
+                # Regular/CE from Falabella, ML, Walmart, Paris → no penalty
+                is_shopify = src.startswith("shopify")
+                is_client_delivery = method in ("Direct/Flex", "Express") or is_shopify
                 if not is_client_delivery:
                     u = "on_time"
                 else:
