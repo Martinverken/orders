@@ -213,6 +213,10 @@ class OrderRepository:
         status_parts = _split_filter(status)
         if status_parts:
             query = query.in_("status", status_parts)
+        elif perspective == "bodega":
+            query = query.in_("status", _PENDING_LIKE)
+        elif perspective == "cliente":
+            query = query.eq("status", "shipped")
         if product_name:
             query = query.ilike("product_name", f"%{product_name}%")
         lo_parts = _split_filter(logistics_operator)
@@ -295,6 +299,10 @@ class OrderRepository:
         status_parts = _split_filter(status)
         if status_parts:
             query = query.in_("status", status_parts)
+        elif perspective == "bodega":
+            query = query.in_("status", _PENDING_LIKE)
+        elif perspective == "cliente":
+            query = query.eq("status", "shipped")
         # When using bodega perspective, don't filter by stored urgency since we recompute
         if perspective != "bodega":
             urgency_parts = _split_filter(urgency)
@@ -362,10 +370,10 @@ class OrderRepository:
             key = (src, method)
             bucket[key] = bucket.get(key, 0) + 1
 
-        # Also build a "total" breakdown
+        # Also build a "total" breakdown (only actionable urgencies, matching card total)
         total_bucket: dict[tuple[str, str], int] = {}
-        for bucket in breakdown_buckets.values():
-            for key, cnt in bucket.items():
+        for urg_key in ("overdue", "due_today", "tomorrow", "two_or_more_days"):
+            for key, cnt in breakdown_buckets.get(urg_key, {}).items():
                 total_bucket[key] = total_bucket.get(key, 0) + cnt
         breakdown_buckets["total"] = total_bucket
 

@@ -88,6 +88,25 @@ def _get_handoff_date(order: Order) -> datetime | None:
     return order.first_shipped_at
 
 
+def _is_regular_shipping(order: Order) -> bool:
+    """Check if order uses Regular/Centro Envíos (carrier picks up from warehouse).
+
+    For these orders, shipped = terminal and any delay is always bodega's fault.
+    """
+    raw = order.raw_data or {}
+    if order.source == "falabella":
+        spt = (raw.get("ShippingProviderType") or "").strip().lower()
+        return spt == "regular"
+    if order.source in ("walmart", "paris"):
+        return True  # Always carrier pickup
+    if order.source == "mercadolibre":
+        mode = (raw.get("delivery_mode") or "").lower()
+        return mode not in ("flex", "self_service")
+    if order.source.startswith("shopify"):
+        return False  # Shopify = Welivery (self-delivery)
+    return True
+
+
 def _compute_blame(
     order: Order,
     handoff_dt: datetime | None,
@@ -98,9 +117,20 @@ def _compute_blame(
     Returns 'bodega' if warehouse handed off after limit_handoff_date.
     Returns 'transportista' if handoff was on time but delivery was late.
     Returns None if order was on time or we can't determine.
+
+    For Regular/Centro Envíos, blame is always 'bodega' since shipped = terminal
+    and the seller only controls the handoff to carrier.
     """
     limit_handoff = order.limit_handoff_date or order.limit_delivery_date
     if not limit_handoff:
+        return None
+
+    # Regular/CE: any delay is bodega's fault (shipped = terminal)
+    if _is_regular_shipping(order):
+        if handoff_dt and handoff_dt > limit_handoff:
+            return "bodega"
+        if delivery_dt and delivery_dt > order.limit_delivery_date:
+            return "bodega"
         return None
 
     # Check if warehouse was late
