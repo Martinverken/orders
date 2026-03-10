@@ -23,6 +23,7 @@ interface OrderFilters {
   city?: string;
   commune?: string;
   order_number?: string;
+  perspective?: string;
 }
 
 function buildFilterQuery(filters: OrderFilters): URLSearchParams {
@@ -35,6 +36,7 @@ function buildFilterQuery(filters: OrderFilters): URLSearchParams {
   if (filters.city) query.set("city", filters.city);
   if (filters.commune) query.set("commune", filters.commune);
   if (filters.order_number) query.set("order_number", filters.order_number);
+  if (filters.perspective) query.set("perspective", filters.perspective);
   return query;
 }
 

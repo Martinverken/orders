@@ -132,6 +132,7 @@ def to_order_create(raw: dict) -> OrderCreate | None:
         status=status,
         created_at_source=_epoch_to_datetime(order.orderDate),
         limit_delivery_date=limit_delivery_date,
+        limit_handoff_date=limit_delivery_date,  # Walmart Standard: handoff = delivery deadline
         product_name=product_name,
         product_quantity=product_quantity,
         raw_data=raw,

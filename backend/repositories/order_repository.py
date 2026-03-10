@@ -124,6 +124,7 @@ class OrderRepository:
                 "created_at_source": o.created_at_source.isoformat() if o.created_at_source else None,
                 "address_updated_at": o.address_updated_at.isoformat() if o.address_updated_at else None,
                 "limit_delivery_date": o.limit_delivery_date.isoformat(),
+                "limit_handoff_date": o.limit_handoff_date.isoformat() if o.limit_handoff_date else o.limit_delivery_date.isoformat(),
                 "urgency": compute_urgency(o.limit_delivery_date, o.status).value,
                 "product_name": o.product_name,
                 "product_quantity": o.product_quantity,
@@ -202,6 +203,7 @@ class OrderRepository:
         order_number: Optional[str] = None,
         page: int = 1,
         per_page: int = 20,
+        perspective: str = "bodega",
     ) -> OrdersPage:
         query = self.db.table(self.table).select("*", count="exact")
         if source:
@@ -242,8 +244,9 @@ class OrderRepository:
             # Multiple urgency values → filter by stored urgency column
             query = query.in_("urgency", urgency_parts)
 
+        sort_field = "limit_handoff_date" if perspective == "bodega" else "limit_delivery_date"
         offset = (page - 1) * per_page
-        result = query.order("limit_delivery_date").range(offset, offset + per_page - 1).execute()
+        result = query.order(sort_field).range(offset, offset + per_page - 1).execute()
         total = result.count or 0
         orders = [Order(**r) for r in (result.data or [])]
         pages = (total + per_page - 1) // per_page if total else 0
@@ -259,13 +262,21 @@ class OrderRepository:
         city: Optional[str] = None,
         commune: Optional[str] = None,
         order_number: Optional[str] = None,
+        perspective: str = "bodega",
     ) -> dict:
-        """Count orders by stored urgency column, respecting active filters.
+        """Count orders by urgency, respecting active filters.
+
+        perspective controls which date is used for urgency:
+        - "bodega": uses limit_handoff_date (warehouse → carrier deadline)
+        - "cliente": uses limit_delivery_date (carrier → end customer deadline)
+          For cliente, Regular/CE orders (where both dates are the same) show as "-"
 
         Also returns a breakdown dict: { urgency_key: [{source, method, count}] }
-        where method is "Direct/Flex" or "Regular/Centro Envíos".
         """
-        query = self.db.table(self.table).select("urgency,source,logistics_operator")
+        # For bodega: recompute urgency from limit_handoff_date
+        # For cliente: use stored urgency (based on limit_delivery_date)
+        fields = "urgency,status,source,logistics_operator,limit_handoff_date,limit_delivery_date"
+        query = self.db.table(self.table).select(fields)
         if source:
             query = query.eq("source", source)
         if order_number:
@@ -273,9 +284,11 @@ class OrderRepository:
         status_parts = _split_filter(status)
         if status_parts:
             query = query.in_("status", status_parts)
-        urgency_parts = _split_filter(urgency)
-        if urgency_parts:
-            query = query.in_("urgency", urgency_parts)
+        # When using bodega perspective, don't filter by stored urgency since we recompute
+        if perspective != "bodega":
+            urgency_parts = _split_filter(urgency)
+            if urgency_parts:
+                query = query.in_("urgency", urgency_parts)
         if product_name:
             query = query.ilike("product_name", f"%{product_name}%")
         lo_parts = _split_filter(logistics_operator)
@@ -287,13 +300,36 @@ class OrderRepository:
             query = query.ilike("commune", f"%{commune}%")
         rows = (query.execute()).data or []
         overdue = due_today = delivered_today = tomorrow_count = two_or_more_days = on_time = 0
-        # Breakdown: {urgency: {(source, method): count}}
         breakdown_buckets: dict[str, dict[tuple[str, str], int]] = {}
+
+        from datetime import datetime as dt_class
         for r in rows:
-            u = r.get("urgency") or ""
             src = r.get("source") or ""
             lo = r.get("logistics_operator") or ""
             method = _classify_shipping_method(src, lo)
+            row_status = r.get("status") or ""
+
+            if perspective == "bodega":
+                # Recompute urgency from limit_handoff_date
+                handoff_raw = r.get("limit_handoff_date")
+                if not handoff_raw:
+                    handoff_raw = r.get("limit_delivery_date")
+                if not handoff_raw:
+                    continue
+                if isinstance(handoff_raw, str):
+                    handoff_dt = dt_class.fromisoformat(handoff_raw)
+                else:
+                    handoff_dt = handoff_raw
+                u = compute_urgency(handoff_dt, row_status).value
+            elif perspective == "cliente":
+                # For cliente: only count Direct/Flex/Shopify (orders with real client deadline)
+                is_client_delivery = method in ("Direct/Flex", "Express")
+                if not is_client_delivery:
+                    continue  # Regular/CE don't have a client delivery date
+                u = r.get("urgency") or ""
+            else:
+                u = r.get("urgency") or ""
+
             if u == "overdue":
                 overdue += 1
             elif u == "due_today":
@@ -311,6 +347,7 @@ class OrderRepository:
             bucket = breakdown_buckets.setdefault(u, {})
             key = (src, method)
             bucket[key] = bucket.get(key, 0) + 1
+
         # Also build a "total" breakdown
         total_bucket: dict[tuple[str, str], int] = {}
         for bucket in breakdown_buckets.values():
@@ -325,8 +362,9 @@ class OrderRepository:
             ]
             for urg, bucket in breakdown_buckets.items()
         }
+        total = overdue + due_today + delivered_today + tomorrow_count + two_or_more_days + on_time
         return {
-            "total": len(rows),
+            "total": total,
             "overdue": overdue,
             "due_today": due_today,
             "delivered_today": delivered_today,

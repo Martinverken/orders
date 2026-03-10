@@ -54,6 +54,7 @@ class OrderCreate(BaseModel):
     created_at_source: Optional[datetime] = None
     address_updated_at: Optional[datetime] = None
     limit_delivery_date: datetime
+    limit_handoff_date: Optional[datetime] = None  # warehouse → carrier deadline
     product_name: Optional[str] = None
     product_quantity: Optional[int] = None
     raw_data: Optional[dict[str, Any]] = None
@@ -64,6 +65,7 @@ class Order(OrderCreate):
     id: str
     synced_at: datetime
     updated_at: datetime
+    limit_handoff_date: Optional[datetime] = None  # warehouse → carrier deadline
     # Stored in DB at sync time; falls back to computed value for legacy rows without it
     urgency: Optional[OrderUrgency] = None
     # Set by DB trigger on first transition to 'shipped'/'delivered' (Falabella); immutable thereafter
@@ -126,12 +128,15 @@ class HistoricalOrder(BaseModel):
     external_id: str
     source: str
     limit_delivery_date: datetime
+    limit_handoff_date: Optional[datetime] = None
     resolved_at: datetime
     delivered_at: Optional[datetime] = None
+    handoff_at: Optional[datetime] = None
     days_delayed: float
     logistics_operator: Optional[str] = None
     urgency: Optional[str] = None
     status: Optional[str] = None
+    blame: Optional[str] = None  # 'bodega' | 'transportista'
     raw_data: Optional[dict[str, Any]] = None
     comprobante: Optional[str] = None
     case_number: Optional[str] = None

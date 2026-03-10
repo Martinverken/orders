@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useMemo } from "react";
-import { Order, OrderCase } from "@/app/types";
+import { Order, OrderCase, Perspective } from "@/app/types";
 import { UrgencyBadge, StatusBadge } from "@/app/components/ui/Badge";
 import { formatDate, formatDeadline, SOURCE_LABEL, getCarrier, getOrderNumber, getTrackingCode, getTrackingUrl, getProductDetails, getShippingDestination, getShippingMethod, getOperator } from "@/app/lib/utils";
 import { getActiveOrderCases, addActiveOrderCase } from "@/app/lib/api";
@@ -10,6 +10,7 @@ import { CaseHistoryModal } from "./CaseHistoryModal";
 interface Props {
   orders: Order[];
   orderIdsWithCases?: string[];
+  perspective?: Perspective;
 }
 
 type SortCol = "created_at_source" | "limit_delivery_date" | "synced_at";
@@ -105,7 +106,7 @@ function ActiveTicketButton({ order }: { order: Order }) {
   );
 }
 
-export function OrdersTable({ orders, orderIdsWithCases = [] }: Props) {
+export function OrdersTable({ orders, orderIdsWithCases = [], perspective = "bodega" }: Props) {
   const caseSet = useMemo(() => new Set(orderIdsWithCases), [orderIdsWithCases]);
   const [sortCol, setSortCol] = useState<SortCol | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
@@ -151,7 +152,10 @@ export function OrdersTable({ orders, orderIdsWithCases = [] }: Props) {
             <th className="pb-3 pr-4 font-medium">Estado</th>
             <th className="pb-3 pr-4 font-medium">Urgencia</th>
             <SortableHeader label="Fecha orden" col="created_at_source" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
-            <SortableHeader label="Fecha límite" col="limit_delivery_date" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
+            <SortableHeader
+              label={perspective === "bodega" ? "Entrega transp." : "Entrega cliente"}
+              col="limit_delivery_date" sortCol={sortCol} sortDir={sortDir} onSort={handleSort}
+            />
             <th className="pb-3 pr-4 font-medium">Tracking</th>
             <th className="pb-3 pr-4 font-medium">Ciudad</th>
             <th className="pb-3 pr-4 font-medium">Comuna</th>
@@ -206,7 +210,9 @@ export function OrdersTable({ orders, orderIdsWithCases = [] }: Props) {
                   {formatDeadline(order.created_at_source ?? null)}
                 </td>
                 <td className="py-3 pr-4 text-gray-600 whitespace-nowrap text-sm">
-                  {formatDeadline(order.limit_delivery_date, order.source)}
+                  {perspective === "bodega"
+                    ? formatDeadline(order.limit_handoff_date || order.limit_delivery_date, order.source)
+                    : formatDeadline(order.limit_delivery_date, order.source)}
                 </td>
                 <td className="py-3 pr-4 font-mono text-xs text-gray-600">
                   {trackingUrl ? (

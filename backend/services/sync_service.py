@@ -78,6 +78,42 @@ def _get_delivery_date(order: Order) -> datetime | None:
     return None
 
 
+def _get_handoff_date(order: Order) -> datetime | None:
+    """Extract when warehouse actually handed off to carrier.
+
+    For Regular/CE: same as delivery date (first_shipped_at).
+    For Direct/Flex/Shopify: first_shipped_at = when carrier picked up from warehouse.
+    """
+    # first_shipped_at is set by DB trigger on first status change to 'shipped'
+    return order.first_shipped_at
+
+
+def _compute_blame(
+    order: Order,
+    handoff_dt: datetime | None,
+    delivery_dt: datetime | None,
+) -> str | None:
+    """Determine who is responsible for a delay.
+
+    Returns 'bodega' if warehouse handed off after limit_handoff_date.
+    Returns 'transportista' if handoff was on time but delivery was late.
+    Returns None if order was on time or we can't determine.
+    """
+    limit_handoff = order.limit_handoff_date or order.limit_delivery_date
+    if not limit_handoff:
+        return None
+
+    # Check if warehouse was late
+    if handoff_dt and handoff_dt > limit_handoff:
+        return "bodega"
+
+    # If handoff was on time (or unknown), check if delivery was late
+    if delivery_dt and delivery_dt > order.limit_delivery_date:
+        return "transportista"
+
+    return None
+
+
 def _falabella_was_late(order: Order) -> bool:
     date_val = _get_delivery_date(order)
     if date_val:
@@ -368,12 +404,26 @@ class SyncService:
 
         delivery_dates = {o.id: _get_delivery_date(o) for o in late + on_time}
 
+        # Compute handoff dates and blame for each resolved order
+        handoff_dates: dict[str, datetime | None] = {}
+        blame_map: dict[str, str | None] = {}
+        for o in late + on_time:
+            handoff_dt = _get_handoff_date(o)
+            handoff_dates[o.id] = handoff_dt
+            blame_map[o.id] = _compute_blame(o, handoff_dt, delivery_dates.get(o.id))
+
         if late:
-            archived = self.delayed_repo.archive_batch(late, was_delayed=True, delivery_dates=delivery_dates)
+            archived = self.delayed_repo.archive_batch(
+                late, was_delayed=True, delivery_dates=delivery_dates,
+                handoff_dates=handoff_dates, blame_map=blame_map,
+            )
             logger.info(f"[{source}] Archived {archived} late orders")
 
         if on_time:
-            self.delayed_repo.archive_batch(on_time, was_delayed=False, delivery_dates=delivery_dates)
+            self.delayed_repo.archive_batch(
+                on_time, was_delayed=False, delivery_dates=delivery_dates,
+                handoff_dates=handoff_dates, blame_map=blame_map,
+            )
             logger.info(f"[{source}] Archived {len(on_time)} on-time orders")
 
         all_resolved = late + on_time

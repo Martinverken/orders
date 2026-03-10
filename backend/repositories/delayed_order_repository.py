@@ -88,12 +88,16 @@ class DelayedOrderRepository:
         orders: list[Order],
         was_delayed: bool = True,
         delivery_dates: dict[str, datetime | None] | None = None,
+        handoff_dates: dict[str, datetime | None] | None = None,
+        blame_map: dict[str, str | None] | None = None,
     ) -> int:
         """Archive resolved orders into delayed_orders table.
 
         was_delayed=True  → order was delivered after limit_delivery_date
         was_delayed=False → order was resolved before limit_delivery_date (on time)
         delivery_dates    → map of order.id → actual delivery/dispatch datetime
+        handoff_dates     → map of order.id → actual handoff datetime (when warehouse handed to carrier)
+        blame_map         → map of order.id → 'bodega' | 'transportista' | None
         """
         if not orders:
             return 0
@@ -114,6 +118,7 @@ class DelayedOrderRepository:
                 "external_id": o.external_id,
                 "source": o.source,
                 "limit_delivery_date": o.limit_delivery_date.isoformat(),
+                "limit_handoff_date": (o.limit_handoff_date.isoformat() if o.limit_handoff_date else o.limit_delivery_date.isoformat()),
                 "delivered_at": (
                     existing_delivered_at.get((o.external_id, o.source))
                     or (
@@ -122,6 +127,12 @@ class DelayedOrderRepository:
                         else None
                     )
                 ),
+                "handoff_at": (
+                    handoff_dates[o.id].isoformat()
+                    if handoff_dates and handoff_dates.get(o.id)
+                    else None
+                ),
+                "blame": (blame_map.get(o.id) if blame_map else None),
                 "logistics_operator": _extract_logistics_operator(o),
                 "urgency": o.urgency.value if o.urgency else None,
                 "status": o.status,

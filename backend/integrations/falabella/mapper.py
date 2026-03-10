@@ -6,6 +6,7 @@ import logging
 
 _SANTIAGO = ZoneInfo("America/Santiago")
 _DIRECT_PROVIDER_TYPES = {"falaflex", "direct"}
+_WAREHOUSE_CLOSE_HOUR = 18
 
 logger = logging.getLogger(__name__)
 
@@ -107,6 +108,18 @@ def to_order_create(raw: dict) -> OrderCreate | None:
             except (ValueError, TypeError):
                 pass
 
+    # Compute limit_handoff_date:
+    # Regular: handoff = limit_delivery_date (PromisedShippingTime IS the handoff deadline)
+    # Direct/Flex: handoff = delivery day at 18:00 (warehouse close)
+    if shipping_provider_type in _DIRECT_PROVIDER_TYPES:
+        handoff_day = limit_delivery_date.astimezone(_SANTIAGO).date()
+        limit_handoff_date = datetime(
+            handoff_day.year, handoff_day.month, handoff_day.day,
+            _WAREHOUSE_CLOSE_HOUR, 0, 0, tzinfo=_SANTIAGO,
+        )
+    else:
+        limit_handoff_date = limit_delivery_date
+
     return OrderCreate(
         external_id=str(order.OrderId),
         source="falabella",
@@ -114,6 +127,7 @@ def to_order_create(raw: dict) -> OrderCreate | None:
         created_at_source=parse_falabella_datetime(order.CreatedAt),
         address_updated_at=parse_falabella_datetime(order.AddressUpdatedAt),
         limit_delivery_date=limit_delivery_date,
+        limit_handoff_date=limit_handoff_date,
         product_name=product_name,
         product_quantity=product_quantity,
         raw_data=raw,

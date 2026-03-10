@@ -18,6 +18,7 @@ def get_summary(
     city: Optional[str] = Query(None),
     commune: Optional[str] = Query(None),
     order_number: Optional[str] = Query(None),
+    perspective: str = Query("bodega"),
 ):
     summary = order_service.get_dashboard_summary(
         source=source,
@@ -28,6 +29,7 @@ def get_summary(
         city=city,
         commune=commune,
         order_number=order_number,
+        perspective=perspective,
     )
     return {"success": True, "data": summary.model_dump()}
 

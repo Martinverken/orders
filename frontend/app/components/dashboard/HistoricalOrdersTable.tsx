@@ -156,6 +156,15 @@ function OrderRow({ order, idx }: { order: HistoricalOrder; idx: number }) {
       <td className="py-3 pr-4 text-gray-500 text-xs">{operator || "—"}</td>
       <td className="py-3 pr-4"><StatusBadge status={order.status} /></td>
       <td className="py-3 pr-4"><HistoricalUrgencyBadge daysDelayed={order.days_delayed} /></td>
+      <td className="py-3 pr-4 text-xs">
+        {order.blame === "bodega" ? (
+          <span className="px-2 py-0.5 rounded-full bg-orange-100 text-orange-700 font-medium">Bodega</span>
+        ) : order.blame === "transportista" ? (
+          <span className="px-2 py-0.5 rounded-full bg-purple-100 text-purple-700 font-medium">Transportista</span>
+        ) : (
+          <span className="text-gray-400">—</span>
+        )}
+      </td>
       <td className="py-3 pr-4 text-gray-600 whitespace-nowrap text-sm">
         {formatDeadline(getCreatedAt(order.raw_data))}
       </td>
@@ -259,6 +268,7 @@ export function HistoricalOrdersTable({ orders }: Props) {
             <th className="pb-3 pr-4 font-medium">Operador</th>
             <th className="pb-3 pr-4 font-medium">Estado</th>
             <th className="pb-3 pr-4 font-medium">Resultado</th>
+            <th className="pb-3 pr-4 font-medium">Responsable</th>
             <SortableHeader label="Fecha Orden" col="created_at" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
             <SortableHeader label="Fecha límite" col="limit_delivery_date" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
             <SortableHeader label="Fecha entrega" col="delivered_at" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />

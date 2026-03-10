@@ -11,6 +11,7 @@ import { DelayMetricsTable } from "@/app/components/dashboard/DelayMetricsTable"
 import { KpiTable } from "@/app/components/dashboard/KpiTable";
 import { CEScheduleSettings } from "@/app/components/dashboard/CEScheduleSettings";
 import { CEScheduleModal } from "@/app/components/dashboard/CEScheduleModal";
+import type { Perspective } from "@/app/types";
 
 interface PageProps {
   searchParams: Promise<{
@@ -36,6 +37,8 @@ interface PageProps {
     h_page?: string;
     // Tab
     tab?: string;
+    // Perspective (bodega | cliente)
+    perspective?: string;
   }>;
 }
 
@@ -57,6 +60,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     : params.tab === "tickets" ? "tickets"
     : params.tab === "configuracion" ? "configuracion"
     : "pedidos";
+
+  const perspective: Perspective = params.perspective === "cliente" ? "cliente" : "bodega";
 
   const syncStatus = await getSyncStatus();
 
@@ -108,8 +113,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   if (tab === "pedidos") {
     const page = Number(params.page || 1);
     [summary, ordersPage, cities] = await Promise.all([
-      getDashboardSummary(activeFilters),
-      getOrders({ ...activeFilters, page, per_page: 25 }),
+      getDashboardSummary({ ...activeFilters, perspective }),
+      getOrders({ ...activeFilters, page, per_page: 25, perspective }),
       getDistinctCities(),
     ]);
   } else if (tab === "historial") {
@@ -156,6 +161,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     city: params.city,
     commune: params.commune,
     order_number: params.order_number,
+    perspective: params.perspective,
     h_source: params.h_source,
     h_urgency: params.h_urgency,
     h_logistics_operator: params.h_logistics_operator,
@@ -257,6 +263,30 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         {/* ── Pedidos activos ── */}
         {tab === "pedidos" && summary && ordersPage && (
           <>
+            {/* Perspective toggle */}
+            <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 w-fit">
+              <a
+                href={buildUrl(allParams, { tab: "pedidos", perspective: "bodega", page: "1" })}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                  perspective === "bodega"
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                Bodega
+              </a>
+              <a
+                href={buildUrl(allParams, { tab: "pedidos", perspective: "cliente", page: "1" })}
+                className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
+                  perspective === "cliente"
+                    ? "bg-white text-gray-900 shadow-sm"
+                    : "text-gray-500 hover:text-gray-700"
+                }`}
+              >
+                Cliente Final
+              </a>
+            </div>
+
             <SummaryCards summary={summary} />
 
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
@@ -270,7 +300,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               </div>
 
               <div className="px-6 py-4">
-                <OrdersTable orders={ordersPage.data} orderIdsWithCases={ordersPage.order_ids_with_cases} />
+                <OrdersTable orders={ordersPage.data} orderIdsWithCases={ordersPage.order_ids_with_cases} perspective={perspective} />
               </div>
 
               {ordersPage.pages > 1 && (

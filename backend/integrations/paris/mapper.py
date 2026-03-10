@@ -176,6 +176,7 @@ def to_order_create(raw: dict) -> OrderCreate | None:
         status=status,
         created_at_source=parse_paris_datetime(order.createdAt or order.originOrderDate),
         limit_delivery_date=limit_delivery_date,
+        limit_handoff_date=limit_delivery_date,  # Paris Regular: handoff = delivery deadline
         product_name=product_name,
         product_quantity=product_quantity,
         raw_data=raw,

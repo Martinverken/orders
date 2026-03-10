@@ -18,6 +18,7 @@ class OrderService:
         city=None,
         commune=None,
         order_number=None,
+        perspective="bodega",
     ) -> OrderSummary:
         counts = self.order_repo.get_summary_counts(
             source=source,
@@ -28,6 +29,7 @@ class OrderService:
             city=city,
             commune=commune,
             order_number=order_number,
+            perspective=perspective,
         )
         last_sync = self.sync_log_repo.get_last_sync()
         return OrderSummary(

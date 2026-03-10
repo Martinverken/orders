@@ -8,6 +8,7 @@ import json
 import math
 
 _SANTIAGO = ZoneInfo("America/Santiago")
+_WAREHOUSE_CLOSE_HOUR = 18
 
 # Weekly CE cutoff schedule: {"monday": "11:00", "thursday": "14:45", ...}
 # sell_cutoff[day] = ce_cutoff[day] - 6h (always 6h buffer)
@@ -246,6 +247,19 @@ def to_order_create(order_raw: dict, shipment_raw: dict | None = None) -> OrderC
         "seller_sku": seller_sku,
     }
 
+    # Compute limit_handoff_date:
+    # CE: handoff = limit_delivery_date (CE cutoff IS the handoff deadline)
+    # Flex: handoff = delivery day at 18:00 (warehouse close)
+    is_flex = logistic_type == "self_service"
+    if is_flex:
+        handoff_day = limit_delivery_date.astimezone(_SANTIAGO).date()
+        limit_handoff_date = datetime(
+            handoff_day.year, handoff_day.month, handoff_day.day,
+            _WAREHOUSE_CLOSE_HOUR, 0, 0, tzinfo=_SANTIAGO,
+        )
+    else:
+        limit_handoff_date = limit_delivery_date
+
     return OrderCreate(
         external_id=str(order.id),
         source="mercadolibre",
@@ -253,6 +267,7 @@ def to_order_create(order_raw: dict, shipment_raw: dict | None = None) -> OrderC
         created_at_source=parse_ml_datetime(order.date_created),
         address_updated_at=parse_ml_datetime(order.date_last_updated),
         limit_delivery_date=limit_delivery_date,
+        limit_handoff_date=limit_handoff_date,
         product_name=product_name,
         product_quantity=product_quantity,
         raw_data=raw_data,

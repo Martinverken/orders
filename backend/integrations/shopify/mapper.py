@@ -30,6 +30,7 @@ logger = logging.getLogger(__name__)
 
 _SANTIAGO_TZ = ZoneInfo("America/Santiago")
 _CUTOFF_HOUR = 13
+_WAREHOUSE_CLOSE_HOUR = 18
 
 
 # ── Tag helpers ─────────────────────────────────────────────────────────────
@@ -79,30 +80,31 @@ def add_business_days(d: date, n: int) -> date:
 
 # ── Delivery promise ─────────────────────────────────────────────────────────
 
-def compute_delivery_promise(order: dict) -> datetime:
-    """Compute the delivery promise datetime for a Shopify order.
+def _compute_base_date(order: dict) -> date:
+    """Determine the base handoff date from cutoff rules.
 
-    Algorithm:
-      1. Convert created_at to America/Santiago.
-      2. Determine base_date:
-         - Non-business day → next_business_day
-         - Business day + before 13:00 → same day
-         - Business day + 13:00 or later → next_business_day
-      3. promise_date:
-         - Express: base_date
-         - Standard: add_business_days(base_date, 2)
-      4. Return promise_date at 23:59:59 Santiago.
+    - Non-business day → next_business_day
+    - Business day + before 13:00 → same day
+    - Business day + 13:00 or later → next_business_day
     """
     created_raw = order.get("created_at") or ""
     dt = datetime.fromisoformat(created_raw).astimezone(_SANTIAGO_TZ)
     d = dt.date()
 
     if not is_business_day(d):
-        base = next_business_day(d)
+        return next_business_day(d)
     elif dt.hour < _CUTOFF_HOUR:
-        base = d
+        return d
     else:
-        base = next_business_day(d)
+        return next_business_day(d)
+
+
+def compute_delivery_promise(order: dict) -> datetime:
+    """Compute the delivery promise datetime for a Shopify order.
+
+    Express: base_date 23:59:59  |  Standard: base_date + 2 BD 23:59:59
+    """
+    base = _compute_base_date(order)
 
     tags = order.get("tags") or ""
     if has_tag(tags, "express"):
@@ -113,6 +115,16 @@ def compute_delivery_promise(order: dict) -> datetime:
     return datetime(
         promise_date.year, promise_date.month, promise_date.day,
         23, 59, 59,
+        tzinfo=_SANTIAGO_TZ,
+    )
+
+
+def compute_handoff_date(order: dict) -> datetime:
+    """Compute warehouse handoff deadline: base_date at 18:00 Santiago."""
+    base = _compute_base_date(order)
+    return datetime(
+        base.year, base.month, base.day,
+        _WAREHOUSE_CLOSE_HOUR, 0, 0,
         tzinfo=_SANTIAGO_TZ,
     )
 
@@ -159,8 +171,10 @@ def to_order_create(raw: dict, source: str = "shopify") -> OrderCreate | None:
     try:
         if is_skn:
             limit_delivery_date = _compute_skn_promise(raw)
+            limit_handoff_date = compute_handoff_date(raw)
         else:
             limit_delivery_date = compute_delivery_promise(raw)
+            limit_handoff_date = compute_handoff_date(raw)
     except Exception as e:
         logger.warning(f"Shopify order {raw.get('name')}: cannot compute promise: {e}")
         return None
@@ -192,6 +206,7 @@ def to_order_create(raw: dict, source: str = "shopify") -> OrderCreate | None:
         status=status,
         created_at_source=created_at_source,
         limit_delivery_date=limit_delivery_date,
+        limit_handoff_date=limit_handoff_date,
         product_name=product_name,
         product_quantity=product_quantity,
         raw_data=raw,

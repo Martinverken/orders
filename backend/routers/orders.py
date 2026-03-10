@@ -145,12 +145,13 @@ def list_orders(
     order_number: Optional[str] = Query(None),
     page: int = Query(1, ge=1),
     per_page: int = Query(20, ge=1, le=100),
+    perspective: str = Query("bodega"),
 ):
     result = order_repo.get_paginated(
         source=source, status=status, urgency=urgency,
         product_name=product_name, logistics_operator=logistics_operator,
         city=city, commune=commune, order_number=order_number,
-        page=page, per_page=per_page,
+        page=page, per_page=per_page, perspective=perspective,
     )
     order_ids = [o.id for o in result.data]
     ids_with_cases = delayed_repo.get_order_ids_with_cases(order_ids) if order_ids else set()

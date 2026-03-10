@@ -2,6 +2,8 @@ export type OrderUrgency = "overdue" | "due_today" | "delivered_today" | "tomorr
 export type OrderSource = "falabella" | "mercadolibre" | "shopify" | "walmart" | "paris";
 export type SyncStatus = "running" | "success" | "error";
 
+export type Perspective = "bodega" | "cliente";
+
 export interface Order {
   id: string;
   external_id: string;
@@ -9,6 +11,7 @@ export interface Order {
   status: string;
   created_at_source?: string | null;
   limit_delivery_date: string;
+  limit_handoff_date?: string | null;
   urgency: OrderUrgency;
   product_name?: string | null;
   product_quantity?: number | null;
@@ -104,12 +107,15 @@ export interface HistoricalOrder {
   external_id: string;
   source: OrderSource;
   limit_delivery_date: string;
+  limit_handoff_date?: string | null;
   resolved_at: string;
   delivered_at?: string | null;
+  handoff_at?: string | null;
   days_delayed: number;
   logistics_operator?: string | null;
   urgency?: string | null;
   status?: string | null;
+  blame?: string | null;  // 'bodega' | 'transportista'
   raw_data?: Record<string, unknown>;
   comprobante?: string | null;
   case_number?: string | null;
