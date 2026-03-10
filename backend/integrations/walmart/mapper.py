@@ -59,81 +59,147 @@ def _resolve_status(order_lines: list[WalmartOrderLine]) -> str:
     return min(statuses, key=lambda s: _PRIORITY.get(s, 99))
 
 
-def to_order_create(raw: dict) -> OrderCreate | None:
-    """Convert raw Walmart order dict to canonical OrderCreate."""
-    order = WalmartOrder(**raw)
+def _unwrap_order_lines(raw: dict) -> tuple[list[dict], list[WalmartOrderLine]]:
+    """Parse and unwrap Walmart order lines from raw dict.
 
-    if not order.purchaseOrderId:
-        logger.warning("Walmart order missing purchaseOrderId — skipping")
-        return None
-
-    # Parse order lines
+    Returns (raw_line_list, parsed_order_lines).
+    """
     order_lines_raw = raw.get("orderLines") or {}
     line_list = order_lines_raw.get("orderLine") or []
     if isinstance(line_list, dict):
         line_list = [line_list]
     # Walmart Chile wraps nested arrays in an object:
     # {"charges": {"charge": [...]}, "orderLineStatuses": {"orderLineStatus": [...]}}
-    # Unwrap before parsing so Pydantic gets plain lists.
     for ln in line_list:
         if isinstance(ln.get("charges"), dict):
             ln["charges"] = ln["charges"].get("charge") or []
         if isinstance(ln.get("orderLineStatuses"), dict):
             ln["orderLineStatuses"] = ln["orderLineStatuses"].get("orderLineStatus") or []
-    order_lines = [WalmartOrderLine(**ln) for ln in line_list]
+    return line_list, [WalmartOrderLine(**ln) for ln in line_list]
 
-    # Resolve status
+
+def _get_line_tracking(line: dict) -> str:
+    """Extract tracking number from a raw order line dict."""
+    statuses = line.get("orderLineStatuses") or []
+    for s in statuses:
+        if isinstance(s, dict):
+            ti = s.get("trackingInfo") or {}
+            if isinstance(ti, dict) and ti.get("trackingNumber"):
+                return str(ti["trackingNumber"])
+    return ""
+
+
+def to_order_create(raw: dict) -> OrderCreate | None:
+    """Convert raw Walmart order dict to canonical OrderCreate.
+
+    For multi-line orders with different tracking, returns only the first.
+    """
+    results = to_order_creates(raw)
+    return results[0] if results else None
+
+
+def to_order_creates(raw: dict) -> list[OrderCreate]:
+    """Convert raw Walmart order dict to canonical OrderCreate(s).
+
+    When an order has multiple orderLines with different tracking numbers,
+    each line becomes a separate OrderCreate with external_id = '{poId}-{index}'.
+    Single-line orders or lines with same tracking keep external_id = '{poId}'.
+    """
+    order = WalmartOrder(**raw)
+
+    if not order.purchaseOrderId:
+        logger.warning("Walmart order missing purchaseOrderId — skipping")
+        return []
+
+    line_list_raw, order_lines = _unwrap_order_lines(raw)
+
+    # Resolve overall status
     status = _resolve_status(order_lines)
 
-    # Skip terminal statuses — these are already handled
+    # Skip terminal statuses
     if status in ("delivered", "cancelled"):
         logger.info(f"Walmart order {order.purchaseOrderId} is {status} — skipping")
-        return None
+        return []
 
-    # Resolve delivery deadline from shippingInfo.estimatedShipDate
-    # Walmart Standard works like Falabella Regular: our deadline is when
-    # we hand the package to the carrier (estimatedShipDate), not when
-    # the customer receives it (estimatedDeliveryDate).
+    # Resolve delivery deadline
     shipping = order.shippingInfo
     limit_delivery_date = None
     if shipping:
         limit_delivery_date = _epoch_to_datetime(shipping.estimatedShipDate)
 
     if not limit_delivery_date:
-        logger.warning(
-            f"Walmart order {order.purchaseOrderId} has no estimatedShipDate — skipping"
-        )
-        return None
+        logger.warning(f"Walmart order {order.purchaseOrderId} has no estimatedShipDate — skipping")
+        return []
 
-    # Skip orders whose delivery deadline date has already passed (compare dates, not datetimes)
     today = datetime.now(_SANTIAGO).date()
     deadline_date = limit_delivery_date.astimezone(_SANTIAGO).date() if limit_delivery_date.tzinfo else limit_delivery_date.date()
     if deadline_date < today:
         logger.debug(f"Walmart order {order.purchaseOrderId} skipped: deadline {deadline_date} already passed")
-        return None
+        return []
 
-    # Extract product info from first order line
-    product_name = None
-    product_quantity = None
-    if order_lines:
-        first = order_lines[0]
-        if first.item:
-            product_name = first.item.productName or first.item.sku
-        qty = first.orderLineQuantity
-        if qty and qty.amount:
-            try:
-                product_quantity = int(qty.amount)
-            except (ValueError, TypeError):
-                pass
+    created_at_source = _epoch_to_datetime(order.orderDate)
 
-    return OrderCreate(
-        external_id=str(order.purchaseOrderId),
-        source="walmart",
-        status=status,
-        created_at_source=_epoch_to_datetime(order.orderDate),
-        limit_delivery_date=limit_delivery_date,
-        limit_handoff_date=limit_delivery_date,  # Walmart Standard: handoff = delivery deadline
-        product_name=product_name,
-        product_quantity=product_quantity,
-        raw_data=raw,
-    )
+    # Check for multiple lines with different tracking numbers
+    tracking_numbers = {_get_line_tracking(ln) for ln in line_list_raw}
+    tracking_numbers.discard("")
+    should_split = len(tracking_numbers) > 1 and len(line_list_raw) > 1
+
+    if should_split:
+        results = []
+        for idx, (ln_raw, ol) in enumerate(zip(line_list_raw, order_lines)):
+            # Per-line product info
+            product_name = None
+            product_quantity = None
+            if ol.item:
+                product_name = ol.item.productName or ol.item.sku
+            if ol.orderLineQuantity and ol.orderLineQuantity.amount:
+                try:
+                    product_quantity = int(ol.orderLineQuantity.amount)
+                except (ValueError, TypeError):
+                    pass
+
+            # Per-line status
+            line_status = _resolve_status([ol])
+
+            # Per-line raw_data
+            line_raw = {**raw, "_line_index": idx}
+            line_raw["orderLines"] = {"orderLine": [ln_raw]}
+
+            results.append(OrderCreate(
+                external_id=f"{order.purchaseOrderId}-{idx}",
+                source="walmart",
+                status=line_status,
+                created_at_source=created_at_source,
+                limit_delivery_date=limit_delivery_date,
+                limit_handoff_date=limit_delivery_date,
+                product_name=product_name,
+                product_quantity=product_quantity,
+                raw_data=line_raw,
+            ))
+        return results
+    else:
+        # Single line or same tracking — original behavior
+        product_name = None
+        product_quantity = None
+        if order_lines:
+            first = order_lines[0]
+            if first.item:
+                product_name = first.item.productName or first.item.sku
+            qty = first.orderLineQuantity
+            if qty and qty.amount:
+                try:
+                    product_quantity = int(qty.amount)
+                except (ValueError, TypeError):
+                    pass
+
+        return [OrderCreate(
+            external_id=str(order.purchaseOrderId),
+            source="walmart",
+            status=status,
+            created_at_source=created_at_source,
+            limit_delivery_date=limit_delivery_date,
+            limit_handoff_date=limit_delivery_date,
+            product_name=product_name,
+            product_quantity=product_quantity,
+            raw_data=raw,
+        )]

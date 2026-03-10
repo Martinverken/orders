@@ -110,74 +110,93 @@ def _resolve_status(sub_order: ParisSubOrder) -> str:
 
 
 def to_order_create(raw: dict) -> OrderCreate | None:
-    """Convert raw Paris order dict to canonical OrderCreate."""
+    """Convert raw Paris order dict to canonical OrderCreate.
+
+    For multi-subOrder orders, returns only the first via to_order_creates().
+    """
+    results = to_order_creates(raw)
+    return results[0] if results else None
+
+
+def to_order_creates(raw: dict) -> list[OrderCreate]:
+    """Convert raw Paris order dict to canonical OrderCreate(s).
+
+    Each subOrder becomes a separate OrderCreate (each is a distinct shipment/bulto).
+    Uses subOrderNumber as external_id per subOrder.
+    """
     order = ParisOrder(**raw)
 
     if not order.id:
         logger.warning("[paris] Order missing id — skipping")
-        return None
+        return []
 
-    # Get first subOrder (primary shipment)
     sub_orders = order.subOrders or []
     if not sub_orders:
         logger.warning(f"[paris] Order {order.id} has no subOrders — skipping")
-        return None
+        return []
 
-    sub = sub_orders[0]
-    if isinstance(sub, dict):
-        sub = ParisSubOrder(**sub)
-
-    # Resolve status from subOrder
-    status = _resolve_status(sub)
-
-    # Skip terminal statuses
-    if status in ("delivered", "cancelled"):
-        logger.info(f"[paris] Order {order.originOrderNumber} is {status} — skipping")
-        return None
-
-    # Resolve delivery deadline from dispatchDate
-    # dispatchDate = when seller must hand package to carrier (same as Falabella Regular)
-    limit_delivery_date = parse_paris_datetime(sub.dispatchDate)
-
-    # If dispatchDate is a date-only (no time), set end of day Santiago
-    if limit_delivery_date and limit_delivery_date.hour == 0 and limit_delivery_date.minute == 0:
-        limit_delivery_date = limit_delivery_date.replace(hour=23, minute=59, second=0)
-
-    if not limit_delivery_date:
-        logger.warning(f"[paris] Order {order.originOrderNumber} has no dispatchDate — skipping")
-        return None
-
-    # Skip orders whose delivery deadline date has already passed (compare dates, not datetimes)
+    created_at_source = parse_paris_datetime(order.createdAt or order.originOrderDate)
     today = datetime.now(_SANTIAGO).date()
-    deadline_date = limit_delivery_date.astimezone(_SANTIAGO).date() if limit_delivery_date.tzinfo else limit_delivery_date.date()
-    if deadline_date < today:
-        logger.debug(f"[paris] Order {order.originOrderNumber} skipped: deadline {deadline_date} already passed")
-        return None
+    is_multi = len(sub_orders) > 1
 
-    # Extract product info from first item of first subOrder
-    product_name = None
-    product_quantity = None
-    items = sub.items or []
-    if items:
-        first_item = items[0]
-        if isinstance(first_item, dict):
-            product_name = first_item.get("name")
-        else:
-            product_name = first_item.name
-        # Paris doesn't have quantity per item in subOrder; default to 1
-        product_quantity = 1
+    results = []
+    for idx, sub in enumerate(sub_orders):
+        if isinstance(sub, dict):
+            sub = ParisSubOrder(**sub)
 
-    # Use subOrderNumber as external_id (Paris always works with sub-orders, 10 digits)
-    external_id = sub.subOrderNumber or str(order.id)
+        # Resolve status from subOrder
+        status = _resolve_status(sub)
 
-    return OrderCreate(
-        external_id=external_id,
-        source="paris",
-        status=status,
-        created_at_source=parse_paris_datetime(order.createdAt or order.originOrderDate),
-        limit_delivery_date=limit_delivery_date,
-        limit_handoff_date=limit_delivery_date,  # Paris Regular: handoff = delivery deadline
-        product_name=product_name,
-        product_quantity=product_quantity,
-        raw_data=raw,
-    )
+        # Skip terminal statuses
+        if status in ("delivered", "cancelled"):
+            logger.info(f"[paris] Order {order.originOrderNumber} sub {sub.subOrderNumber} is {status} — skipping")
+            continue
+
+        # Resolve delivery deadline from dispatchDate
+        limit_delivery_date = parse_paris_datetime(sub.dispatchDate)
+
+        # If dispatchDate is a date-only (no time), set end of day Santiago
+        if limit_delivery_date and limit_delivery_date.hour == 0 and limit_delivery_date.minute == 0:
+            limit_delivery_date = limit_delivery_date.replace(hour=23, minute=59, second=0)
+
+        if not limit_delivery_date:
+            logger.warning(f"[paris] Order {order.originOrderNumber} sub {sub.subOrderNumber} has no dispatchDate — skipping")
+            continue
+
+        # Skip orders whose delivery deadline date has already passed
+        deadline_date = limit_delivery_date.astimezone(_SANTIAGO).date() if limit_delivery_date.tzinfo else limit_delivery_date.date()
+        if deadline_date < today:
+            logger.debug(f"[paris] Order {order.originOrderNumber} sub {sub.subOrderNumber} skipped: deadline {deadline_date} already passed")
+            continue
+
+        # Extract product info from first item of this subOrder
+        product_name = None
+        product_quantity = None
+        items = sub.items or []
+        if items:
+            first_item = items[0]
+            if isinstance(first_item, dict):
+                product_name = first_item.get("name")
+            else:
+                product_name = first_item.name
+            product_quantity = 1
+
+        # Use subOrderNumber as external_id (each subOrder is a distinct shipment)
+        external_id = sub.subOrderNumber or (f"{order.id}-{idx}" if is_multi else str(order.id))
+
+        # Per-subOrder raw_data
+        sub_raw = {**raw, "_suborder_index": idx}
+
+        results.append(OrderCreate(
+            external_id=external_id,
+            source="paris",
+            status=status,
+            created_at_source=created_at_source,
+            limit_delivery_date=limit_delivery_date,
+            limit_handoff_date=limit_delivery_date,  # Paris Regular: handoff = delivery deadline
+            product_name=product_name,
+            product_quantity=product_quantity,
+            raw_data=sub_raw,
+        ))
+
+    return results

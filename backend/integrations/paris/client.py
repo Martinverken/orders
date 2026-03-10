@@ -90,8 +90,7 @@ class ParisClient(BaseIntegration):
                     break
 
                 for raw_order in raw_orders:
-                    order = mapper.to_order_create(raw_order)
-                    if order:
+                    for order in mapper.to_order_creates(raw_order):
                         yield order
 
                 # Check if more pages exist

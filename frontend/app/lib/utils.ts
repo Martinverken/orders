@@ -217,12 +217,19 @@ export function getOrderNumber(raw_data?: Record<string, unknown>, fallback?: st
     const suffix = fulIdx !== undefined ? ` (bulto ${Number(fulIdx) + 1})` : "";
     return String(raw_data.name) + suffix;
   }
-  // Walmart: purchaseOrderId
-  if (raw_data?.purchaseOrderId) return String(raw_data.purchaseOrderId);
-  // Paris: originOrderNumber or subOrderNumber
+  // Walmart: purchaseOrderId + line index for multi-bulto
+  if (raw_data?.purchaseOrderId) {
+    const lineIdx = raw_data._line_index;
+    const suffix = lineIdx !== undefined ? ` (bulto ${Number(lineIdx) + 1})` : "";
+    return String(raw_data.purchaseOrderId) + suffix;
+  }
+  // Paris: originOrderNumber or subOrderNumber + suborder index for multi-bulto
   if (raw_data?.subOrders !== undefined) {
+    const subIdx = raw_data._suborder_index;
     const subs = raw_data.subOrders as Record<string, unknown>[];
-    return subs?.[0]?.subOrderNumber ? String(subs[0].subOrderNumber) : (raw_data.originOrderNumber ? String(raw_data.originOrderNumber) : fallback ?? "");
+    const base = subs?.[0]?.subOrderNumber ? String(subs[0].subOrderNumber) : (raw_data.originOrderNumber ? String(raw_data.originOrderNumber) : fallback ?? "");
+    const suffix = subIdx !== undefined ? ` (bulto ${Number(subIdx) + 1})` : "";
+    return base + suffix;
   }
   // Falabella: OrderNumber + item index for multi-bulto orders
   if (raw_data?.OrderNumber) {

@@ -1,6 +1,6 @@
 """Tests for Paris (Cencosud) order mapper."""
 import pytest
-from integrations.paris.mapper import to_order_create, parse_paris_datetime
+from integrations.paris.mapper import to_order_create, to_order_creates, parse_paris_datetime
 
 
 class TestHappyPath:
@@ -67,3 +67,58 @@ class TestParseDatetime:
 
     def test_none_input(self):
         assert parse_paris_datetime(None) is None
+
+
+class TestMultiBulto:
+    def test_single_suborder_no_split(self, paris_raw):
+        results = to_order_creates(paris_raw)
+        assert len(results) == 1
+
+    def test_multi_suborder_splits(self, paris_raw):
+        paris_raw["subOrders"] = [
+            {
+                "id": 1,
+                "subOrderNumber": "SUB-001",
+                "status": {"id": 1, "name": "pending"},
+                "dispatchDate": "2026-03-12",
+                "items": [{"name": "Cojín A"}],
+            },
+            {
+                "id": 2,
+                "subOrderNumber": "SUB-002",
+                "status": {"id": 1, "name": "pending"},
+                "dispatchDate": "2026-03-12",
+                "items": [{"name": "Cojín B"}],
+            },
+        ]
+        results = to_order_creates(paris_raw)
+        assert len(results) == 2
+        assert results[0].external_id == "SUB-001"
+        assert results[1].external_id == "SUB-002"
+        assert results[0].product_name == "Cojín A"
+        assert results[1].product_name == "Cojín B"
+        assert results[0].raw_data["_suborder_index"] == 0
+        assert results[1].raw_data["_suborder_index"] == 1
+
+    def test_multi_suborder_skips_terminal(self, paris_raw):
+        """Only non-terminal subOrders produce records."""
+        paris_raw["subOrders"] = [
+            {
+                "id": 1,
+                "subOrderNumber": "SUB-001",
+                "status": {"id": 1, "name": "pending"},
+                "dispatchDate": "2026-03-12",
+                "items": [{"name": "Cojín A"}],
+            },
+            {
+                "id": 2,
+                "subOrderNumber": "SUB-002",
+                "statusId": 4,
+                "status": {"id": 4, "name": "delivered"},
+                "dispatchDate": "2026-03-12",
+                "items": [{"name": "Cojín B"}],
+            },
+        ]
+        results = to_order_creates(paris_raw)
+        assert len(results) == 1
+        assert results[0].external_id == "SUB-001"

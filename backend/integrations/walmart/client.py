@@ -173,8 +173,7 @@ class WalmartClient(BaseIntegration):
                             continue
                         seen_ids.add(po_id)
                         new_on_page += 1
-                        order = mapper.to_order_create(raw_order)
-                        if order:
+                        for order in mapper.to_order_creates(raw_order):
                             yield order
 
                     # If all orders on this page were duplicates, stop paginating
