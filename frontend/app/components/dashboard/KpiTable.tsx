@@ -1,9 +1,9 @@
 "use client";
 
 import { useState } from "react";
-import { HistoricalOrder, KpiMetrics, KpiPeriod, OrderCase } from "@/app/types";
+import { HistoricalOrder, KpiMetrics, KpiPeriod, KpiDetailPeriod, OrderCase } from "@/app/types";
 import { getHistoricalOrders, addOrderCase } from "@/app/lib/api";
-import { SOURCE_LABEL, formatDeadline, getCreatedAt, getOrderNumber, getProductDetails, getShippingDestination, getTrackingCode, getTrackingUrl } from "@/app/lib/utils";
+import { SOURCE_LABEL, formatDeadline, getCreatedAt, getOrderNumber, getProductDetails, getShippingDestination, getShippingMethod, getOperator, getTrackingCode, getTrackingUrl } from "@/app/lib/utils";
 import { CaseHistoryModal } from "./CaseHistoryModal";
 
 interface Props {
@@ -137,6 +137,8 @@ function KpiDelayModal({ period, isWeekly, onClose }: { period: string; isWeekly
                   <th className="pb-3 pr-4 font-medium">Order N°</th>
                   <th className="pb-3 pr-4 font-medium">Marketplace</th>
                   <th className="pb-3 pr-4 font-medium">Producto</th>
+                  <th className="pb-3 pr-4 font-medium">Método Envío</th>
+                  <th className="pb-3 pr-4 font-medium">Operador</th>
                   <th className="pb-3 pr-4 font-medium">Estado</th>
                   <th className="pb-3 pr-4 font-medium">Fecha Límite</th>
                   <th className="pb-3 pr-4 font-medium">Fecha Entrega</th>
@@ -168,6 +170,8 @@ function KpiDelayModal({ period, isWeekly, onClose }: { period: string; isWeekly
                         </span>
                       </td>
                       <td className="py-2.5 pr-4 font-mono text-xs text-gray-600 max-w-[140px] truncate">{product.sku || "—"}</td>
+                      <td className="py-2.5 pr-4 text-xs text-gray-600">{getShippingMethod(order.source, order.raw_data ?? undefined)}</td>
+                      <td className="py-2.5 pr-4 text-xs text-gray-600">{getOperator(order.source, order.raw_data ?? undefined)}</td>
                       <td className="py-2.5 pr-4 text-xs text-gray-600">{order.status || "—"}</td>
                       <td className="py-2.5 pr-4 text-xs text-gray-600 whitespace-nowrap">{formatDeadline(order.limit_delivery_date)}</td>
                       <td className="py-2.5 pr-4 text-xs text-gray-600 whitespace-nowrap">{order.delivered_at ? formatDeadline(order.delivered_at) : "—"}</td>
@@ -271,8 +275,100 @@ function MetricsTable({
   );
 }
 
+const SOURCE_COLOR: Record<string, string> = {
+  falabella: "bg-orange-100 text-orange-700",
+  mercadolibre: "bg-yellow-100 text-yellow-700",
+  walmart: "bg-blue-100 text-blue-700",
+  paris: "bg-purple-100 text-purple-700",
+  shopify_verken: "bg-green-100 text-green-700",
+  shopify_kaut: "bg-green-100 text-green-700",
+};
+
+function DetailMetricsTable({
+  data,
+  formatPeriod,
+  isWeekly,
+  onClickDelayed,
+}: {
+  data: KpiDetailPeriod[];
+  formatPeriod: (p: string) => string;
+  isWeekly: boolean;
+  onClickDelayed: (period: string, isWeekly: boolean) => void;
+}) {
+  const rows = [...data].reverse();
+
+  return (
+    <table className="w-full text-sm">
+      <thead>
+        <tr className="text-left text-xs text-gray-500 border-b border-gray-100">
+          <th className="pb-3 font-medium pr-4">Periodo</th>
+          <th className="pb-3 font-medium pr-4">Fuente</th>
+          <th className="pb-3 font-medium pr-4">Método</th>
+          <th className="pb-3 font-medium text-right pr-4">Total</th>
+          <th className="pb-3 font-medium text-right pr-4">A tiempo</th>
+          <th className="pb-3 font-medium text-right pr-4">Atrasados</th>
+          <th className="pb-3 font-medium text-right pr-4">Bodega</th>
+          <th className="pb-3 font-medium text-right pr-4">Transportista</th>
+          <th className="pb-3 font-medium text-right pr-4">% Cumplim.</th>
+          <th className="pb-3 font-medium pr-4"></th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-gray-50">
+        {rows.map((row, i) => (
+          <tr key={`${row.period}-${row.source}-${row.method}-${i}`} className="hover:bg-gray-50">
+            <td className="py-3 text-gray-700 whitespace-nowrap pr-4 capitalize">
+              {formatPeriod(row.period)}
+            </td>
+            <td className="py-3 pr-4">
+              <span className={`inline-flex items-center px-2 py-0.5 rounded text-xs font-medium ${SOURCE_COLOR[row.source] || "bg-gray-100 text-gray-700"}`}>
+                {SOURCE_LABEL[row.source] ?? row.source}
+              </span>
+            </td>
+            <td className="py-3 pr-4 text-xs text-gray-600">{row.method}</td>
+            <td className="py-3 text-right font-medium text-gray-700 pr-4">{row.total}</td>
+            <td className="py-3 text-right text-green-700 font-medium pr-4">{row.total - row.delayed}</td>
+            <td className="py-3 text-right pr-4">
+              {row.delayed > 0 ? (
+                <button
+                  onClick={() => onClickDelayed(row.period, isWeekly)}
+                  className="text-red-600 font-medium hover:underline cursor-pointer"
+                >
+                  {row.delayed}
+                </button>
+              ) : (
+                <span className="text-gray-400">0</span>
+              )}
+            </td>
+            <td className="py-3 text-right pr-4">
+              {row.bodega > 0 ? (
+                <span className="text-orange-600 font-medium">{row.bodega}</span>
+              ) : (
+                <span className="text-gray-400">0</span>
+              )}
+            </td>
+            <td className="py-3 text-right pr-4">
+              {row.transportista > 0 ? (
+                <span className="text-purple-600 font-medium">{row.transportista}</span>
+              ) : (
+                <span className="text-gray-400">0</span>
+              )}
+            </td>
+            <td className="py-3 text-right pr-4">
+              <ComplianceBadge pct={100 - row.pct_delayed} />
+            </td>
+            <td className="py-3 pr-4">
+              <ComplianceBar pct={100 - row.pct_delayed} />
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+}
+
 export function KpiTable({ metrics }: Props) {
   const [view, setView] = useState<"monthly" | "weekly">("monthly");
+  const [mode, setMode] = useState<"aggregate" | "detail">("aggregate");
   const [detailPeriod, setDetailPeriod] = useState<{ period: string; isWeekly: boolean } | null>(null);
 
   if (!metrics.monthly.length && !metrics.weekly.length) {
@@ -289,34 +385,66 @@ export function KpiTable({ metrics }: Props) {
 
   return (
     <div>
-      <div className="flex gap-1 mb-4">
-        <button
-          onClick={() => setView("monthly")}
-          className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-            view === "monthly"
-              ? "bg-gray-900 text-white"
-              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-          }`}
-        >
-          Mensual
-        </button>
-        <button
-          onClick={() => setView("weekly")}
-          className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
-            view === "weekly"
-              ? "bg-gray-900 text-white"
-              : "bg-gray-100 text-gray-600 hover:bg-gray-200"
-          }`}
-        >
-          Semanal
-        </button>
+      <div className="flex items-center gap-4 mb-4">
+        <div className="flex gap-1">
+          <button
+            onClick={() => setView("monthly")}
+            className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+              view === "monthly"
+                ? "bg-gray-900 text-white"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            Mensual
+          </button>
+          <button
+            onClick={() => setView("weekly")}
+            className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+              view === "weekly"
+                ? "bg-gray-900 text-white"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            Semanal
+          </button>
+        </div>
+        <div className="flex gap-1">
+          <button
+            onClick={() => setMode("aggregate")}
+            className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+              mode === "aggregate"
+                ? "bg-gray-900 text-white"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            Agregado
+          </button>
+          <button
+            onClick={() => setMode("detail")}
+            className={`px-3 py-1.5 text-sm rounded-lg transition-colors ${
+              mode === "detail"
+                ? "bg-gray-900 text-white"
+                : "bg-gray-100 text-gray-600 hover:bg-gray-200"
+            }`}
+          >
+            Por fuente
+          </button>
+        </div>
       </div>
 
       <div className="overflow-x-auto">
-        {view === "monthly" ? (
-          <MetricsTable data={metrics.monthly} formatPeriod={formatMonth} isWeekly={false} onClickDelayed={handleClickDelayed} />
+        {mode === "aggregate" ? (
+          view === "monthly" ? (
+            <MetricsTable data={metrics.monthly} formatPeriod={formatMonth} isWeekly={false} onClickDelayed={handleClickDelayed} />
+          ) : (
+            <MetricsTable data={metrics.weekly} formatPeriod={formatWeek} isWeekly={true} onClickDelayed={handleClickDelayed} />
+          )
         ) : (
-          <MetricsTable data={metrics.weekly} formatPeriod={formatWeek} isWeekly={true} onClickDelayed={handleClickDelayed} />
+          view === "monthly" ? (
+            <DetailMetricsTable data={metrics.monthly_detail} formatPeriod={formatMonth} isWeekly={false} onClickDelayed={handleClickDelayed} />
+          ) : (
+            <DetailMetricsTable data={metrics.weekly_detail} formatPeriod={formatWeek} isWeekly={true} onClickDelayed={handleClickDelayed} />
+          )
         )}
       </div>
 

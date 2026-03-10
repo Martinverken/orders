@@ -15,7 +15,7 @@ from zoneinfo import ZoneInfo
 import httpx
 
 from integrations.base import BaseIntegration, IntegrationError
-from integrations.shopify.mapper import to_order_create
+from integrations.shopify.mapper import to_order_creates
 from models.order import OrderCreate
 
 logger = logging.getLogger(__name__)
@@ -48,7 +48,7 @@ class ShopifyClient(BaseIntegration):
             "status": "any",
             "limit": 250,
             "created_at_min": since.isoformat(),
-            "fields": "id,name,order_number,tags,financial_status,fulfillment_status,created_at,line_items,shipping_address",
+            "fields": "id,name,order_number,tags,financial_status,fulfillment_status,created_at,line_items,shipping_address,fulfillments",
         }
 
         fetched = 0
@@ -69,12 +69,13 @@ class ShopifyClient(BaseIntegration):
 
                 for raw in orders:
                     fetched += 1
-                    mapped = to_order_create(raw, source=self._source_name)
-                    if mapped is None:
+                    results = to_order_creates(raw, source=self._source_name)
+                    if not results:
                         skipped_ineligible += 1
                         continue
 
-                    yield mapped
+                    for order in results:
+                        yield order
 
                 # Cursor-based pagination via Link header
                 link_header = resp.headers.get("Link", "")

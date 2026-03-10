@@ -149,9 +149,16 @@ export interface KpiPeriod {
   transportista: number;
 }
 
+export interface KpiDetailPeriod extends KpiPeriod {
+  source: string;
+  method: string;
+}
+
 export interface KpiMetrics {
   monthly: KpiPeriod[];
   weekly: KpiPeriod[];
+  monthly_detail: KpiDetailPeriod[];
+  weekly_detail: KpiDetailPeriod[];
 }
 
 export interface CESchedule {

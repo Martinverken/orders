@@ -153,14 +153,26 @@ def _get_commune(raw: dict) -> str | None:
 def to_order_create(raw: dict, source: str = "shopify") -> OrderCreate | None:
     """Convert raw Shopify order dict to canonical OrderCreate.
 
-    Returns None if the order is not eligible.
+    For single-fulfillment or no-fulfillment orders returns one OrderCreate.
+    For multi-fulfillment orders, returns only the first via to_order_creates().
+    """
+    results = to_order_creates(raw, source)
+    return results[0] if results else None
+
+
+def to_order_creates(raw: dict, source: str = "shopify") -> list[OrderCreate]:
+    """Convert raw Shopify order dict to canonical OrderCreate(s).
+
+    When an order has multiple fulfillments with different tracking numbers,
+    each fulfillment becomes a separate OrderCreate with external_id = '{id}-{index}'.
+    Single-fulfillment orders keep external_id = '{id}'.
     """
     eligibility = check_eligibility(raw)
     if not eligibility["eligible"]:
         logger.debug(
             f"Shopify order {raw.get('name')} not eligible: {eligibility['reasons']}"
         )
-        return None
+        return []
 
     tags = raw.get("tags") or ""
     is_skn = has_tag(tags, "SKN")
@@ -174,16 +186,11 @@ def to_order_create(raw: dict, source: str = "shopify") -> OrderCreate | None:
             limit_handoff_date = compute_handoff_date(raw)
     except Exception as e:
         logger.warning(f"Shopify order {raw.get('name')}: cannot compute promise: {e}")
-        return None
+        return []
 
     if limit_delivery_date is None:
         logger.warning(f"Shopify order {raw.get('name')}: SKN commune not in transit matrix")
-        return None
-
-    # Don't skip past-deadline orders — they stay as OVERDUE until courier delivers.
-    # The cleanup logic in sync_service handles archival only when status=delivered.
-
-    product_name, product_quantity = _get_product_info(raw)
+        return []
 
     created_raw = raw.get("created_at")
     try:
@@ -191,23 +198,75 @@ def to_order_create(raw: dict, source: str = "shopify") -> OrderCreate | None:
     except ValueError:
         created_at_source = None
 
-    # Map Shopify fulfillment_status to internal status:
-    # - null/unfulfilled → pending (not yet prepared)
-    # - fulfilled → shipped (handed to Welivery/Starken courier — our responsibility ends)
-    fulfillment = raw.get("fulfillment_status")
-    status = "shipped" if fulfillment == "fulfilled" else "pending"
+    # Map Shopify fulfillment_status to internal status
+    fulfillment_status = raw.get("fulfillment_status")
+    status = "shipped" if fulfillment_status == "fulfilled" else "pending"
 
-    return OrderCreate(
-        external_id=str(raw["id"]),
-        source=source,
-        status=status,
-        created_at_source=created_at_source,
-        limit_delivery_date=limit_delivery_date,
-        limit_handoff_date=limit_handoff_date,
-        product_name=product_name,
-        product_quantity=product_quantity,
-        raw_data=raw,
-    )
+    # Check for multiple fulfillments (bultos)
+    fulfillments = raw.get("fulfillments") or []
+    tracking_numbers = {
+        (f.get("tracking_number") or "") for f in fulfillments if isinstance(f, dict)
+    }
+    tracking_numbers.discard("")
+    should_split = len(tracking_numbers) > 1 and len(fulfillments) > 1
+
+    if should_split:
+        results = []
+        for idx, ful in enumerate(fulfillments):
+            if not isinstance(ful, dict):
+                continue
+            # Per-fulfillment product info
+            ful_items = ful.get("line_items") or []
+            if ful_items:
+                first = ful_items[0]
+                product_name = first.get("title") or first.get("name")
+                qty = first.get("quantity")
+                try:
+                    product_quantity = int(qty) if qty is not None else None
+                except (ValueError, TypeError):
+                    product_quantity = None
+            else:
+                product_name, product_quantity = None, None
+
+            # Per-fulfillment status
+            ful_status = ful.get("status")
+            if ful_status == "success":
+                item_status = "shipped"
+            elif status == "shipped":
+                item_status = "shipped"
+            else:
+                item_status = "pending"
+
+            # Per-fulfillment raw_data
+            item_raw = {**raw, "fulfillments": [ful], "_fulfillment_index": idx}
+
+            results.append(OrderCreate(
+                external_id=f"{raw['id']}-{idx}",
+                source=source,
+                status=item_status,
+                created_at_source=created_at_source,
+                limit_delivery_date=limit_delivery_date,
+                limit_handoff_date=limit_handoff_date,
+                product_name=product_name,
+                product_quantity=product_quantity,
+                raw_data=item_raw,
+            ))
+        return results
+    else:
+        # Single fulfillment or no fulfillments — original behavior
+        product_name, product_quantity = _get_product_info(raw)
+
+        return [OrderCreate(
+            external_id=str(raw["id"]),
+            source=source,
+            status=status,
+            created_at_source=created_at_source,
+            limit_delivery_date=limit_delivery_date,
+            limit_handoff_date=limit_handoff_date,
+            product_name=product_name,
+            product_quantity=product_quantity,
+            raw_data=raw,
+        )]
 
 
 def _compute_skn_promise(raw: dict) -> datetime | None:

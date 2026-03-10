@@ -4,6 +4,7 @@ from datetime import date, datetime
 from zoneinfo import ZoneInfo
 from integrations.shopify.mapper import (
     to_order_create,
+    to_order_creates,
     has_tag,
     check_eligibility,
     is_business_day,
@@ -186,3 +187,48 @@ class TestSKNMapper:
             "shipping_address": {"city": "ANTOFAGASTA"},
         }
         assert to_order_create(raw) is None
+
+
+class TestMultiBulto:
+    def test_single_fulfillment_no_split(self, shopify_raw):
+        """Single fulfillment keeps original external_id."""
+        shopify_raw["fulfillments"] = [
+            {"tracking_number": "WEL001", "status": "success", "line_items": [{"title": "Pack Vitaminas", "quantity": 3}]},
+        ]
+        shopify_raw["fulfillment_status"] = "fulfilled"
+        results = to_order_creates(shopify_raw)
+        assert len(results) == 1
+        assert results[0].external_id == "7001"
+
+    def test_multi_fulfillment_different_tracking_splits(self, shopify_raw):
+        """Multiple fulfillments with different tracking codes produce separate records."""
+        shopify_raw["fulfillments"] = [
+            {"tracking_number": "WEL001", "status": "success", "line_items": [{"title": "Bolsas Seca 5L", "quantity": 1}]},
+            {"tracking_number": "WEL002", "status": "success", "line_items": [{"title": "Bombín Universal", "quantity": 1}]},
+        ]
+        shopify_raw["fulfillment_status"] = "fulfilled"
+        results = to_order_creates(shopify_raw)
+        assert len(results) == 2
+        assert results[0].external_id == "7001-0"
+        assert results[1].external_id == "7001-1"
+        assert results[0].product_name == "Bolsas Seca 5L"
+        assert results[1].product_name == "Bombín Universal"
+        assert results[0].raw_data["_fulfillment_index"] == 0
+        assert results[1].raw_data["_fulfillment_index"] == 1
+
+    def test_multi_fulfillment_same_tracking_no_split(self, shopify_raw):
+        """Multiple fulfillments with the same tracking code stay as one record."""
+        shopify_raw["fulfillments"] = [
+            {"tracking_number": "WEL001", "status": "success", "line_items": [{"title": "Item A", "quantity": 1}]},
+            {"tracking_number": "WEL001", "status": "success", "line_items": [{"title": "Item B", "quantity": 1}]},
+        ]
+        shopify_raw["fulfillment_status"] = "fulfilled"
+        results = to_order_creates(shopify_raw)
+        assert len(results) == 1
+        assert results[0].external_id == "7001"
+
+    def test_no_fulfillments_no_split(self, shopify_raw):
+        """Order with no fulfillments produces one record."""
+        results = to_order_creates(shopify_raw)
+        assert len(results) == 1
+        assert results[0].external_id == "7001"

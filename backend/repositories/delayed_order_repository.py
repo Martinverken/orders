@@ -7,6 +7,20 @@ from repositories.order_repository import _extract_city_commune
 from integrations.welivery.client import get_comprobante
 
 
+def _classify_shipping_method(source: str, raw_data: dict) -> str:
+    """Classify an order's shipping method from source + raw_data."""
+    if source.startswith("shopify"):
+        tags = (raw_data.get("tags") or "").lower().split(",")
+        return "Express" if "express" in [t.strip() for t in tags] else "Regular/Centro Envíos"
+    if source == "falabella":
+        spt = (raw_data.get("ShippingProviderType") or "").strip().lower()
+        return "Direct/Flex" if spt in ("direct", "falaflex") else "Regular/Centro Envíos"
+    if source == "mercadolibre":
+        mode = (raw_data.get("delivery_mode") or "").lower()
+        return "Direct/Flex" if mode in ("flex", "self_service") else "Regular/Centro Envíos"
+    return "Regular/Centro Envíos"
+
+
 def _extract_logistics_operator(order: Order) -> str | None:
     """Extract logistics operator from raw_data depending on source."""
     if not order.raw_data:
@@ -38,6 +52,12 @@ def _get_welivery_id(order: Order) -> str | None:
     if not order.raw_data:
         return None
     if order.source.startswith("shopify"):
+        # Multi-bulto: use fulfillment tracking_number if available
+        fulfillments = order.raw_data.get("fulfillments") or []
+        if len(fulfillments) == 1 and isinstance(fulfillments[0], dict):
+            tracking = fulfillments[0].get("tracking_number")
+            if tracking:
+                return str(tracking)
         name = str(order.raw_data.get("name", "")).lstrip("#")
         return name or None
     if order.source == "mercadolibre":
@@ -411,46 +431,64 @@ class DelayedOrderRepository:
         """Return aggregate % delayed grouped by month and by week (ISO Monday-Sunday).
 
         Includes blame breakdown (bodega vs transportista) per period.
+        Also returns disaggregated data grouped by source + shipping method.
         """
+        from datetime import timedelta
+
         result = self.db.table(self.table).select(
-            "limit_delivery_date,days_delayed,blame"
+            "source,limit_delivery_date,days_delayed,blame,raw_data"
         ).execute()
         rows = result.data or []
 
-        monthly: dict[str, dict] = defaultdict(lambda: {"total": 0, "delayed": 0, "bodega": 0, "transportista": 0})
-        weekly: dict[str, dict] = defaultdict(lambda: {"total": 0, "delayed": 0, "bodega": 0, "transportista": 0})
+        def new_bucket():
+            return {"total": 0, "delayed": 0, "bodega": 0, "transportista": 0}
+
+        monthly: dict[str, dict] = defaultdict(new_bucket)
+        weekly: dict[str, dict] = defaultdict(new_bucket)
+        # Disaggregated: (period, source, method) → counts
+        monthly_detail: dict[tuple, dict] = defaultdict(new_bucket)
+        weekly_detail: dict[tuple, dict] = defaultdict(new_bucket)
 
         for r in rows:
             raw_date = r.get("limit_delivery_date", "")
             days = r.get("days_delayed")
             blame = r.get("blame")
+            source = r.get("source", "")
             if not raw_date or days is None:
                 continue
+
+            # Determine shipping method from raw_data
+            raw_data = r.get("raw_data") or {}
+            method = _classify_shipping_method(source, raw_data)
+
             month = str(raw_date)[:7]
-            monthly[month]["total"] += 1
-            if float(days) > 0:
-                monthly[month]["delayed"] += 1
-                if blame == "bodega":
-                    monthly[month]["bodega"] += 1
-                elif blame == "transportista":
-                    monthly[month]["transportista"] += 1
+            is_delayed = float(days) > 0
+
+            for bucket in (monthly[month], monthly_detail[(month, source, method)]):
+                bucket["total"] += 1
+                if is_delayed:
+                    bucket["delayed"] += 1
+                    if blame == "bodega":
+                        bucket["bodega"] += 1
+                    elif blame == "transportista":
+                        bucket["transportista"] += 1
+
             # ISO week (Monday-based)
             try:
                 dt = datetime.fromisoformat(str(raw_date)[:10])
-                iso_year, iso_week, _ = dt.isocalendar()
-                # Compute Monday of that ISO week for display
-                from datetime import timedelta
                 monday = dt - timedelta(days=dt.weekday())
                 week_key = monday.strftime("%Y-%m-%d")
             except Exception:
                 continue
-            weekly[week_key]["total"] += 1
-            if float(days) > 0:
-                weekly[week_key]["delayed"] += 1
-                if blame == "bodega":
-                    weekly[week_key]["bodega"] += 1
-                elif blame == "transportista":
-                    weekly[week_key]["transportista"] += 1
+
+            for bucket in (weekly[week_key], weekly_detail[(week_key, source, method)]):
+                bucket["total"] += 1
+                if is_delayed:
+                    bucket["delayed"] += 1
+                    if blame == "bodega":
+                        bucket["bodega"] += 1
+                    elif blame == "transportista":
+                        bucket["transportista"] += 1
 
         def build_list(buckets: dict) -> list[dict]:
             out = []
@@ -467,7 +505,29 @@ class DelayedOrderRepository:
                 })
             return out
 
-        return {"monthly": build_list(monthly), "weekly": build_list(weekly)}
+        def build_detail_list(buckets: dict) -> list[dict]:
+            out = []
+            for (period, source, method) in sorted(buckets.keys()):
+                b = buckets[(period, source, method)]
+                pct = round(b["delayed"] / b["total"] * 100, 1) if b["total"] > 0 else 0
+                out.append({
+                    "period": period,
+                    "source": source,
+                    "method": method,
+                    "total": b["total"],
+                    "delayed": b["delayed"],
+                    "pct_delayed": pct,
+                    "bodega": b["bodega"],
+                    "transportista": b["transportista"],
+                })
+            return out
+
+        return {
+            "monthly": build_list(monthly),
+            "weekly": build_list(weekly),
+            "monthly_detail": build_detail_list(monthly_detail),
+            "weekly_detail": build_detail_list(weekly_detail),
+        }
 
     def get_blame_counts(self) -> dict:
         """Return counts of delays by blame (bodega vs transportista).

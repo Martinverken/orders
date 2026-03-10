@@ -211,8 +211,12 @@ export function getCarrier(raw_data?: Record<string, unknown>): string {
 }
 
 export function getOrderNumber(raw_data?: Record<string, unknown>, fallback?: string): string {
-  // Shopify: order name e.g. "#1234"
-  if (raw_data?.name && raw_data?.financial_status !== undefined) return String(raw_data.name);
+  // Shopify: order name e.g. "#1234" + fulfillment index for multi-bulto
+  if (raw_data?.name && raw_data?.financial_status !== undefined) {
+    const fulIdx = raw_data._fulfillment_index;
+    const suffix = fulIdx !== undefined ? ` (bulto ${Number(fulIdx) + 1})` : "";
+    return String(raw_data.name) + suffix;
+  }
   // Walmart: purchaseOrderId
   if (raw_data?.purchaseOrderId) return String(raw_data.purchaseOrderId);
   // Paris: originOrderNumber or subOrderNumber
@@ -287,8 +291,12 @@ export function getTrackingUrl(raw_data?: Record<string, unknown>, tracking?: st
 
 export function getTrackingCode(raw_data?: Record<string, unknown>): string {
   if (!raw_data) return "";
-  // Shopify: order name without "#" is the Welivery reference
+  // Shopify: use fulfillment tracking_number if available (multi-bulto), else order name
   if (raw_data.financial_status !== undefined && raw_data.name) {
+    const fulfillments = raw_data.fulfillments as Record<string, unknown>[] | undefined;
+    if (fulfillments?.length === 1 && fulfillments[0]?.tracking_number) {
+      return String(fulfillments[0].tracking_number);
+    }
     return String(raw_data.name).replace(/^#/, "");
   }
   // Walmart: trackingInfo nested in orderLineStatuses[0].trackingInfo
