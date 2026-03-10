@@ -152,16 +152,26 @@ def _falabella_was_late(order: Order) -> bool:
 
 
 def _is_order_resolved(order: Order) -> bool:
-    """Determina si el pedido fue entregado al cliente final.
+    """Determina si el pedido salió del ámbito de seguimiento activo.
 
-    Todos los pedidos se archivan solo cuando llegan a estado 'delivered'.
-    Para ML, el estado relevante está en raw_data['shipment']['status'].
+    - Regular/CE: shipped = terminal (carrier picked up, seller done)
+    - Direct/Flex/Shopify: only delivered = terminal (seller delivers to client)
+    - ML: check shipment.status for real delivery status
     """
     if order.source == "mercadolibre":
         raw = order.raw_data or {}
         shipment = raw.get("shipment") or {}
         shipment_status = str(shipment.get("status", "")).lower()
-        return shipment_status == "delivered"
+        if shipment_status == "delivered":
+            return True
+        # ML Regular (cross_docking, etc.): shipped = terminal
+        if _is_regular_shipping(order) and order.status == "shipped":
+            return True
+        return False
+
+    # Regular/CE: shipped = terminal
+    if _is_regular_shipping(order) and order.status in ("shipped", "delivered"):
+        return True
 
     return order.status == "delivered"
 
