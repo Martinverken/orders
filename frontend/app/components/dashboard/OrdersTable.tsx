@@ -154,6 +154,7 @@ export function OrdersTable({ orders, orderIdsWithCases = [], perspective = "bod
             <th className="pb-3 pr-4 font-medium">Urgencia</th>
             <SortableHeader label="Fecha orden" col="created_at_source" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
             <th className="pb-3 pr-4 font-medium">Límite bodega</th>
+            <th className="pb-3 pr-4 font-medium">Entrega bodega</th>
             <SortableHeader label="Límite cliente" col="limit_delivery_date" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
             <th className="pb-3 pr-4 font-medium">Tracking</th>
             <th className="pb-3 pr-4 font-medium">Ciudad</th>
@@ -213,6 +214,11 @@ export function OrdersTable({ orders, orderIdsWithCases = [], perspective = "bod
                 </td>
                 <td className="py-3 pr-4 text-gray-600 whitespace-nowrap text-sm">
                   {formatDeadline(order.limit_handoff_date || order.limit_delivery_date, order.source)}
+                </td>
+                <td className="py-3 pr-4 text-gray-600 whitespace-nowrap text-sm">
+                  {perspective === "cliente" && order.first_shipped_at
+                    ? formatDeadline(order.first_shipped_at)
+                    : <span className="text-gray-400">—</span>}
                 </td>
                 <td className="py-3 pr-4 text-gray-600 whitespace-nowrap text-sm">
                   {(() => {
