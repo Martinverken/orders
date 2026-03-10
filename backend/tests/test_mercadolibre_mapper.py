@@ -29,11 +29,11 @@ class TestSkips:
 
 
 class TestStatusMapping:
-    def test_flex_shipped_remapped_to_ready_to_ship(self, ml_order_raw, ml_shipment_raw):
+    def test_flex_shipped_keeps_shipped(self, ml_order_raw, ml_shipment_raw):
         ml_shipment_raw["status"] = "shipped"
         result = to_order_create(ml_order_raw, ml_shipment_raw)
         assert result is not None
-        assert result.status == "ready_to_ship"
+        assert result.status == "shipped"
 
     def test_ce_not_remapped(self, ml_order_raw, ml_shipment_raw):
         """Centro de Envíos shipped stays as shipped."""

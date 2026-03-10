@@ -213,11 +213,6 @@ def to_order_create(order_raw: dict, shipment_raw: dict | None = None) -> OrderC
         logger.info(f"ML order {order.id} already delivered — skipping")
         return None
 
-    # Flex (self_service): "shipped" = seller is still delivering to customer, not terminal.
-    # Map to "ready_to_ship" so compute_urgency returns DUE_TODAY instead of DELIVERED_TODAY.
-    if logistic_type == "self_service" and shipment_status == "shipped":
-        shipment_status = "ready_to_ship"
-
     delivery_mode = resolve_delivery_mode(logistic_type)
 
     # Extract product info from order_items

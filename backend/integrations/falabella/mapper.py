@@ -97,10 +97,6 @@ def to_order_creates(raw: dict) -> list[OrderCreate]:
     elif isinstance(statuses_raw, str):
         status = statuses_raw
 
-    # Direct/FalaFlex: "shipped" = Welivery recogió del seller, aún no entregó al cliente.
-    # Map to "ready_to_ship" so compute_urgency returns DUE_TODAY instead of DELIVERED_TODAY.
-    if shipping_provider_type in _DIRECT_PROVIDER_TYPES and status == "shipped":
-        status = "ready_to_ship"
 
     # Compute limit_handoff_date:
     # Regular: handoff = limit_delivery_date (PromisedShippingTime IS the handoff deadline)

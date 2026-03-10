@@ -38,12 +38,12 @@ class TestSkips:
 
 
 class TestDirectProvider:
-    def test_direct_shipped_remapped_to_ready_to_ship(self, falabella_raw):
+    def test_direct_shipped_keeps_shipped(self, falabella_raw):
         falabella_raw["ShippingProviderType"] = "falaflex"
         falabella_raw["Statuses"] = [{"Status": "shipped"}]
         result = to_order_create(falabella_raw)
         assert result is not None
-        assert result.status == "ready_to_ship"
+        assert result.status == "shipped"
 
     def test_direct_no_delivery_date_fallback_created_at(self, falabella_raw):
         falabella_raw["ShippingProviderType"] = "direct"
