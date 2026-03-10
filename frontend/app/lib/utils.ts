@@ -104,6 +104,58 @@ const SHIPPING_PROVIDER_TYPE_LABEL: Record<string, string> = {
   "3pl": "Operador 3PL",
 };
 
+/**
+ * Determine the shipping method category from source + raw_data.
+ * Returns "Express", "Direct/Flex", or "Regular/Centro Envíos".
+ */
+export function getShippingMethod(source: string, raw_data?: Record<string, unknown>): string {
+  if (source.startsWith("shopify")) {
+    const tags = ((raw_data?.tags as string) || "").toLowerCase().split(",").map((t) => t.trim());
+    return tags.includes("express") ? "Express" : "Regular/Centro Envíos";
+  }
+  if (source === "falabella") {
+    const spt = ((raw_data?.ShippingProviderType as string) || "").toLowerCase();
+    if (spt === "direct" || spt === "falaflex") return "Direct/Flex";
+    return "Regular/Centro Envíos";
+  }
+  if (source === "mercadolibre") {
+    const mode = ((raw_data?.delivery_mode as string) || "").toLowerCase();
+    if (mode === "flex" || mode === "self_service") return "Direct/Flex";
+    return "Regular/Centro Envíos";
+  }
+  // Paris, Walmart: always Regular
+  return "Regular/Centro Envíos";
+}
+
+/**
+ * Determine the logistics operator (carrier) from source + raw_data.
+ * Returns clean operator name: Welivery, Bluexpress, Chilexpress, Mercado Libre, Transporte Interno.
+ */
+export function getOperator(source: string, raw_data?: Record<string, unknown>): string {
+  if (source.startsWith("shopify")) return "Welivery";
+  if (source === "walmart") return "Transporte Interno";
+  if (source === "paris") {
+    const subs = (raw_data?.subOrders as Record<string, unknown>[]) || [];
+    const carrier = subs?.[0]?.carrier ? String(subs[0].carrier) : "";
+    return carrier || "Enviame";
+  }
+  if (source === "falabella") {
+    const spt = ((raw_data?.ShippingProviderType as string) || "").toLowerCase();
+    if (spt === "direct" || spt === "falaflex") return "Welivery";
+    const provider = ((raw_data?.ShippingProvider as string) || "").toLowerCase();
+    if (provider.includes("blue")) return "Bluexpress";
+    if (provider.includes("chilex")) return "Chilexpress";
+    return provider || "Regular";
+  }
+  if (source === "mercadolibre") {
+    const mode = ((raw_data?.delivery_mode as string) || "").toLowerCase();
+    if (mode === "flex" || mode === "self_service") return "Welivery";
+    return "Mercado Libre";
+  }
+  return "";
+}
+
+// Legacy carrier function (kept for backwards compat)
 export function getCarrier(raw_data?: Record<string, unknown>): string {
   if (!raw_data) return "";
 

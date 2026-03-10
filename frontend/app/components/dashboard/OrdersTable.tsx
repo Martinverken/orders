@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { Order, OrderCase } from "@/app/types";
 import { UrgencyBadge, StatusBadge } from "@/app/components/ui/Badge";
-import { formatDate, formatDeadline, SOURCE_LABEL, getCarrier, getOrderNumber, getTrackingCode, getTrackingUrl, getProductDetails, getShippingDestination } from "@/app/lib/utils";
+import { formatDate, formatDeadline, SOURCE_LABEL, getCarrier, getOrderNumber, getTrackingCode, getTrackingUrl, getProductDetails, getShippingDestination, getShippingMethod, getOperator } from "@/app/lib/utils";
 import { getActiveOrderCases, addActiveOrderCase } from "@/app/lib/api";
 import { CaseHistoryModal } from "./CaseHistoryModal";
 
@@ -146,6 +146,7 @@ export function OrdersTable({ orders, orderIdsWithCases = [] }: Props) {
             <th className="pb-3 pr-4 font-medium">Order N°</th>
             <th className="pb-3 pr-4 font-medium">Producto</th>
             <th className="pb-3 pr-4 font-medium">Fuente</th>
+            <th className="pb-3 pr-4 font-medium">Método envío</th>
             <th className="pb-3 pr-4 font-medium">Operador</th>
             <th className="pb-3 pr-4 font-medium">Estado</th>
             <th className="pb-3 pr-4 font-medium">Urgencia</th>
@@ -160,7 +161,8 @@ export function OrdersTable({ orders, orderIdsWithCases = [] }: Props) {
         </thead>
         <tbody>
           {sorted.map((order, idx) => {
-            const carrier = getCarrier(order.raw_data);
+            const shippingMethod = getShippingMethod(order.source, order.raw_data);
+            const operator = getOperator(order.source, order.raw_data);
             const orderNumber = getOrderNumber(order.raw_data, order.external_id);
             const tracking = getTrackingCode(order.raw_data);
             const trackingUrl = getTrackingUrl(order.raw_data, tracking);
@@ -189,7 +191,10 @@ export function OrdersTable({ orders, orderIdsWithCases = [] }: Props) {
                   {SOURCE_LABEL[order.source] || order.source}
                 </td>
                 <td className="py-3 pr-4 text-gray-500 text-xs">
-                  {carrier || "—"}
+                  {shippingMethod}
+                </td>
+                <td className="py-3 pr-4 text-gray-500 text-xs">
+                  {operator || "—"}
                 </td>
                 <td className="py-3 pr-4">
                   <StatusBadge status={order.status} />

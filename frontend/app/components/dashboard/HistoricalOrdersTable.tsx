@@ -2,7 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { HistoricalOrder, OrderCase } from "@/app/types";
-import { SOURCE_LABEL, formatDeadline, getCarrier, getCreatedAt, getOrderNumber, getProductDetails, getShippingDestination, getTrackingCode, getTrackingUrl } from "@/app/lib/utils";
+import { SOURCE_LABEL, formatDeadline, getCarrier, getCreatedAt, getOrderNumber, getProductDetails, getShippingDestination, getTrackingCode, getTrackingUrl, getShippingMethod, getOperator } from "@/app/lib/utils";
 import { addOrderCase } from "@/app/lib/api";
 import { CaseHistoryModal } from "./CaseHistoryModal";
 
@@ -123,7 +123,8 @@ function TicketButton({ orderId, orderLabel, initialCases }: { orderId: string; 
 }
 
 function OrderRow({ order, idx }: { order: HistoricalOrder; idx: number }) {
-  const carrier = getCarrier(order.raw_data);
+  const shippingMethod = getShippingMethod(order.source, order.raw_data);
+  const operator = getOperator(order.source, order.raw_data);
   const orderNumber = getOrderNumber(order.raw_data, order.external_id);
   const tracking = getTrackingCode(order.raw_data);
   const trackingUrl = getTrackingUrl(order.raw_data, tracking);
@@ -151,7 +152,8 @@ function OrderRow({ order, idx }: { order: HistoricalOrder; idx: number }) {
         )}
       </td>
       <td className="py-3 pr-4 text-gray-600">{SOURCE_LABEL[order.source] || order.source}</td>
-      <td className="py-3 pr-4 text-gray-500 text-xs">{carrier || order.logistics_operator || "—"}</td>
+      <td className="py-3 pr-4 text-gray-500 text-xs">{shippingMethod}</td>
+      <td className="py-3 pr-4 text-gray-500 text-xs">{operator || "—"}</td>
       <td className="py-3 pr-4"><StatusBadge status={order.status} /></td>
       <td className="py-3 pr-4"><HistoricalUrgencyBadge daysDelayed={order.days_delayed} /></td>
       <td className="py-3 pr-4 text-gray-600 whitespace-nowrap text-sm">
@@ -253,6 +255,7 @@ export function HistoricalOrdersTable({ orders }: Props) {
             <th className="pb-3 pr-4 font-medium">Order N°</th>
             <th className="pb-3 pr-4 font-medium">Producto</th>
             <th className="pb-3 pr-4 font-medium">Fuente</th>
+            <th className="pb-3 pr-4 font-medium">Método envío</th>
             <th className="pb-3 pr-4 font-medium">Operador</th>
             <th className="pb-3 pr-4 font-medium">Estado</th>
             <th className="pb-3 pr-4 font-medium">Resultado</th>

@@ -88,6 +88,7 @@ class OrderSummary(BaseModel):
     on_time_count: int
     last_sync_at: Optional[datetime] = None
     sources: list[str]
+    breakdown: Optional[dict[str, list[dict]]] = None  # per-urgency breakdown by source+method
 
 
 class OrdersPage(BaseModel):

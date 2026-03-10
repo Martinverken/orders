@@ -40,4 +40,5 @@ class OrderService:
             on_time_count=counts["on_time"],
             last_sync_at=last_sync.started_at if last_sync else None,
             sources=["falabella", "mercadolibre"],
+            breakdown=counts.get("breakdown"),
         )

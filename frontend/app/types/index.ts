@@ -26,6 +26,12 @@ export interface OrdersPage {
   order_ids_with_cases?: string[];
 }
 
+export interface BreakdownItem {
+  source: string;
+  method: string;  // "Express" | "Direct/Flex" | "Regular/Centro Envíos"
+  count: number;
+}
+
 export interface DashboardSummary {
   total_orders: number;
   overdue_count: number;
@@ -36,6 +42,7 @@ export interface DashboardSummary {
   on_time_count: number;
   last_sync_at: string | null;
   sources: OrderSource[];
+  breakdown?: Record<string, BreakdownItem[]>;
 }
 
 export interface SyncLog {

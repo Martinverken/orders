@@ -7,6 +7,18 @@ from typing import Optional
 _PENDING_LIKE = ["pending", "ready_to_ship"]
 
 
+def _classify_shipping_method(source: str, logistics_operator: str) -> str:
+    """Classify order into 'Express', 'Direct/Flex', or 'Regular/Centro Envíos'."""
+    lo = (logistics_operator or "").lower()
+    if source.startswith("shopify"):
+        return "Express" if "express" in lo else "Regular/Centro Envíos"
+    if source == "falabella":
+        return "Direct/Flex" if lo == "direct" else "Regular/Centro Envíos"
+    if source == "mercadolibre":
+        return "Direct/Flex" if lo in ("flex", "self_service") else "Regular/Centro Envíos"
+    return "Regular/Centro Envíos"
+
+
 def _extract_logistics_operator(source: str, raw_data: dict) -> str | None:
     if source.startswith("shopify"):
         tags = (raw_data.get("tags") or "").lower()
@@ -248,8 +260,12 @@ class OrderRepository:
         commune: Optional[str] = None,
         order_number: Optional[str] = None,
     ) -> dict:
-        """Count orders by stored urgency column, respecting active filters."""
-        query = self.db.table(self.table).select("urgency")
+        """Count orders by stored urgency column, respecting active filters.
+
+        Also returns a breakdown dict: { urgency_key: [{source, method, count}] }
+        where method is "Direct/Flex" or "Regular/Centro Envíos".
+        """
+        query = self.db.table(self.table).select("urgency,source,logistics_operator")
         if source:
             query = query.eq("source", source)
         if order_number:
@@ -271,8 +287,13 @@ class OrderRepository:
             query = query.ilike("commune", f"%{commune}%")
         rows = (query.execute()).data or []
         overdue = due_today = delivered_today = tomorrow_count = two_or_more_days = on_time = 0
+        # Breakdown: {urgency: {(source, method): count}}
+        breakdown_buckets: dict[str, dict[tuple[str, str], int]] = {}
         for r in rows:
             u = r.get("urgency") or ""
+            src = r.get("source") or ""
+            lo = r.get("logistics_operator") or ""
+            method = _classify_shipping_method(src, lo)
             if u == "overdue":
                 overdue += 1
             elif u == "due_today":
@@ -285,6 +306,25 @@ class OrderRepository:
                 two_or_more_days += 1
             elif u == "on_time":
                 on_time += 1
+            else:
+                continue
+            bucket = breakdown_buckets.setdefault(u, {})
+            key = (src, method)
+            bucket[key] = bucket.get(key, 0) + 1
+        # Also build a "total" breakdown
+        total_bucket: dict[tuple[str, str], int] = {}
+        for bucket in breakdown_buckets.values():
+            for key, cnt in bucket.items():
+                total_bucket[key] = total_bucket.get(key, 0) + cnt
+        breakdown_buckets["total"] = total_bucket
+
+        breakdown = {
+            urg: [
+                {"source": src, "method": method, "count": cnt}
+                for (src, method), cnt in sorted(bucket.items())
+            ]
+            for urg, bucket in breakdown_buckets.items()
+        }
         return {
             "total": len(rows),
             "overdue": overdue,
@@ -293,6 +333,7 @@ class OrderRepository:
             "tomorrow": tomorrow_count,
             "two_or_more_days": two_or_more_days,
             "on_time": on_time,
+            "breakdown": breakdown,
         }
 
     def get_distinct_cities(self) -> list[str]:
