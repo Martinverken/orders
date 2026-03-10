@@ -294,7 +294,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               </p>
             </div>
 
-            <SummaryCards summary={summary} />
+            <SummaryCards summary={summary} perspective={perspective} />
 
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">

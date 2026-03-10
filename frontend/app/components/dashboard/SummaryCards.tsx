@@ -1,11 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import { DashboardSummary, BreakdownItem } from "@/app/types";
+import { DashboardSummary, BreakdownItem, Perspective } from "@/app/types";
 import { formatRelative, SOURCE_LABEL } from "@/app/lib/utils";
 
 interface Props {
   summary: DashboardSummary;
+  perspective?: Perspective;
 }
 
 function BreakdownDetail({ items }: { items: BreakdownItem[] }) {
@@ -44,16 +45,22 @@ function BreakdownDetail({ items }: { items: BreakdownItem[] }) {
   );
 }
 
-export function SummaryCards({ summary }: Props) {
+export function SummaryCards({ summary, perspective = "bodega" }: Props) {
   const [openCard, setOpenCard] = useState<string | null>(null);
+
+  const overdueLabel = perspective === "bodega" ? "Atrasado Bodega" : "Atrasado Transportista";
+  const overdueColor = perspective === "bodega"
+    ? "border-orange-500 text-orange-600"
+    : "border-purple-500 text-purple-600";
+  const overdueBg = perspective === "bodega" ? "bg-orange-50" : "bg-purple-50";
 
   const cards = [
     {
-      label: "Atrasados",
+      label: overdueLabel,
       value: summary.overdue_count,
       breakdownKey: "overdue",
-      color: "border-red-500 text-red-600",
-      bg: "bg-red-50",
+      color: overdueColor,
+      bg: overdueBg,
       icon: "🔴",
     },
     {

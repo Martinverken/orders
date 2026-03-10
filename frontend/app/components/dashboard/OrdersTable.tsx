@@ -204,15 +204,19 @@ export function OrdersTable({ orders, orderIdsWithCases = [], perspective = "bod
                   <StatusBadge status={order.status} />
                 </td>
                 <td className="py-3 pr-4">
-                  {order.urgency === "overdue" ? (
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
-                      perspective === "bodega"
-                        ? "bg-orange-100 text-orange-700 border-orange-200"
-                        : "bg-purple-100 text-purple-700 border-purple-200"
-                    }`}>
-                      {perspective === "bodega" ? "Atrasado Bodega" : "Atrasado Transportista"}
-                    </span>
-                  ) : (
+                  {order.urgency === "overdue" ? (() => {
+                    // Blame based on actual status: pending/ready_to_ship = bodega, shipped = transportista
+                    const isBodega = order.status === "pending" || order.status === "ready_to_ship";
+                    return (
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
+                        isBodega
+                          ? "bg-orange-100 text-orange-700 border-orange-200"
+                          : "bg-purple-100 text-purple-700 border-purple-200"
+                      }`}>
+                        {isBodega ? "Atrasado Bodega" : "Atrasado Transportista"}
+                      </span>
+                    );
+                  })() : (
                     <UrgencyBadge urgency={order.urgency} />
                   )}
                 </td>
