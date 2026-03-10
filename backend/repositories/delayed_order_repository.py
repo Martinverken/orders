@@ -52,7 +52,7 @@ def _get_welivery_id(order: Order) -> str | None:
 def _get_tracking_link(order: Order) -> str | None:
     """Build a tracking link for orders that don't use Welivery comprobante.
 
-    Used as fallback comprobante for Paris and other carriers.
+    Used as fallback comprobante for Paris, Walmart, and Falabella Regular.
     """
     if not order.raw_data:
         return None
@@ -62,6 +62,19 @@ def _get_tracking_link(order: Order) -> str | None:
             delivery_id = subs[0].get("deliveryExternalId") if isinstance(subs[0], dict) else getattr(subs[0], "deliveryExternalId", None)
             if delivery_id:
                 return f"https://app.enviame.io/deliveries/{delivery_id}"
+    if order.source == "walmart":
+        # Try trackingURL from orderLineStatuses first, then enviame generic
+        order_lines = order.raw_data.get("orderLines", {})
+        line_list = order_lines.get("orderLine", []) if isinstance(order_lines, dict) else []
+        if line_list:
+            statuses = line_list[0].get("orderLineStatuses", []) if isinstance(line_list[0], dict) else []
+            if statuses:
+                tracking_info = statuses[0].get("trackingInfo", {}) if isinstance(statuses[0], dict) else {}
+                if isinstance(tracking_info, dict):
+                    if tracking_info.get("trackingURL"):
+                        return str(tracking_info["trackingURL"])
+                    if tracking_info.get("trackingNumber"):
+                        return f"https://tracking.enviame.io/{tracking_info['trackingNumber']}"
     return None
 
 
