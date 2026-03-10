@@ -203,11 +203,11 @@ export function getTrackingUrl(raw_data?: Record<string, unknown>, tracking?: st
     return `https://tracking.enviame.io/${tracking}`;
   }
 
-  // Paris: use trackingURL from subOrder if available, otherwise enviame generic
+  // Paris: enviame delivery link using deliveryExternalId
   if (raw_data.subOrders !== undefined) {
     if (tracking.startsWith("http")) return tracking;
     const subs = raw_data.subOrders as Record<string, unknown>[];
-    if (subs?.[0]?.trackingURL) return String(subs[0].trackingURL);
+    if (subs?.[0]?.deliveryExternalId) return `https://app.enviame.io/deliveries/${subs[0].deliveryExternalId}`;
     return `https://tracking.enviame.io/${tracking}`;
   }
 
@@ -249,11 +249,11 @@ export function getTrackingCode(raw_data?: Record<string, unknown>): string {
     }
     return "";
   }
-  // Paris: trackingNumber or trackingURL from first subOrder
+  // Paris: deliveryExternalId from first subOrder (enviame delivery ID)
   if (raw_data.subOrders !== undefined) {
     const subs = raw_data.subOrders as Record<string, unknown>[];
+    if (subs?.[0]?.deliveryExternalId) return String(subs[0].deliveryExternalId);
     if (subs?.[0]?.trackingNumber) return String(subs[0].trackingNumber);
-    if (subs?.[0]?.trackingURL) return String(subs[0].trackingURL);
     return "";
   }
   // Falabella

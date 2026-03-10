@@ -49,6 +49,22 @@ def _get_welivery_id(order: Order) -> str | None:
     return None
 
 
+def _get_tracking_link(order: Order) -> str | None:
+    """Build a tracking link for orders that don't use Welivery comprobante.
+
+    Used as fallback comprobante for Paris and other carriers.
+    """
+    if not order.raw_data:
+        return None
+    if order.source == "paris":
+        subs = order.raw_data.get("subOrders") or []
+        if subs:
+            delivery_id = subs[0].get("deliveryExternalId") if isinstance(subs[0], dict) else getattr(subs[0], "deliveryExternalId", None)
+            if delivery_id:
+                return f"https://app.enviame.io/deliveries/{delivery_id}"
+    return None
+
+
 class DelayedOrderRepository:
     def __init__(self):
         self.db = get_supabase()
@@ -100,7 +116,7 @@ class DelayedOrderRepository:
                 "comprobante": (
                     get_comprobante(welivery_id)
                     if _should_fetch_comprobante(o) and (welivery_id := _get_welivery_id(o))
-                    else None
+                    else _get_tracking_link(o)
                 ),
                 **dict(zip(["city", "commune"], _extract_city_commune(o.source, o.raw_data or {}))),
             }
@@ -280,7 +296,11 @@ class DelayedOrderRepository:
         return OrderCase(**result.data[0])
 
     def refresh_missing_comprobantes(self) -> int:
-        """Fetch and save comprobantes for Flex/Direct orders (ML and Falabella) missing one."""
+        """Fetch and save comprobantes for orders missing one.
+
+        For Welivery-handled orders (ML Flex, Falabella Direct, Shopify): fetch from Welivery API.
+        For other orders (Paris, etc.): use tracking link as fallback.
+        """
         result = (
             self.db.table(self.table)
             .select("id,external_id,source,raw_data,logistics_operator")
@@ -299,12 +319,13 @@ class DelayedOrderRepository:
                 source=source,
                 raw_data=raw_data,
             )
-            if not _should_fetch_comprobante(o):
-                continue
-            welivery_id = _get_welivery_id(o)
-            if not welivery_id:
-                continue
-            comprobante = get_comprobante(welivery_id)
+            comprobante = None
+            if _should_fetch_comprobante(o):
+                welivery_id = _get_welivery_id(o)
+                if welivery_id:
+                    comprobante = get_comprobante(welivery_id)
+            if not comprobante:
+                comprobante = _get_tracking_link(o)
             if comprobante:
                 self.db.table(self.table).update({"comprobante": comprobante}).eq("id", row["id"]).execute()
                 updated += 1
