@@ -420,7 +420,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                 </p>
               </div>
               <div className="px-6 py-6">
-                <KpiTable metrics={kpiMetrics ?? { monthly: [], weekly: [] }} />
+                <KpiTable metrics={kpiMetrics ?? { monthly: [], weekly: [], monthly_detail: [], weekly_detail: [] }} />
               </div>
             </div>
 

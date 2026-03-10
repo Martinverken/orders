@@ -180,7 +180,7 @@ export async function getKpiMetrics(): Promise<KpiMetrics> {
     const data = await apiFetch<{ success: boolean; data: KpiMetrics }>("/api/dashboard/metrics/kpi");
     return data.data;
   } catch {
-    return { monthly: [], weekly: [] };
+    return { monthly: [], weekly: [], monthly_detail: [], weekly_detail: [] };
   }
 }
 

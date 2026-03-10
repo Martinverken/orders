@@ -2,6 +2,7 @@
 
 import { useState, useMemo } from "react";
 import { HistoricalOrder, OrderCase } from "@/app/types";
+import { ProductCell } from "@/app/components/ui/ProductCell";
 import { SOURCE_LABEL, formatDeadline, getCarrier, getCreatedAt, getOrderNumber, getProductDetails, getShippingDestination, getTrackingCode, getTrackingUrl, getShippingMethod, getOperator } from "@/app/lib/utils";
 import { addOrderCase } from "@/app/lib/api";
 import { CaseHistoryModal } from "./CaseHistoryModal";
@@ -147,19 +148,7 @@ function OrderRow({ order, idx }: { order: HistoricalOrder; idx: number }) {
       <td className={`py-3 pr-4 text-xs font-medium ${(order.cases?.length ?? 0) > 0 ? "text-amber-600 bg-amber-50 rounded" : "text-gray-400"}`}>{idx + 1}</td>
       <td className="py-3 pr-4 font-mono text-gray-700 text-xs">{orderNumber}</td>
       <td className="py-3 pr-4 max-w-[160px]">
-        {product.sku || product.title ? (
-          <div className="relative group">
-            <span className="block truncate font-mono text-xs text-gray-700 cursor-pointer">
-              {product.sku || "—"}
-            </span>
-            <div className="absolute z-20 hidden group-hover:block bg-white shadow-xl border border-gray-200 rounded-lg p-3 min-w-[220px] text-sm left-0 top-6 pointer-events-none">
-              {product.title && <p className="font-medium text-gray-800 leading-snug">{product.title}</p>}
-              <p className="text-gray-500 mt-1 text-xs">Cant.: {product.quantity ?? 1}</p>
-            </div>
-          </div>
-        ) : (
-          <span className="text-gray-400">—</span>
-        )}
+        <ProductCell sku={product.sku} title={product.title} quantity={product.quantity} />
       </td>
       <td className="py-3 pr-4 text-gray-600">{SOURCE_LABEL[order.source] || order.source}</td>
       <td className="py-3 pr-4 text-gray-500 text-xs">{shippingMethod}</td>

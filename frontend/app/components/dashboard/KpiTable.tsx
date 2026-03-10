@@ -4,6 +4,7 @@ import { useState } from "react";
 import { HistoricalOrder, KpiMetrics, KpiPeriod, KpiDetailPeriod, OrderCase } from "@/app/types";
 import { getHistoricalOrders, addOrderCase } from "@/app/lib/api";
 import { SOURCE_LABEL, formatDeadline, getCreatedAt, getOrderNumber, getProductDetails, getShippingDestination, getShippingMethod, getOperator, getTrackingCode, getTrackingUrl } from "@/app/lib/utils";
+import { ProductCell } from "@/app/components/ui/ProductCell";
 import { CaseHistoryModal } from "./CaseHistoryModal";
 
 interface Props {
@@ -169,7 +170,9 @@ function KpiDelayModal({ period, isWeekly, onClose }: { period: string; isWeekly
                           {SOURCE_LABEL[order.source] ?? order.source}
                         </span>
                       </td>
-                      <td className="py-2.5 pr-4 font-mono text-xs text-gray-600 max-w-[140px] truncate">{product.sku || "—"}</td>
+                      <td className="py-2.5 pr-4 max-w-[140px]">
+                        <ProductCell sku={product.sku} title={product.title} quantity={product.quantity} />
+                      </td>
                       <td className="py-2.5 pr-4 text-xs text-gray-600">{getShippingMethod(order.source, order.raw_data ?? undefined)}</td>
                       <td className="py-2.5 pr-4 text-xs text-gray-600">{getOperator(order.source, order.raw_data ?? undefined)}</td>
                       <td className="py-2.5 pr-4 text-xs text-gray-600">{order.status || "—"}</td>
