@@ -32,8 +32,9 @@ def _extract_logistics_operator(source: str, raw_data: dict) -> str | None:
 def _extract_city_commune(source: str, raw_data: dict) -> tuple[str | None, str | None]:
     if source.startswith("shopify"):
         addr = raw_data.get("shipping_address") or {}
-        city = addr.get("city") or None
-        commune = addr.get("address2") or addr.get("province") or None
+        # Shopify Chile: "city" is actually the commune, "province" is the city/region
+        city = addr.get("province") or None
+        commune = addr.get("city") or None
         return city, commune
     if source == "falabella":
         addr = raw_data.get("AddressShipping") or {}
