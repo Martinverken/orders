@@ -158,8 +158,7 @@ class FalabellaClient(BaseIntegration):
                                 )
                                 raw_order["_items"] = items
 
-                        order = mapper.to_order_create(raw_order)
-                        if order:
+                        for order in mapper.to_order_creates(raw_order):
                             yield order
 
                     if len(raw_orders) < PAGE_SIZE:

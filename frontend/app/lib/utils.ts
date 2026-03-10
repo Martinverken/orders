@@ -220,8 +220,12 @@ export function getOrderNumber(raw_data?: Record<string, unknown>, fallback?: st
     const subs = raw_data.subOrders as Record<string, unknown>[];
     return subs?.[0]?.subOrderNumber ? String(subs[0].subOrderNumber) : (raw_data.originOrderNumber ? String(raw_data.originOrderNumber) : fallback ?? "");
   }
-  // Falabella
-  if (raw_data?.OrderNumber) return String(raw_data.OrderNumber);
+  // Falabella: OrderNumber + item index for multi-bulto orders
+  if (raw_data?.OrderNumber) {
+    const itemIndex = raw_data._item_index;
+    const suffix = itemIndex !== undefined ? ` (bulto ${Number(itemIndex) + 1})` : "";
+    return String(raw_data.OrderNumber) + suffix;
+  }
   // ML: pack_id (top-level helper stored by mapper)
   if (raw_data?.pack_id) return String(raw_data.pack_id);
   // ML: pack_id nested in order object

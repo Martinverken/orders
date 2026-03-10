@@ -1,6 +1,6 @@
 """Tests for Falabella order mapper."""
 import pytest
-from integrations.falabella.mapper import to_order_create, parse_falabella_datetime
+from integrations.falabella.mapper import to_order_create, to_order_creates, parse_falabella_datetime
 
 
 class TestHappyPath:
@@ -60,6 +60,40 @@ class TestDirectProvider:
         result = to_order_create(falabella_raw)
         assert result is not None
         assert result.status == "delivered"
+
+
+class TestMultiBulto:
+    def test_single_item_no_split(self, falabella_raw):
+        """Single item order produces one record with original external_id."""
+        results = to_order_creates(falabella_raw)
+        assert len(results) == 1
+        assert results[0].external_id == "12345"
+
+    def test_multi_item_different_tracking_splits(self, falabella_raw):
+        """Multiple items with different tracking codes produce separate records."""
+        falabella_raw["_items"] = [
+            {"Name": "Estufa A", "Quantity": "1", "TrackingCode": "19650810"},
+            {"Name": "Estufa B", "Quantity": "1", "TrackingCode": "19650811"},
+        ]
+        results = to_order_creates(falabella_raw)
+        assert len(results) == 2
+        assert results[0].external_id == "12345-0"
+        assert results[1].external_id == "12345-1"
+        assert results[0].product_name == "Estufa A"
+        assert results[1].product_name == "Estufa B"
+        # Each has its own tracking in raw_data
+        assert results[0].raw_data["TrackingCode"] == "19650810"
+        assert results[1].raw_data["TrackingCode"] == "19650811"
+
+    def test_multi_item_same_tracking_no_split(self, falabella_raw):
+        """Multiple items with the same tracking code stay as one record."""
+        falabella_raw["_items"] = [
+            {"Name": "Item A", "Quantity": "1", "TrackingCode": "19650810"},
+            {"Name": "Item B", "Quantity": "1", "TrackingCode": "19650810"},
+        ]
+        results = to_order_creates(falabella_raw)
+        assert len(results) == 1
+        assert results[0].external_id == "12345"
 
 
 class TestParseDatetime:

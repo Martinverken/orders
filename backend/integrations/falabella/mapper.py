@@ -33,14 +33,30 @@ def parse_falabella_datetime(value: str | None) -> datetime | None:
 
 
 def to_order_create(raw: dict) -> OrderCreate | None:
-    """Convert raw Falabella order dict to canonical OrderCreate."""
+    """Convert raw Falabella order dict to canonical OrderCreate.
+
+    For single-item orders returns one OrderCreate.
+    For multi-item orders (multiple bultos/tracking codes) returns one per item
+    via to_order_creates().  This wrapper returns only the first for backwards compat.
+    """
+    results = to_order_creates(raw)
+    return results[0] if results else None
+
+
+def to_order_creates(raw: dict) -> list[OrderCreate]:
+    """Convert raw Falabella order dict to canonical OrderCreate(s).
+
+    When an order has multiple items with different tracking codes (bultos),
+    each item becomes a separate OrderCreate with external_id = '{OrderId}-{index}'.
+    Single-item orders keep external_id = '{OrderId}'.
+    """
     order = FalabellaOrder(**raw)
 
     # Skip orders fulfilled by Falabella's own warehouse (no action needed from seller)
     shipping_type = (raw.get("ShippingType") or "").strip()
     if shipping_type == "Fulfilled by Falabella":
         logger.info(f"Order {order.OrderId} is FBF — skipping")
-        return None
+        return []
 
     # Resolve delivery deadline — actual field name in API response is PromisedShippingTime
     delivery_raw = (
@@ -62,10 +78,10 @@ def to_order_create(raw: dict) -> OrderCreate | None:
                 limit_delivery_date = local.replace(hour=23, minute=30, second=0, microsecond=0)
             else:
                 logger.warning(f"Order {order.OrderId} has no delivery date — skipping")
-                return None
+                return []
         else:
             logger.warning(f"Order {order.OrderId} has no delivery date — skipping")
-            return None
+            return []
 
     # Resolve status — Statuses comes as [{"Status": "pending"}] from real API
     status = "unknown"
@@ -86,20 +102,6 @@ def to_order_create(raw: dict) -> OrderCreate | None:
     if shipping_provider_type in _DIRECT_PROVIDER_TYPES and status == "shipped":
         status = "ready_to_ship"
 
-    # Extract product info from items fetched by the client (_items key)
-    product_name = None
-    product_quantity = None
-    items = raw.get("_items") or []
-    if isinstance(items, list) and items:
-        first_item = items[0] if isinstance(items[0], dict) else {}
-        product_name = first_item.get("Name") or first_item.get("name")
-        qty = first_item.get("Quantity") or first_item.get("quantity")
-        if qty is not None:
-            try:
-                product_quantity = int(qty)
-            except (ValueError, TypeError):
-                pass
-
     # Compute limit_handoff_date:
     # Regular: handoff = limit_delivery_date (PromisedShippingTime IS the handoff deadline)
     # Direct/Flex: cutoff 13:00 → handoff at 18:00 (same day or next business day)
@@ -109,15 +111,69 @@ def to_order_create(raw: dict) -> OrderCreate | None:
     else:
         limit_handoff_date = limit_delivery_date
 
-    return OrderCreate(
-        external_id=str(order.OrderId),
-        source="falabella",
-        status=status,
-        created_at_source=parse_falabella_datetime(order.CreatedAt),
-        address_updated_at=parse_falabella_datetime(order.AddressUpdatedAt),
-        limit_delivery_date=limit_delivery_date,
-        limit_handoff_date=limit_handoff_date,
-        product_name=product_name,
-        product_quantity=product_quantity,
-        raw_data=raw,
-    )
+    items = raw.get("_items") or []
+    if not isinstance(items, list):
+        items = []
+
+    # Determine if we need to split into multiple records (one per bulto)
+    # Split when there are multiple items with different tracking codes
+    tracking_codes = {(item.get("TrackingCode") or "") for item in items if isinstance(item, dict)}
+    tracking_codes.discard("")
+    should_split = len(tracking_codes) > 1 and len(items) > 1
+
+    if should_split:
+        results = []
+        for idx, item in enumerate(items):
+            if not isinstance(item, dict):
+                continue
+            product_name = item.get("Name") or item.get("name")
+            qty = item.get("Quantity") or item.get("quantity")
+            product_quantity = None
+            if qty is not None:
+                try:
+                    product_quantity = int(qty)
+                except (ValueError, TypeError):
+                    pass
+            # Per-item raw_data: copy order-level data, override with item-specific fields
+            item_raw = {**raw, "_items": [item]}
+            item_raw["TrackingCode"] = item.get("TrackingCode") or raw.get("TrackingCode", "")
+            item_raw["_item_index"] = idx
+            results.append(OrderCreate(
+                external_id=f"{order.OrderId}-{idx}",
+                source="falabella",
+                status=status,
+                created_at_source=created_at_source,
+                address_updated_at=parse_falabella_datetime(order.AddressUpdatedAt),
+                limit_delivery_date=limit_delivery_date,
+                limit_handoff_date=limit_handoff_date,
+                product_name=product_name,
+                product_quantity=product_quantity,
+                raw_data=item_raw,
+            ))
+        return results
+    else:
+        # Single item or no items — original behavior
+        product_name = None
+        product_quantity = None
+        if items:
+            first_item = items[0] if isinstance(items[0], dict) else {}
+            product_name = first_item.get("Name") or first_item.get("name")
+            qty = first_item.get("Quantity") or first_item.get("quantity")
+            if qty is not None:
+                try:
+                    product_quantity = int(qty)
+                except (ValueError, TypeError):
+                    pass
+
+        return [OrderCreate(
+            external_id=str(order.OrderId),
+            source="falabella",
+            status=status,
+            created_at_source=created_at_source,
+            address_updated_at=parse_falabella_datetime(order.AddressUpdatedAt),
+            limit_delivery_date=limit_delivery_date,
+            limit_handoff_date=limit_handoff_date,
+            product_name=product_name,
+            product_quantity=product_quantity,
+            raw_data=raw,
+        )]

@@ -187,7 +187,7 @@ class DelayedOrderRepository:
         if source:
             query = query.eq("source", source)
         if order_number:
-            query = query.ilike("external_id", f"%{order_number}%")
+            query = query.or_(f"external_id.ilike.%{order_number}%,raw_data->>OrderNumber.ilike.%{order_number}%")
         if month:
             # month is "YYYY-MM", compute next month start
             y, m = int(month[:4]), int(month[5:7])
