@@ -30,7 +30,13 @@ def compute_urgency(limit_delivery_date: datetime, status: str = "") -> OrderUrg
     today = _today_santiago()
     tomorrow = today + timedelta(days=1)
     day_after = today + timedelta(days=2)
-    delivery_date = limit_delivery_date.date() if hasattr(limit_delivery_date, "date") else limit_delivery_date
+    # Always compare in Santiago timezone to avoid UTC date shifts
+    if hasattr(limit_delivery_date, "astimezone"):
+        delivery_date = limit_delivery_date.astimezone(_SANTIAGO_TZ).date()
+    elif hasattr(limit_delivery_date, "date"):
+        delivery_date = limit_delivery_date.date()
+    else:
+        delivery_date = limit_delivery_date
 
     # Pasó la fecha límite: si sigue pendiente O si fue enviado después del plazo → atrasado
     if delivery_date < today and status in (_PENDING_LIKE | _RESOLVED_LIKE):

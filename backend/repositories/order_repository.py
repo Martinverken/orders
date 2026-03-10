@@ -254,6 +254,13 @@ class OrderRepository:
         total = result.count or 0
         orders = [Order(**r) for r in (result.data or [])]
 
+        # Bodega perspective: recompute urgency from limit_handoff_date so it
+        # matches the summary cards (which also use handoff date).
+        if perspective == "bodega":
+            for o in orders:
+                ref = o.limit_handoff_date or o.limit_delivery_date
+                o.urgency = compute_urgency(ref, o.status)
+
         # Cliente perspective: orders with real client delivery date first
         if perspective == "cliente":
             def _has_client_date(o: Order) -> int:
