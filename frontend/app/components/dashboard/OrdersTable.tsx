@@ -194,8 +194,9 @@ export function OrdersTable({ orders, orderIdsWithCases = [], perspective = "bod
                 </td>
                 <td className="py-3 pr-4">
                   {order.urgency === "overdue" ? (() => {
-                    // Blame based on actual status: pending/ready_to_ship = bodega, shipped = transportista
-                    const isBodega = order.status === "pending" || order.status === "ready_to_ship";
+                    // Regular/CE: blame always bodega (shipped = terminal, seller only controls handoff)
+                    const isRegular = shippingMethod === "Regular/Centro Envíos";
+                    const isBodega = isRegular || order.status === "pending" || order.status === "ready_to_ship";
                     return (
                       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium border ${
                         isBodega
