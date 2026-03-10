@@ -103,7 +103,7 @@ def _is_regular_shipping(order: Order) -> bool:
         mode = (raw.get("delivery_mode") or "").lower()
         return mode not in ("flex", "self_service")
     if order.source.startswith("shopify"):
-        return False  # Shopify = Welivery (self-delivery)
+        return True  # Shopify: shipped (fulfilled) = Welivery picked up; terminal
     return True
 
 
