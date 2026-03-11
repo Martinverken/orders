@@ -56,7 +56,8 @@ function buildUrl(base: Record<string, string | undefined>, overrides: Record<st
 
 export default async function DashboardPage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const tab = params.tab === "historial" ? "historial"
+  const tab = params.tab === "atrasados" ? "atrasados"
+    : params.tab === "historial" ? "historial"
     : params.tab === "estadisticas" ? "estadisticas"
     : params.tab === "tickets" ? "tickets"
     : params.tab === "configuracion" ? "configuracion"
@@ -114,11 +115,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
   if (tab === "pedidos") {
     const page = Number(params.page || 1);
-    [summary, ordersPage, cities, dailyDelays] = await Promise.all([
+    [summary, ordersPage, cities] = await Promise.all([
       getDashboardSummary({ ...activeFilters, perspective }),
       getOrders({ ...activeFilters, page, per_page: 25, perspective }),
       getDistinctCities(),
-      getDelaysByDay(30),
     ]);
   } else if (tab === "historial") {
     const hPage = Number(params.h_page || 1);
@@ -137,6 +137,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       }),
       getDistinctHistoricalCities(),
     ]);
+  } else if (tab === "atrasados") {
+    dailyDelays = await getDelaysByDay(30);
   } else if (tab === "tickets") {
     [ticketsPage, activeWithCases] = await Promise.all([
       getHistoricalOrders({ has_case: true, per_page: 100 }),
@@ -199,6 +201,16 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             }`}
           >
             Pedidos activos
+          </a>
+          <a
+            href={buildUrl(allParams, { tab: "atrasados" })}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              tab === "atrasados"
+                ? "border-gray-900 text-gray-900"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Pedidos atrasados
           </a>
           <a
             href={buildUrl(allParams, { tab: "historial" })}
@@ -299,10 +311,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
             <SummaryCards summary={summary} perspective={perspective} />
 
-            {dailyDelays && dailyDelays.total > 0 && (
-              <DailyDelaysSummary data={dailyDelays} />
-            )}
-
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
                 <h2 className="text-base font-medium text-gray-900">
@@ -342,6 +350,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               )}
             </div>
           </>
+        )}
+
+        {/* ── Pedidos atrasados ── */}
+        {tab === "atrasados" && dailyDelays && (
+          <DailyDelaysSummary data={dailyDelays} />
         )}
 
         {/* ── Pedidos históricos ── */}
