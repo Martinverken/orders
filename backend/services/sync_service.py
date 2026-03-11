@@ -125,12 +125,14 @@ def _compute_blame(
     if not limit_handoff:
         return None
 
-    # Regular/CE: any delay is bodega's fault (shipped = terminal)
+    # Regular/CE: bodega only controls handoff to carrier.
+    # Late handoff = bodega. On-time handoff but late delivery = transportista.
     if _is_regular_shipping(order):
         if handoff_dt and handoff_dt > limit_handoff:
             return "bodega"
         if delivery_dt and delivery_dt > order.limit_delivery_date:
-            return "bodega"
+            # Handoff was on time (or unknown) but carrier delivered late
+            return "transportista"
         return None
 
     # Check if warehouse was late
@@ -145,6 +147,12 @@ def _compute_blame(
 
 
 def _falabella_was_late(order: Order) -> bool:
+    # CE orders: bodega delay = handoff > handoff deadline
+    if _is_regular_shipping(order):
+        handoff = order.first_shipped_at
+        limit_h = order.limit_handoff_date or order.limit_delivery_date
+        if handoff and limit_h:
+            return handoff > limit_h
     date_val = _get_delivery_date(order)
     if date_val:
         return date_val > order.limit_delivery_date
@@ -362,10 +370,20 @@ class SyncService:
             left_feed = ext_id not in fetched_ids
 
             if _is_order_resolved(order):
-                # Entregado al cliente final — comparar fecha real de entrega vs plazo
+                # Entregado al cliente final — comparar fecha real vs plazo
                 date_val = _get_delivery_date(order)
                 if order.source == "mercadolibre":
                     was_late = _ml_was_late(order)
+                elif _is_regular_shipping(order):
+                    # CE: bodega only controls handoff. Compare handoff vs handoff deadline.
+                    handoff = order.first_shipped_at
+                    limit_h = order.limit_handoff_date or order.limit_delivery_date
+                    if handoff and limit_h:
+                        was_late = handoff > limit_h
+                    elif date_val:
+                        was_late = date_val > order.limit_delivery_date
+                    else:
+                        was_late = past_deadline
                 elif date_val:
                     was_late = date_val > order.limit_delivery_date
                 else:
