@@ -162,6 +162,15 @@ export interface KpiMetrics {
   weekly_detail: KpiDetailPeriod[];
 }
 
+export interface YesterdayDelays {
+  date: string;
+  archived_delayed: HistoricalOrder[];
+  archived_delayed_count: number;
+  active_overdue: Order[];
+  active_overdue_count: number;
+  total: number;
+}
+
 export interface CESchedule {
   value: Record<string, string>;  // {"monday":"11:00","thursday":"14:45",...}
   updated_at: string | null;

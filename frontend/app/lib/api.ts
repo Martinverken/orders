@@ -1,4 +1,4 @@
-import { ActiveOrderWithCases, CESchedule, DashboardSummary, HistoricalMetrics, HistoricalOrdersPage, KpiMetrics, Order, OrderCase, OrdersPage, SyncStatusResponse } from "@/app/types";
+import { ActiveOrderWithCases, CESchedule, DashboardSummary, HistoricalMetrics, HistoricalOrdersPage, KpiMetrics, Order, OrderCase, OrdersPage, SyncStatusResponse, YesterdayDelays } from "@/app/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -173,6 +173,15 @@ export async function saveCESchedule(schedule: Record<string, string>): Promise<
     { method: "PUT", body: JSON.stringify(schedule) }
   );
   return resp.data ?? {};
+}
+
+export async function getYesterdayDelays(): Promise<YesterdayDelays> {
+  try {
+    const data = await apiFetch<{ success: boolean; data: YesterdayDelays }>("/api/dashboard/yesterday-delays");
+    return data.data;
+  } catch {
+    return { date: "", archived_delayed: [], archived_delayed_count: 0, active_overdue: [], active_overdue_count: 0, total: 0 };
+  }
 }
 
 export async function getKpiMetrics(): Promise<KpiMetrics> {

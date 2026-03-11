@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { getActiveOrdersWithCases, getCESchedule, getDashboardSummary, getDelayMetrics, getDistinctCities, getDistinctHistoricalCities, getHistoricalOrders, getKpiMetrics, getOrders, getSyncStatus } from "@/app/lib/api";
+import { getActiveOrdersWithCases, getCESchedule, getDashboardSummary, getDelayMetrics, getDistinctCities, getDistinctHistoricalCities, getHistoricalOrders, getKpiMetrics, getOrders, getSyncStatus, getYesterdayDelays } from "@/app/lib/api";
 import { SummaryCards } from "@/app/components/dashboard/SummaryCards";
 import { OrdersTable } from "@/app/components/dashboard/OrdersTable";
 import { SyncStatus } from "@/app/components/dashboard/SyncStatus";
@@ -10,6 +10,7 @@ import { TicketsTable } from "@/app/components/dashboard/TicketsTable";
 import { DelayMetricsTable } from "@/app/components/dashboard/DelayMetricsTable";
 import { KpiTable } from "@/app/components/dashboard/KpiTable";
 import { CEScheduleSettings } from "@/app/components/dashboard/CEScheduleSettings";
+import { YesterdayDelaysSummary } from "@/app/components/dashboard/YesterdayDelaysSummary";
 import { CEScheduleModal } from "@/app/components/dashboard/CEScheduleModal";
 import type { Perspective } from "@/app/types";
 
@@ -109,13 +110,15 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   let activeWithCases = null;
   let delayMetrics = null;
   let kpiMetrics = null;
+  let yesterdayDelays = null;
 
   if (tab === "pedidos") {
     const page = Number(params.page || 1);
-    [summary, ordersPage, cities] = await Promise.all([
+    [summary, ordersPage, cities, yesterdayDelays] = await Promise.all([
       getDashboardSummary({ ...activeFilters, perspective }),
       getOrders({ ...activeFilters, page, per_page: 25, perspective }),
       getDistinctCities(),
+      getYesterdayDelays(),
     ]);
   } else if (tab === "historial") {
     const hPage = Number(params.h_page || 1);
@@ -295,6 +298,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             </div>
 
             <SummaryCards summary={summary} perspective={perspective} />
+
+            {yesterdayDelays && yesterdayDelays.total > 0 && (
+              <YesterdayDelaysSummary data={yesterdayDelays} />
+            )}
 
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
               <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
