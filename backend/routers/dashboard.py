@@ -120,23 +120,70 @@ def get_yesterday_delays():
 @router.get("/delays-by-day")
 def get_delays_by_day(
     days: int = Query(30, ge=1, le=90),
+    month: Optional[str] = Query(None),
 ):
-    """Returns delayed orders grouped by deadline date (last N days)."""
-    today = _today_santiago()
-    date_from = (today - timedelta(days=days)).isoformat()
-
-    result = delayed_repo.get_paginated(
-        was_delayed=True,
-        date_from=date_from,
-        per_page=500,
-    )
+    """Returns delayed orders grouped by deadline date (last N days or by month)."""
+    if month:
+        result = delayed_repo.get_paginated(
+            was_delayed=True,
+            month=month,
+            per_page=1000,
+        )
+    else:
+        today = _today_santiago()
+        date_from = (today - timedelta(days=days)).isoformat()
+        result = delayed_repo.get_paginated(
+            was_delayed=True,
+            date_from=date_from,
+            per_page=500,
+        )
     orders = result["data"]
-
     order_dicts = [o.model_dump(mode="json") for o in orders]
+
+    # Also fetch active overdue orders
+    today = _today_santiago()
+    active_query = (
+        order_repo.db.table(order_repo.table)
+        .select("*, order_cases(*)")
+        .eq("urgency", "overdue")
+        .order("limit_handoff_date")
+        .execute()
+    )
+    from models.order import Order as ActiveOrder
+    active_overdue = []
+    for r in (active_query.data or []):
+        cases_raw = r.pop("order_cases", []) or []
+        o = ActiveOrder(**r)
+        d = o.model_dump(mode="json")
+        d["_active"] = True
+        # Compute approximate days_delayed from deadline
+        deadline = o.limit_handoff_date or o.limit_delivery_date
+        if deadline:
+            delta = today - deadline.date() if hasattr(deadline, 'date') else today - deadline
+            d["days_delayed"] = round(delta.days + (delta.seconds / 86400.0 if hasattr(delta, 'seconds') else 0), 1) if hasattr(delta, 'days') else 0
+        else:
+            d["days_delayed"] = 0
+        d["cases"] = cases_raw
+        active_overdue.append(d)
+
+    # Apply month filter to active overdue if needed
+    if month:
+        y, m = int(month[:4]), int(month[5:7])
+        month_start = f"{month}-01"
+        if m == 12:
+            next_month = f"{y+1}-01-01"
+        else:
+            next_month = f"{y}-{m+1:02d}-01"
+        active_overdue = [
+            d for d in active_overdue
+            if month_start <= str(d.get("limit_handoff_date") or d.get("limit_delivery_date") or "")[:10] < next_month
+        ]
+
+    all_dicts = order_dicts + active_overdue
 
     # Group by deadline date
     by_day: dict[str, list[dict]] = defaultdict(list)
-    for d in order_dicts:
+    for d in all_dicts:
         deadline = str(d.get("limit_handoff_date") or d.get("limit_delivery_date") or "")[:10]
         if deadline:
             by_day[deadline].append(d)
@@ -151,7 +198,7 @@ def get_delays_by_day(
         "success": True,
         "data": {
             "days": days_list,
-            "total": len(order_dicts),
+            "total": len(all_dicts),
         },
     }
 

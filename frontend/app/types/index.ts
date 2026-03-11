@@ -139,6 +139,7 @@ export interface HistoricalOrder {
   comments?: string | null;
   case_status?: string | null;
   cases?: OrderCase[];
+  _active?: boolean;
 }
 
 export interface HistoricalOrdersPage {

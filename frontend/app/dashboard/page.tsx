@@ -38,6 +38,8 @@ interface PageProps {
     h_page?: string;
     // Tab
     tab?: string;
+    // Atrasados month filter
+    a_month?: string;
     // Perspective (bodega | cliente)
     perspective?: string;
   }>;
@@ -56,12 +58,12 @@ function buildUrl(base: Record<string, string | undefined>, overrides: Record<st
 
 export default async function DashboardPage({ searchParams }: PageProps) {
   const params = await searchParams;
-  const tab = params.tab === "atrasados" ? "atrasados"
+  const tab = params.tab === "pedidos" ? "pedidos"
     : params.tab === "historial" ? "historial"
     : params.tab === "estadisticas" ? "estadisticas"
     : params.tab === "tickets" ? "tickets"
     : params.tab === "configuracion" ? "configuracion"
-    : "pedidos";
+    : "atrasados";
 
   const perspective: Perspective = params.perspective === "cliente" ? "cliente" : "bodega";
 
@@ -138,7 +140,8 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       getDistinctHistoricalCities(),
     ]);
   } else if (tab === "atrasados") {
-    dailyDelays = await getDelaysByDay(30);
+    const aMonth = params.a_month || undefined;
+    dailyDelays = await getDelaysByDay(aMonth ? { month: aMonth } : { days: 30 });
   } else if (tab === "tickets") {
     [ticketsPage, activeWithCases] = await Promise.all([
       getHistoricalOrders({ has_case: true, per_page: 100 }),
@@ -175,6 +178,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     h_order_number: params.h_order_number,
     h_date_from: params.h_date_from,
     h_date_to: params.h_date_to,
+    a_month: params.a_month,
   };
 
   return (
@@ -183,25 +187,15 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       {/* Header */}
       <header className="bg-white border-b border-gray-200 sticky top-0 z-10">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4 flex items-center justify-between">
-          <div>
-            <h1 className="text-xl font-semibold text-gray-900">Verken Orders</h1>
+          <a href="/dashboard" className="block">
+            <h1 className="text-xl font-semibold text-gray-900 hover:text-gray-600 transition-colors">Verken Orders</h1>
             <p className="text-xs text-gray-500">Panel de pedidos</p>
-          </div>
+          </a>
           <SyncStatus lastSync={syncStatus.last_sync} />
         </div>
 
         {/* Tabs */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-1 -mb-px">
-          <a
-            href={buildUrl(allParams, { tab: "pedidos" })}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === "pedidos"
-                ? "border-gray-900 text-gray-900"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
-          >
-            Pedidos activos
-          </a>
           <a
             href={buildUrl(allParams, { tab: "atrasados" })}
             className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
@@ -211,6 +205,16 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             }`}
           >
             Pedidos atrasados
+          </a>
+          <a
+            href={buildUrl(allParams, { tab: "pedidos" })}
+            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+              tab === "pedidos"
+                ? "border-gray-900 text-gray-900"
+                : "border-transparent text-gray-500 hover:text-gray-700"
+            }`}
+          >
+            Pedidos activos
           </a>
           <a
             href={buildUrl(allParams, { tab: "historial" })}
@@ -354,7 +358,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
         {/* ── Pedidos atrasados ── */}
         {tab === "atrasados" && dailyDelays && (
-          <DailyDelaysSummary data={dailyDelays} />
+          <DailyDelaysSummary data={dailyDelays} currentMonth={params.a_month} />
         )}
 
         {/* ── Pedidos históricos ── */}

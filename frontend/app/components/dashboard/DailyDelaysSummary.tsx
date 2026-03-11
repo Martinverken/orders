@@ -13,11 +13,13 @@ import {
   getTrackingUrl,
   getProductDetails,
   getShippingDestination,
+  getCreatedAt,
 } from "@/app/lib/utils";
 import { addOrderCase, deleteOrderCase, fetchWeliveryBatch } from "@/app/lib/api";
 
 interface Props {
   data: DailyDelays;
+  currentMonth?: string;
 }
 
 interface DetailOrder {
@@ -40,7 +42,9 @@ interface DetailOrder {
   tracking: string;
   trackingUrl: string | null;
   product: string | null;
+  createdAt: string | null;
   destination: string | null;
+  hasClientDeadline: boolean;
   cases: OrderCase[];
   raw_data?: Record<string, unknown>;
 }
@@ -52,12 +56,13 @@ function toDetail(o: HistoricalOrder, wDates?: { depot_at: string | null; delive
   const method = o.raw_data ? getShippingMethod(o.source, o.raw_data) : "—";
   const isCE = method === "Regular/Centro Envíos";
   const isShopify = (o.source || "").startsWith("shopify");
+  const hasClientDeadline = !isCE || isShopify;
   const depotAt = wDates?.depot_at ?? o.welivery_depot_at;
   const deliveredAt = wDates?.delivered_at ?? o.welivery_delivered_at;
   const entregaBodega = (isShopify && depotAt) ? depotAt : (o.handoff_at || o.delivered_at || null);
-  const entregaCliente = isCE
-    ? null
-    : (isShopify && deliveredAt) ? deliveredAt : (o.delivered_at || null);
+  const entregaCliente = hasClientDeadline
+    ? ((isShopify && deliveredAt) ? deliveredAt : (o.delivered_at || null))
+    : null;
   return {
     id: o.id,
     external_id: o.external_id,
@@ -71,14 +76,16 @@ function toDetail(o: HistoricalOrder, wDates?: { depot_at: string | null; delive
     status: o.status || "archived",
     limitBodega: o.limit_handoff_date || o.limit_delivery_date,
     entregaBodega,
-    limitCliente: o.limit_delivery_date,
+    limitCliente: hasClientDeadline ? o.limit_delivery_date : null,
     entregaCliente,
+    createdAt: getCreatedAt(o.raw_data),
     delayHrs: o.days_delayed != null ? Math.round(o.days_delayed * 24) : null,
     daysDelayed: o.days_delayed,
     tracking,
     trackingUrl: getTrackingUrl(o.raw_data, tracking),
     product: prod.title || null,
     destination: [dest.comuna, dest.city].filter(Boolean).join(", ") || null,
+    hasClientDeadline,
     cases: o.cases || [],
     raw_data: o.raw_data,
   };
@@ -227,12 +234,12 @@ function OrderDetailModal({ detail, onClose }: { detail: DetailOrder; onClose: (
             <div className="border-t border-red-200 my-1" />
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-600 font-medium">Limite cliente</span>
-              <span className="text-gray-800 font-mono text-xs">{formatDeadline(detail.limitCliente)}</span>
+              <span className="text-gray-800 font-mono text-xs">{detail.hasClientDeadline ? formatDeadline(detail.limitCliente) : "N/A (transportista)"}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-600 font-medium">Entrega cliente</span>
               <span className={`font-mono text-xs ${detail.entregaCliente && detail.limitCliente && detail.entregaCliente > detail.limitCliente ? "text-red-600 font-bold" : "text-gray-800"}`}>
-                {detail.entregaCliente ? formatDeadline(detail.entregaCliente) : (detail.method === "Regular/Centro Envíos" ? "N/A (transportista)" : "Pendiente")}
+                {detail.hasClientDeadline ? (detail.entregaCliente ? formatDeadline(detail.entregaCliente) : "Pendiente") : "N/A (transportista)"}
               </span>
             </div>
             {detail.delayHrs != null && (
@@ -385,6 +392,7 @@ function DaySection({ day }: { day: DailyDelaysDay }) {
   const [weliveryLoaded, setWeliveryLoaded] = useState(false);
 
   const dateLabel = formatDayLabel(day.date);
+  const activeCount = day.orders.filter((o) => (o as HistoricalOrder & { _active?: boolean })._active).length;
 
   const handleExpand = () => {
     const wasExpanded = expanded;
@@ -429,6 +437,11 @@ function DaySection({ day }: { day: DailyDelaysDay }) {
           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-200 text-red-800">
             {day.count} pedido{day.count !== 1 ? "s" : ""}
           </span>
+          {activeCount > 0 && (
+            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-200 text-amber-800">
+              {activeCount} activo{activeCount !== 1 ? "s" : ""}
+            </span>
+          )}
         </div>
         <span className="text-red-400 text-xs">{expanded ? "Ocultar" : "Ver detalle"}</span>
       </button>
@@ -441,6 +454,7 @@ function DaySection({ day }: { day: DailyDelaysDay }) {
                 <tr className="border-b border-red-200 text-left text-red-600">
                   <th className="pb-2 pr-3 font-medium">Order N</th>
                   <th className="pb-2 pr-3 font-medium">Fuente</th>
+                  <th className="pb-2 pr-3 font-medium">Fecha orden</th>
                   <th className="pb-2 pr-3 font-medium">Operador</th>
                   <th className="pb-2 pr-3 font-medium">Culpa</th>
                   <th className="pb-2 pr-3 font-medium">Lim. bodega</th>
@@ -457,22 +471,39 @@ function DaySection({ day }: { day: DailyDelaysDay }) {
                   const method = order.raw_data ? getShippingMethod(order.source, order.raw_data) : "";
                   const isCE = method === "Regular/Centro Envíos";
                   const isShopify = (order.source || "").startsWith("shopify");
+                  const hasClientDeadline = !isCE || isShopify;
                   const wDates = isShopify ? getWeliveryDates(order) : { depot_at: null, delivered_at: null };
                   const entregaBodega = (isShopify && wDates.depot_at) ? wDates.depot_at : (order.handoff_at || order.delivered_at || null);
-                  const entregaCliente = isCE
-                    ? null
-                    : (isShopify && wDates.delivered_at) ? wDates.delivered_at : (order.delivered_at || null);
+                  const entregaCliente = hasClientDeadline
+                    ? ((isShopify && wDates.delivered_at) ? wDates.delivered_at : (order.delivered_at || null))
+                    : null;
+                  const createdAt = getCreatedAt(order.raw_data);
+                  const isActive = !!(order as HistoricalOrder & { _active?: boolean })._active;
                   return (
                     <tr
                       key={order.id}
-                      className="border-b border-red-100 cursor-pointer hover:bg-red-100/60 transition-colors"
+                      className={`border-b cursor-pointer transition-colors ${
+                        isActive
+                          ? "border-l-2 border-l-amber-400 border-b-amber-100 bg-amber-50/40 hover:bg-amber-100/60"
+                          : "border-red-100 hover:bg-red-100/60"
+                      }`}
                       onClick={() => setSelectedOrder(toDetail(order, isShopify ? wDates : undefined))}
                     >
                       <td className="py-2 pr-3 font-mono text-gray-700">
-                        {getOrderNumber(order.raw_data, order.external_id)}
+                        <span className="flex items-center gap-1.5">
+                          {getOrderNumber(order.raw_data, order.external_id)}
+                          {isActive && (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-200 text-amber-800">
+                              Activo
+                            </span>
+                          )}
+                        </span>
                       </td>
                       <td className="py-2 pr-3 text-gray-600">
                         {SOURCE_LABEL[order.source] || order.source}
+                      </td>
+                      <td className="py-2 pr-3 text-gray-500 whitespace-nowrap">
+                        {createdAt ? formatDeadline(createdAt) : "—"}
                       </td>
                       <td className="py-2 pr-3 text-gray-500">
                         {order.logistics_operator || (order.raw_data ? getOperator(order.source, order.raw_data) : "—")}
@@ -493,10 +524,10 @@ function DaySection({ day }: { day: DailyDelaysDay }) {
                         {formatDeadline(entregaBodega)}
                       </td>
                       <td className="py-2 pr-3 text-gray-600 whitespace-nowrap">
-                        {formatDeadline(order.limit_delivery_date)}
+                        {hasClientDeadline ? formatDeadline(order.limit_delivery_date) : <span className="text-gray-300">N/A</span>}
                       </td>
                       <td className="py-2 pr-3 text-gray-500 whitespace-nowrap">
-                        {isCE ? <span className="text-gray-300">N/A</span> : formatDeadline(entregaCliente)}
+                        {hasClientDeadline ? formatDeadline(entregaCliente) : <span className="text-gray-300">N/A</span>}
                       </td>
                       <td className="py-2 pr-3 text-red-600 font-medium whitespace-nowrap">
                         +{formatDelayLabel(hrs)}
@@ -533,23 +564,72 @@ function DaySection({ day }: { day: DailyDelaysDay }) {
 
 // ─── Main Component ─────────────────────────────────────────────────────────
 
-export function DailyDelaysSummary({ data }: Props) {
-  if (data.total === 0) return null;
+function MonthSelector({ currentMonth }: { currentMonth?: string }) {
+  const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value;
+    const url = new URL(window.location.href);
+    if (val) {
+      url.searchParams.set("a_month", val);
+    } else {
+      url.searchParams.delete("a_month");
+    }
+    url.searchParams.set("tab", "atrasados");
+    window.location.href = url.toString();
+  };
+
+  const handleClear = () => {
+    const url = new URL(window.location.href);
+    url.searchParams.delete("a_month");
+    url.searchParams.set("tab", "atrasados");
+    window.location.href = url.toString();
+  };
 
   return (
+    <div className="flex items-center gap-2">
+      <input
+        type="month"
+        value={currentMonth || ""}
+        onChange={handleChange}
+        className="text-sm border border-gray-300 rounded-lg px-3 py-1.5 focus:outline-none focus:ring-1 focus:ring-black bg-white text-black cursor-pointer"
+      />
+      {currentMonth && (
+        <button
+          onClick={handleClear}
+          className="text-xs text-gray-500 hover:text-gray-700 border border-gray-200 rounded-lg px-2 py-1.5"
+        >
+          Últimos 30 días
+        </button>
+      )}
+    </div>
+  );
+}
+
+export function DailyDelaysSummary({ data, currentMonth }: Props) {
+  return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-      <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between">
+      <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-base font-medium text-gray-900">
             Pedidos Atrasados por Día ({data.total})
           </h2>
-          <p className="text-xs text-gray-500 mt-0.5">Historial de pedidos que quedaron atrasados, agrupados por fecha de deadline</p>
+          <p className="text-xs text-gray-500 mt-0.5">
+            Pedidos atrasados agrupados por fecha de deadline.{" "}
+            <span className="inline-flex items-center gap-1">
+              <span className="inline-block w-2 h-2 rounded-sm bg-amber-300" /> Activos (aún pendientes)
+              <span className="inline-block w-2 h-2 rounded-sm bg-red-200 ml-2" /> Históricos (ya resueltos)
+            </span>
+          </p>
         </div>
+        <MonthSelector currentMonth={currentMonth} />
       </div>
       <div className="px-6 py-4 space-y-3">
-        {data.days.map((day) => (
-          <DaySection key={day.date} day={day} />
-        ))}
+        {data.days.length === 0 ? (
+          <p className="text-sm text-gray-400 py-4 text-center">No hay pedidos atrasados en este período</p>
+        ) : (
+          data.days.map((day) => (
+            <DaySection key={day.date} day={day} />
+          ))
+        )}
       </div>
     </div>
   );

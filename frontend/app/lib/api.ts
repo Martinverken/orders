@@ -187,9 +187,15 @@ export async function fetchWeliveryBatch(ids: string[]): Promise<Record<string, 
   }
 }
 
-export async function getDelaysByDay(days = 30): Promise<DailyDelays> {
+export async function getDelaysByDay(params?: { days?: number; month?: string }): Promise<DailyDelays> {
   try {
-    const data = await apiFetch<{ success: boolean; data: DailyDelays }>(`/api/dashboard/delays-by-day?days=${days}`);
+    const query = new URLSearchParams();
+    if (params?.month) {
+      query.set("month", params.month);
+    } else {
+      query.set("days", String(params?.days ?? 30));
+    }
+    const data = await apiFetch<{ success: boolean; data: DailyDelays }>(`/api/dashboard/delays-by-day?${query}`);
     return data.data;
   } catch {
     return { days: [], total: 0 };
