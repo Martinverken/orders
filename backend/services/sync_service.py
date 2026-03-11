@@ -125,14 +125,11 @@ def _compute_blame(
     if not limit_handoff:
         return None
 
-    # Regular/CE: bodega only controls handoff to carrier.
-    # Late handoff = bodega. On-time handoff but late delivery = transportista.
+    # Regular/CE: only bodega handoff matters. No carrier deadline.
+    # Late handoff = bodega. On-time handoff = not delayed (no blame).
     if _is_regular_shipping(order):
         if handoff_dt and handoff_dt > limit_handoff:
             return "bodega"
-        if delivery_dt and delivery_dt > order.limit_delivery_date:
-            # Handoff was on time (or unknown) but carrier delivered late
-            return "transportista"
         return None
 
     # Check if warehouse was late
@@ -147,12 +144,14 @@ def _compute_blame(
 
 
 def _falabella_was_late(order: Order) -> bool:
-    # CE orders: bodega delay = handoff > handoff deadline
+    # CE/Regular: only bodega handoff matters
     if _is_regular_shipping(order):
         handoff = order.first_shipped_at
         limit_h = order.limit_handoff_date or order.limit_delivery_date
         if handoff and limit_h:
             return handoff > limit_h
+        return False  # No handoff data → benefit of the doubt
+    # Direct/Flex: client delivery matters
     date_val = _get_delivery_date(order)
     if date_val:
         return date_val > order.limit_delivery_date
@@ -375,15 +374,14 @@ class SyncService:
                 if order.source == "mercadolibre":
                     was_late = _ml_was_late(order)
                 elif _is_regular_shipping(order):
-                    # CE: bodega only controls handoff. Compare handoff vs handoff deadline.
+                    # CE: only bodega handoff matters. No carrier deadline.
                     handoff = order.first_shipped_at
                     limit_h = order.limit_handoff_date or order.limit_delivery_date
                     if handoff and limit_h:
                         was_late = handoff > limit_h
-                    elif date_val:
-                        was_late = date_val > order.limit_delivery_date
                     else:
-                        was_late = past_deadline
+                        # No handoff data → benefit of the doubt, not late
+                        was_late = False
                 elif date_val:
                     was_late = date_val > order.limit_delivery_date
                 else:
