@@ -131,9 +131,7 @@ def get_delays_by_day(
     )
     orders = result["data"]
 
-    # Enrich Shopify orders with Welivery data
     order_dicts = [o.model_dump(mode="json") for o in orders]
-    _enrich_with_welivery(order_dicts)
 
     # Group by deadline date
     by_day: dict[str, list[dict]] = defaultdict(list)
