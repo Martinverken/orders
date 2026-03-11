@@ -21,7 +21,7 @@ from models.order import OrderCreate
 logger = logging.getLogger(__name__)
 
 _API_VERSION = "2024-01"
-_LOOKBACK_DAYS = 14  # Only fetch orders from the last 14 days
+_LOOKBACK_DAYS = 5  # Only fetch recent orders (token was set up 2026-03-09)
 
 
 class ShopifyClient(BaseIntegration):

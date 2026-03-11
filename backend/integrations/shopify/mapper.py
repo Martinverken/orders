@@ -31,6 +31,9 @@ logger = logging.getLogger(__name__)
 
 _SANTIAGO_TZ = ZoneInfo("America/Santiago")
 _CUTOFF_HOUR = 13
+# Hard cutoff: ignore Shopify orders created before this date.
+# The Shopify integration was set up on 2026-03-09; anything older is stale data.
+_MIN_CREATED_DATE = date(2026, 3, 9)
 
 
 # ── Tag helpers ─────────────────────────────────────────────────────────────
@@ -167,6 +170,16 @@ def to_order_creates(raw: dict, source: str = "shopify") -> list[OrderCreate]:
     each fulfillment becomes a separate OrderCreate with external_id = '{id}-{index}'.
     Single-fulfillment orders keep external_id = '{id}'.
     """
+    # Hard cutoff: skip orders created before the integration was set up
+    created_raw = raw.get("created_at") or ""
+    if created_raw:
+        try:
+            created_dt = datetime.fromisoformat(created_raw).astimezone(_SANTIAGO_TZ)
+            if created_dt.date() < _MIN_CREATED_DATE:
+                return []
+        except (ValueError, TypeError):
+            pass
+
     eligibility = check_eligibility(raw)
     if not eligibility["eligible"]:
         logger.debug(
