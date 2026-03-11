@@ -447,7 +447,8 @@ function DaySection({ day }: { day: DailyDelaysDay }) {
                   <th className="pb-2 pr-3 font-medium">Entreg. bodega</th>
                   <th className="pb-2 pr-3 font-medium">Lim. cliente</th>
                   <th className="pb-2 pr-3 font-medium">Entreg. cliente</th>
-                  <th className="pb-2 font-medium">Retraso</th>
+                  <th className="pb-2 pr-3 font-medium">Retraso</th>
+                  <th className="pb-2 font-medium">Tickets</th>
                 </tr>
               </thead>
               <tbody>
@@ -497,8 +498,22 @@ function DaySection({ day }: { day: DailyDelaysDay }) {
                       <td className="py-2 pr-3 text-gray-500 whitespace-nowrap">
                         {isCE ? <span className="text-gray-300">N/A</span> : formatDeadline(entregaCliente)}
                       </td>
-                      <td className="py-2 text-red-600 font-medium whitespace-nowrap">
+                      <td className="py-2 pr-3 text-red-600 font-medium whitespace-nowrap">
                         +{formatDelayLabel(hrs)}
+                      </td>
+                      <td className="py-2 whitespace-nowrap">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setSelectedOrder(toDetail(order, isShopify ? wDates : undefined)); }}
+                          className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium transition-colors ${
+                            (order.cases?.length ?? 0) > 0
+                              ? "bg-blue-100 text-blue-700 hover:bg-blue-200"
+                              : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                          }`}
+                        >
+                          {(order.cases?.length ?? 0) > 0
+                            ? `${order.cases!.length} ticket${order.cases!.length !== 1 ? "s" : ""}`
+                            : "+ ticket"}
+                        </button>
                       </td>
                     </tr>
                   );
