@@ -132,13 +132,13 @@ def get_delays_by_day(
     orders = result["data"]
 
     # Enrich Shopify orders with Welivery data
-    order_dicts = [o.model_dump() for o in orders]
+    order_dicts = [o.model_dump(mode="json") for o in orders]
     _enrich_with_welivery(order_dicts)
 
     # Group by deadline date
     by_day: dict[str, list[dict]] = defaultdict(list)
     for d in order_dicts:
-        deadline = (d.get("limit_handoff_date") or d.get("limit_delivery_date") or "")[:10]
+        deadline = str(d.get("limit_handoff_date") or d.get("limit_delivery_date") or "")[:10]
         if deadline:
             by_day[deadline].append(d)
 
