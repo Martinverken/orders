@@ -1,4 +1,5 @@
 from fastapi import APIRouter, Query
+from pydantic import BaseModel
 from typing import Optional
 from collections import defaultdict
 from datetime import timedelta
@@ -153,6 +154,29 @@ def get_delays_by_day(
             "total": len(order_dicts),
         },
     }
+
+
+class WeliveryBatchRequest(BaseModel):
+    ids: list[str]
+
+
+@router.post("/welivery-batch")
+def welivery_batch(req: WeliveryBatchRequest):
+    """Fetch Welivery status for a batch of IDs (max 20)."""
+    ids = req.ids[:20]
+    results: dict[str, dict] = {}
+    for wid in ids:
+        try:
+            ws = welivery_get_status(wid)
+            if ws:
+                results[wid] = {
+                    "status": ws.status,
+                    "depot_at": ws.depot_at.isoformat() if ws.depot_at else None,
+                    "delivered_at": ws.delivered_at.isoformat() if ws.delivered_at else None,
+                }
+        except Exception as e:
+            logger.warning(f"[welivery] batch failed for {wid}: {e}")
+    return {"success": True, "data": results}
 
 
 @router.get("/metrics/kpi")

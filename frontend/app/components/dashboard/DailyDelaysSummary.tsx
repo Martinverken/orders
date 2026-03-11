@@ -14,7 +14,7 @@ import {
   getProductDetails,
   getShippingDestination,
 } from "@/app/lib/utils";
-import { addOrderCase, deleteOrderCase } from "@/app/lib/api";
+import { addOrderCase, deleteOrderCase, fetchWeliveryBatch } from "@/app/lib/api";
 
 interface Props {
   data: DailyDelays;
@@ -45,17 +45,19 @@ interface DetailOrder {
   raw_data?: Record<string, unknown>;
 }
 
-function toDetail(o: HistoricalOrder): DetailOrder {
+function toDetail(o: HistoricalOrder, wDates?: { depot_at: string | null; delivered_at: string | null }): DetailOrder {
   const tracking = getTrackingCode(o.raw_data);
   const dest = getShippingDestination(o.raw_data);
   const prod = getProductDetails(o.raw_data);
   const method = o.raw_data ? getShippingMethod(o.source, o.raw_data) : "—";
   const isCE = method === "Regular/Centro Envíos";
   const isShopify = (o.source || "").startsWith("shopify");
-  const entregaBodega = (isShopify && o.welivery_depot_at) ? o.welivery_depot_at : (o.handoff_at || o.delivered_at || null);
+  const depotAt = wDates?.depot_at ?? o.welivery_depot_at;
+  const deliveredAt = wDates?.delivered_at ?? o.welivery_delivered_at;
+  const entregaBodega = (isShopify && depotAt) ? depotAt : (o.handoff_at || o.delivered_at || null);
   const entregaCliente = isCE
     ? null
-    : (isShopify && o.welivery_delivered_at) ? o.welivery_delivered_at : (o.delivered_at || null);
+    : (isShopify && deliveredAt) ? deliveredAt : (o.delivered_at || null);
   return {
     id: o.id,
     external_id: o.external_id,
@@ -365,16 +367,61 @@ function OrderDetailModal({ detail, onClose }: { detail: DetailOrder; onClose: (
 
 // ─── Day Row ─────────────────────────────────────────────────────────────────
 
+function getWeliveryId(order: HistoricalOrder): string | null {
+  const raw = order.raw_data || {};
+  const fulfillments = (raw.fulfillments as Array<Record<string, unknown>>) || [];
+  if (fulfillments.length === 1 && typeof fulfillments[0] === "object") {
+    const tn = fulfillments[0]?.tracking_number;
+    if (tn) return String(tn);
+  }
+  const name = String(raw.name || "").replace(/^#/, "");
+  return name || null;
+}
+
 function DaySection({ day }: { day: DailyDelaysDay }) {
   const [expanded, setExpanded] = useState(false);
   const [selectedOrder, setSelectedOrder] = useState<DetailOrder | null>(null);
+  const [weliveryData, setWeliveryData] = useState<Record<string, { status: string; depot_at: string | null; delivered_at: string | null }>>({});
+  const [weliveryLoaded, setWeliveryLoaded] = useState(false);
 
   const dateLabel = formatDayLabel(day.date);
+
+  const handleExpand = () => {
+    const wasExpanded = expanded;
+    setExpanded(!expanded);
+    if (!wasExpanded && !weliveryLoaded) {
+      // Collect Welivery IDs from Shopify orders
+      const ids: string[] = [];
+      for (const o of day.orders) {
+        if ((o.source || "").startsWith("shopify")) {
+          const wid = getWeliveryId(o);
+          if (wid) ids.push(wid);
+        }
+      }
+      if (ids.length > 0) {
+        fetchWeliveryBatch(ids).then((data) => {
+          setWeliveryData(data);
+          setWeliveryLoaded(true);
+        });
+      } else {
+        setWeliveryLoaded(true);
+      }
+    }
+  };
+
+  // Helper to get Welivery dates for a Shopify order
+  const getWeliveryDates = (order: HistoricalOrder) => {
+    const wid = getWeliveryId(order);
+    if (wid && weliveryData[wid]) {
+      return { depot_at: weliveryData[wid].depot_at, delivered_at: weliveryData[wid].delivered_at };
+    }
+    return { depot_at: null, delivered_at: null };
+  };
 
   return (
     <div className="border border-red-200 rounded-lg overflow-hidden">
       <button
-        onClick={() => setExpanded(!expanded)}
+        onClick={handleExpand}
         className="w-full flex items-center justify-between px-4 py-3 bg-red-50 hover:bg-red-100/80 transition-colors"
       >
         <div className="flex items-center gap-3">
@@ -409,15 +456,16 @@ function DaySection({ day }: { day: DailyDelaysDay }) {
                   const method = order.raw_data ? getShippingMethod(order.source, order.raw_data) : "";
                   const isCE = method === "Regular/Centro Envíos";
                   const isShopify = (order.source || "").startsWith("shopify");
-                  const entregaBodega = (isShopify && order.welivery_depot_at) ? order.welivery_depot_at : (order.handoff_at || order.delivered_at || null);
+                  const wDates = isShopify ? getWeliveryDates(order) : { depot_at: null, delivered_at: null };
+                  const entregaBodega = (isShopify && wDates.depot_at) ? wDates.depot_at : (order.handoff_at || order.delivered_at || null);
                   const entregaCliente = isCE
                     ? null
-                    : (isShopify && order.welivery_delivered_at) ? order.welivery_delivered_at : (order.delivered_at || null);
+                    : (isShopify && wDates.delivered_at) ? wDates.delivered_at : (order.delivered_at || null);
                   return (
                     <tr
                       key={order.id}
                       className="border-b border-red-100 cursor-pointer hover:bg-red-100/60 transition-colors"
-                      onClick={() => setSelectedOrder(toDetail(order))}
+                      onClick={() => setSelectedOrder(toDetail(order, isShopify ? wDates : undefined))}
                     >
                       <td className="py-2 pr-3 font-mono text-gray-700">
                         {getOrderNumber(order.raw_data, order.external_id)}

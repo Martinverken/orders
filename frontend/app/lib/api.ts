@@ -175,6 +175,18 @@ export async function saveCESchedule(schedule: Record<string, string>): Promise<
   return resp.data ?? {};
 }
 
+export async function fetchWeliveryBatch(ids: string[]): Promise<Record<string, { status: string; depot_at: string | null; delivered_at: string | null }>> {
+  try {
+    const data = await apiFetch<{ success: boolean; data: Record<string, { status: string; depot_at: string | null; delivered_at: string | null }> }>(
+      "/api/dashboard/welivery-batch",
+      { method: "POST", body: JSON.stringify({ ids }) }
+    );
+    return data.data;
+  } catch {
+    return {};
+  }
+}
+
 export async function getDelaysByDay(days = 30): Promise<DailyDelays> {
   try {
     const data = await apiFetch<{ success: boolean; data: DailyDelays }>(`/api/dashboard/delays-by-day?days=${days}`);
