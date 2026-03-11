@@ -46,14 +46,9 @@ def get_yesterday_delays():
     yesterday_iso = yesterday.isoformat()
     today_iso = today.isoformat()
 
-    # 1. Archived orders resolved yesterday that were delayed
-    #    Use date_to_lt (exclusive) so deadlines at any hour of the day are included
-    archived = delayed_repo.get_paginated(
-        date_from=yesterday_iso,
-        date_to_lt=today_iso,
-        was_delayed=True,
-        per_page=100,
-    )
+    # 1. Archived orders that were resolved yesterday AND were delayed
+    #    Filter by resolved_at (when the order was archived), not limit_delivery_date
+    archived = delayed_repo.get_resolved_yesterday(yesterday_iso, today_iso)
 
     # 2. Active orders with deadline yesterday that are still pending (overdue)
     result = (
@@ -72,11 +67,11 @@ def get_yesterday_delays():
         "success": True,
         "data": {
             "date": yesterday_iso,
-            "archived_delayed": [o.model_dump() for o in archived["data"]],
-            "archived_delayed_count": len(archived["data"]),
+            "archived_delayed": [o.model_dump() for o in archived],
+            "archived_delayed_count": len(archived),
             "active_overdue": [o.model_dump() for o in active_overdue],
             "active_overdue_count": len(active_overdue),
-            "total": len(archived["data"]) + len(active_overdue),
+            "total": len(archived) + len(active_overdue),
         },
     }
 

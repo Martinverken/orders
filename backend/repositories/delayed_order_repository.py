@@ -255,6 +255,26 @@ class DelayedOrderRepository:
             "pages": math.ceil(total / per_page) if per_page > 0 else 0,
         }
 
+    def get_resolved_yesterday(self, yesterday_iso: str, today_iso: str) -> list[HistoricalOrder]:
+        """Return archived orders resolved yesterday that were delayed (days_delayed > 0)."""
+        result = (
+            self.db.table(self.table)
+            .select("*, order_cases(*)")
+            .gte("resolved_at", yesterday_iso)
+            .lt("resolved_at", today_iso)
+            .gt("days_delayed", 0)
+            .order("resolved_at", desc=True)
+            .limit(200)
+            .execute()
+        )
+        return [
+            HistoricalOrder(
+                **{k: v for k, v in r.items() if k != "order_cases"},
+                cases=[OrderCase(**c) for c in (r.get("order_cases") or [])],
+            )
+            for r in (result.data or [])
+        ]
+
     def get_distinct_cities(self) -> list[str]:
         result = self.db.table(self.table).select("city").execute()
         cities = sorted({r["city"] for r in (result.data or []) if r.get("city")})
