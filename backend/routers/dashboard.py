@@ -47,9 +47,10 @@ def get_yesterday_delays():
     today_iso = today.isoformat()
 
     # 1. Archived orders resolved yesterday that were delayed
+    #    Use date_to_lt (exclusive) so deadlines at any hour of the day are included
     archived = delayed_repo.get_paginated(
         date_from=yesterday_iso,
-        date_to=yesterday_iso,
+        date_to_lt=today_iso,
         was_delayed=True,
         per_page=100,
     )

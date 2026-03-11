@@ -199,6 +199,7 @@ class DelayedOrderRepository:
         month: str | None = None,
         date_from: str | None = None,
         date_to: str | None = None,
+        date_to_lt: str | None = None,
         page: int = 1,
         per_page: int = 25,
     ) -> dict:
@@ -220,6 +221,8 @@ class DelayedOrderRepository:
             query = query.gte("limit_delivery_date", date_from)
         if date_to:
             query = query.lte("limit_delivery_date", date_to)
+        if date_to_lt:
+            query = query.lt("limit_delivery_date", date_to_lt)
         if was_delayed is True:
             query = query.gt("days_delayed", 0)
         elif was_delayed is False:
