@@ -50,10 +50,14 @@ function toDetailFromArchived(o: HistoricalOrder): DetailOrder {
   const tracking = getTrackingCode(o.raw_data);
   const dest = getShippingDestination(o.raw_data);
   const prod = getProductDetails(o.raw_data);
-  // For CE orders, delivered_at in delayed_orders IS the handoff time (first_shipped_at)
-  // handoff_at is also first_shipped_at. Client delivery is not tracked for CE.
   const method = o.raw_data ? getShippingMethod(o.source, o.raw_data) : "—";
   const isCE = method === "Regular/Centro Envíos";
+  // For Shopify orders, prefer Welivery API dates if available
+  const isShopify = (o.source || "").startsWith("shopify");
+  const entregaBodega = (isShopify && o.welivery_depot_at) ? o.welivery_depot_at : (o.handoff_at || o.delivered_at || null);
+  const entregaCliente = isCE
+    ? null
+    : (isShopify && o.welivery_delivered_at) ? o.welivery_delivered_at : (o.delivered_at || null);
   return {
     id: o.id,
     external_id: o.external_id,
@@ -66,9 +70,9 @@ function toDetailFromArchived(o: HistoricalOrder): DetailOrder {
     location: "historico",
     status: o.status || "archived",
     limitBodega: o.limit_handoff_date || o.limit_delivery_date,
-    entregaBodega: o.handoff_at || o.delivered_at || null,
+    entregaBodega,
     limitCliente: o.limit_delivery_date,
-    entregaCliente: isCE ? null : (o.delivered_at || null),
+    entregaCliente,
     delayHrs: o.days_delayed != null ? Math.round(o.days_delayed * 24) : null,
     daysDelayed: o.days_delayed,
     tracking,
@@ -84,6 +88,7 @@ function toDetailFromActive(o: Order): DetailOrder {
   const tracking = getTrackingCode(o.raw_data);
   const dest = getShippingDestination(o.raw_data);
   const prod = getProductDetails(o.raw_data, o.product_name, o.product_quantity);
+  const isShopify = (o.source || "").startsWith("shopify");
   return {
     id: o.id,
     external_id: o.external_id,
@@ -96,9 +101,9 @@ function toDetailFromActive(o: Order): DetailOrder {
     location: "activo",
     status: o.status,
     limitBodega: o.limit_handoff_date || o.limit_delivery_date,
-    entregaBodega: o.first_shipped_at || null,
+    entregaBodega: (isShopify && o.welivery_depot_at) ? o.welivery_depot_at : (o.first_shipped_at || null),
     limitCliente: o.limit_delivery_date,
-    entregaCliente: null,
+    entregaCliente: (isShopify && o.welivery_delivered_at) ? o.welivery_delivered_at : null,
     delayHrs: null,
     daysDelayed: null,
     tracking,
@@ -463,6 +468,7 @@ export function YesterdayDelaysSummary({ data }: Props) {
                   <thead>
                     <tr className="border-b border-red-200 text-left text-red-600">
                       <th className="pb-2 pr-3 font-medium">Order N</th>
+                      <th className="pb-2 pr-3 font-medium">Fuente</th>
                       <th className="pb-2 pr-3 font-medium">Operador</th>
                       <th className="pb-2 pr-3 font-medium">Culpa</th>
                       <th className="pb-2 pr-3 font-medium">Lim. bodega</th>
@@ -477,6 +483,11 @@ export function YesterdayDelaysSummary({ data }: Props) {
                       const hrs = Math.round(order.days_delayed * 24);
                       const method = order.raw_data ? getShippingMethod(order.source, order.raw_data) : "";
                       const isCE = method === "Regular/Centro Envíos";
+                      const isShopify = (order.source || "").startsWith("shopify");
+                      const entregaBodega = (isShopify && order.welivery_depot_at) ? order.welivery_depot_at : (order.handoff_at || order.delivered_at || null);
+                      const entregaCliente = isCE
+                        ? null
+                        : (isShopify && order.welivery_delivered_at) ? order.welivery_delivered_at : (order.delivered_at || null);
                       return (
                         <tr
                           key={order.id}
@@ -485,6 +496,9 @@ export function YesterdayDelaysSummary({ data }: Props) {
                         >
                           <td className="py-2 pr-3 font-mono text-gray-700">
                             {getOrderNumber(order.raw_data, order.external_id)}
+                          </td>
+                          <td className="py-2 pr-3 text-gray-600">
+                            {SOURCE_LABEL[order.source] || order.source}
                           </td>
                           <td className="py-2 pr-3 text-gray-500">
                             {order.logistics_operator || (order.raw_data ? getOperator(order.source, order.raw_data) : "—")}
@@ -502,13 +516,13 @@ export function YesterdayDelaysSummary({ data }: Props) {
                             {formatDeadline(order.limit_handoff_date || order.limit_delivery_date)}
                           </td>
                           <td className="py-2 pr-3 text-gray-600 whitespace-nowrap">
-                            {formatDeadline(order.handoff_at || order.delivered_at || null)}
+                            {formatDeadline(entregaBodega)}
                           </td>
                           <td className="py-2 pr-3 text-gray-600 whitespace-nowrap">
                             {formatDeadline(order.limit_delivery_date)}
                           </td>
                           <td className="py-2 pr-3 text-gray-500 whitespace-nowrap">
-                            {isCE ? <span className="text-gray-300">N/A</span> : formatDeadline(order.delivered_at || null)}
+                            {isCE ? <span className="text-gray-300">N/A</span> : formatDeadline(entregaCliente)}
                           </td>
                           <td className="py-2 text-red-600 font-medium whitespace-nowrap">
                             +{formatDelayLabel(hrs)}
@@ -533,29 +547,50 @@ export function YesterdayDelaysSummary({ data }: Props) {
                       <th className="pb-2 pr-3 font-medium">Fuente</th>
                       <th className="pb-2 pr-3 font-medium">Operador</th>
                       <th className="pb-2 pr-3 font-medium">Estado</th>
-                      <th className="pb-2 font-medium">Limite bodega</th>
+                      <th className="pb-2 pr-3 font-medium">Lim. bodega</th>
+                      <th className="pb-2 pr-3 font-medium">Entreg. bodega</th>
+                      <th className="pb-2 pr-3 font-medium">Lim. cliente</th>
+                      <th className="pb-2 font-medium">Entreg. cliente</th>
                     </tr>
                   </thead>
                   <tbody>
-                    {data.active_overdue.map((order) => (
-                      <tr
-                        key={order.id}
-                        className="border-b border-red-100 cursor-pointer hover:bg-red-100/60 transition-colors"
-                        onClick={() => setSelectedOrder(toDetailFromActive(order))}
-                      >
-                        <td className="py-2 pr-3 font-mono text-gray-700">
-                          {getOrderNumber(order.raw_data, order.external_id)}
-                        </td>
-                        <td className="py-2 pr-3 text-gray-600">{SOURCE_LABEL[order.source] || order.source}</td>
-                        <td className="py-2 pr-3 text-gray-500">
-                          {order.raw_data ? getOperator(order.source, order.raw_data) : "—"}
-                        </td>
-                        <td className="py-2 pr-3 text-gray-600 capitalize">{STATUS_LABEL[order.status] || order.status}</td>
-                        <td className="py-2 text-gray-600 whitespace-nowrap">
-                          {formatDeadline(order.limit_handoff_date || order.limit_delivery_date)}
-                        </td>
-                      </tr>
-                    ))}
+                    {data.active_overdue.map((order) => {
+                      const method = order.raw_data ? getShippingMethod(order.source, order.raw_data) : "";
+                      const isCE = method === "Regular/Centro Envíos";
+                      const isShopify = (order.source || "").startsWith("shopify");
+                      const entregaBodega = (isShopify && order.welivery_depot_at) ? order.welivery_depot_at : (order.first_shipped_at || null);
+                      const entregaCliente = isCE
+                        ? null
+                        : (isShopify && order.welivery_delivered_at) ? order.welivery_delivered_at : null;
+                      return (
+                        <tr
+                          key={order.id}
+                          className="border-b border-red-100 cursor-pointer hover:bg-red-100/60 transition-colors"
+                          onClick={() => setSelectedOrder(toDetailFromActive(order))}
+                        >
+                          <td className="py-2 pr-3 font-mono text-gray-700">
+                            {getOrderNumber(order.raw_data, order.external_id)}
+                          </td>
+                          <td className="py-2 pr-3 text-gray-600">{SOURCE_LABEL[order.source] || order.source}</td>
+                          <td className="py-2 pr-3 text-gray-500">
+                            {order.raw_data ? getOperator(order.source, order.raw_data) : "—"}
+                          </td>
+                          <td className="py-2 pr-3 text-gray-600 capitalize">{STATUS_LABEL[order.status] || order.status}</td>
+                          <td className="py-2 pr-3 text-gray-600 whitespace-nowrap">
+                            {formatDeadline(order.limit_handoff_date || order.limit_delivery_date)}
+                          </td>
+                          <td className="py-2 pr-3 text-gray-600 whitespace-nowrap">
+                            {entregaBodega ? formatDeadline(entregaBodega) : <span className="text-gray-300">Pendiente</span>}
+                          </td>
+                          <td className="py-2 pr-3 text-gray-600 whitespace-nowrap">
+                            {formatDeadline(order.limit_delivery_date)}
+                          </td>
+                          <td className="py-2 pr-3 text-gray-500 whitespace-nowrap">
+                            {isCE ? <span className="text-gray-300">N/A</span> : (entregaCliente ? formatDeadline(entregaCliente) : <span className="text-gray-300">Pendiente</span>)}
+                          </td>
+                        </tr>
+                      );
+                    })}
                   </tbody>
                 </table>
               </div>

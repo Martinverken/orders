@@ -99,11 +99,10 @@ def to_order_create(raw: dict) -> OrderCreate | None:
 
 
 def to_order_creates(raw: dict) -> list[OrderCreate]:
-    """Convert raw Walmart order dict to canonical OrderCreate(s).
+    """Convert raw Walmart order dict to a single canonical OrderCreate.
 
-    When an order has multiple orderLines with different tracking numbers,
-    each line becomes a separate OrderCreate with external_id = '{poId}-{index}'.
-    Single-line orders or lines with same tracking keep external_id = '{poId}'.
+    Multi-line orders are kept as one record. Status = least advanced across all
+    lines (order is only 'shipped' when ALL lines are shipped).
     """
     order = WalmartOrder(**raw)
 
@@ -139,67 +138,29 @@ def to_order_creates(raw: dict) -> list[OrderCreate]:
 
     created_at_source = _epoch_to_datetime(order.orderDate)
 
-    # Check for multiple lines with different tracking numbers
-    tracking_numbers = {_get_line_tracking(ln) for ln in line_list_raw}
-    tracking_numbers.discard("")
-    should_split = len(tracking_numbers) > 1 and len(line_list_raw) > 1
+    # One record per order — multi-line items all kept in raw_data.
+    # Status = least advanced across all lines (order not shipped until ALL shipped).
+    product_name = None
+    product_quantity = None
+    if order_lines:
+        first = order_lines[0]
+        if first.item:
+            product_name = first.item.productName or first.item.sku
+        qty = first.orderLineQuantity
+        if qty and qty.amount:
+            try:
+                product_quantity = int(qty.amount)
+            except (ValueError, TypeError):
+                pass
 
-    if should_split:
-        results = []
-        for idx, (ln_raw, ol) in enumerate(zip(line_list_raw, order_lines)):
-            # Per-line product info
-            product_name = None
-            product_quantity = None
-            if ol.item:
-                product_name = ol.item.productName or ol.item.sku
-            if ol.orderLineQuantity and ol.orderLineQuantity.amount:
-                try:
-                    product_quantity = int(ol.orderLineQuantity.amount)
-                except (ValueError, TypeError):
-                    pass
-
-            # Per-line status
-            line_status = _resolve_status([ol])
-
-            # Per-line raw_data
-            line_raw = {**raw, "_line_index": idx}
-            line_raw["orderLines"] = {"orderLine": [ln_raw]}
-
-            results.append(OrderCreate(
-                external_id=f"{order.purchaseOrderId}-{idx}",
-                source="walmart",
-                status=line_status,
-                created_at_source=created_at_source,
-                limit_delivery_date=limit_delivery_date,
-                limit_handoff_date=limit_delivery_date,
-                product_name=product_name,
-                product_quantity=product_quantity,
-                raw_data=line_raw,
-            ))
-        return results
-    else:
-        # Single line or same tracking — original behavior
-        product_name = None
-        product_quantity = None
-        if order_lines:
-            first = order_lines[0]
-            if first.item:
-                product_name = first.item.productName or first.item.sku
-            qty = first.orderLineQuantity
-            if qty and qty.amount:
-                try:
-                    product_quantity = int(qty.amount)
-                except (ValueError, TypeError):
-                    pass
-
-        return [OrderCreate(
-            external_id=str(order.purchaseOrderId),
-            source="walmart",
-            status=status,
-            created_at_source=created_at_source,
-            limit_delivery_date=limit_delivery_date,
-            limit_handoff_date=limit_delivery_date,
-            product_name=product_name,
-            product_quantity=product_quantity,
-            raw_data=raw,
-        )]
+    return [OrderCreate(
+        external_id=str(order.purchaseOrderId),
+        source="walmart",
+        status=status,
+        created_at_source=created_at_source,
+        limit_delivery_date=limit_delivery_date,
+        limit_handoff_date=limit_delivery_date,
+        product_name=product_name,
+        product_quantity=product_quantity,
+        raw_data=raw,
+    )]

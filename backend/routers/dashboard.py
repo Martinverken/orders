@@ -1,15 +1,45 @@
 from fastapi import APIRouter, Query
 from typing import Optional
+from collections import defaultdict
 from datetime import timedelta
+import logging
 from services.order_service import OrderService
 from repositories.delayed_order_repository import DelayedOrderRepository
 from repositories.order_repository import OrderRepository
 from models.order import _today_santiago
+from integrations.welivery.client import get_delivery_status as welivery_get_status
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 order_service = OrderService()
 delayed_repo = DelayedOrderRepository()
 order_repo = OrderRepository()
+
+
+def _enrich_with_welivery(order_dicts: list[dict]) -> None:
+    """Enrich Shopify order dicts with Welivery delivery data (in-place)."""
+    for d in order_dicts:
+        source = d.get("source", "")
+        if not source.startswith("shopify"):
+            continue
+        raw = d.get("raw_data") or {}
+        fulfillments = raw.get("fulfillments") or []
+        wid = None
+        if len(fulfillments) == 1 and isinstance(fulfillments[0], dict):
+            wid = fulfillments[0].get("tracking_number")
+        if not wid:
+            wid = str(raw.get("name", "")).lstrip("#") or None
+        if not wid:
+            continue
+        try:
+            ws = welivery_get_status(wid)
+            if ws:
+                d["welivery_status"] = ws.status
+                d["welivery_depot_at"] = ws.depot_at.isoformat() if ws.depot_at else None
+                d["welivery_delivered_at"] = ws.delivered_at.isoformat() if ws.delivered_at else None
+        except Exception as e:
+            logger.warning(f"[welivery] Failed to enrich {wid}: {e}")
 
 
 @router.get("/summary")
@@ -68,15 +98,61 @@ def get_yesterday_delays():
     from models.order import Order
     active_overdue = [Order(**r) for r in (result.data or [])]
 
+    archived_dicts = [o.model_dump() for o in archived]
+    active_dicts = [o.model_dump() for o in active_overdue]
+    _enrich_with_welivery(archived_dicts)
+    _enrich_with_welivery(active_dicts)
+
     return {
         "success": True,
         "data": {
             "date": yesterday_iso,
-            "archived_delayed": [o.model_dump() for o in archived],
+            "archived_delayed": archived_dicts,
             "archived_delayed_count": len(archived),
-            "active_overdue": [o.model_dump() for o in active_overdue],
+            "active_overdue": active_dicts,
             "active_overdue_count": len(active_overdue),
             "total": len(archived) + len(active_overdue),
+        },
+    }
+
+
+@router.get("/delays-by-day")
+def get_delays_by_day(
+    days: int = Query(30, ge=1, le=90),
+):
+    """Returns delayed orders grouped by deadline date (last N days)."""
+    today = _today_santiago()
+    date_from = (today - timedelta(days=days)).isoformat()
+
+    result = delayed_repo.get_paginated(
+        was_delayed=True,
+        date_from=date_from,
+        per_page=500,
+    )
+    orders = result["data"]
+
+    # Enrich Shopify orders with Welivery data
+    order_dicts = [o.model_dump() for o in orders]
+    _enrich_with_welivery(order_dicts)
+
+    # Group by deadline date
+    by_day: dict[str, list[dict]] = defaultdict(list)
+    for d in order_dicts:
+        deadline = (d.get("limit_handoff_date") or d.get("limit_delivery_date") or "")[:10]
+        if deadline:
+            by_day[deadline].append(d)
+
+    # Sort days descending
+    days_list = [
+        {"date": date, "orders": orders_list, "count": len(orders_list)}
+        for date, orders_list in sorted(by_day.items(), reverse=True)
+    ]
+
+    return {
+        "success": True,
+        "data": {
+            "days": days_list,
+            "total": len(order_dicts),
         },
     }
 

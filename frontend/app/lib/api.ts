@@ -1,4 +1,4 @@
-import { ActiveOrderWithCases, CESchedule, DashboardSummary, HistoricalMetrics, HistoricalOrdersPage, KpiMetrics, Order, OrderCase, OrdersPage, SyncStatusResponse, YesterdayDelays } from "@/app/types";
+import { ActiveOrderWithCases, CESchedule, DailyDelays, DashboardSummary, HistoricalMetrics, HistoricalOrdersPage, KpiMetrics, Order, OrderCase, OrdersPage, SyncStatusResponse, YesterdayDelays } from "@/app/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -173,6 +173,15 @@ export async function saveCESchedule(schedule: Record<string, string>): Promise<
     { method: "PUT", body: JSON.stringify(schedule) }
   );
   return resp.data ?? {};
+}
+
+export async function getDelaysByDay(days = 30): Promise<DailyDelays> {
+  try {
+    const data = await apiFetch<{ success: boolean; data: DailyDelays }>(`/api/dashboard/delays-by-day?days=${days}`);
+    return data.data;
+  } catch {
+    return { days: [], total: 0 };
+  }
 }
 
 export async function getYesterdayDelays(): Promise<YesterdayDelays> {

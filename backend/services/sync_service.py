@@ -10,6 +10,7 @@ from integrations.falabella.mapper import parse_falabella_datetime
 from integrations.mercadolibre.client import MercadoLibreClient
 from integrations.mercadolibre.mapper import parse_ml_datetime
 from integrations.shopify.client import ShopifyClient
+from integrations.welivery.client import get_delivery_status as welivery_get_status
 from integrations.walmart.client import WalmartClient
 from integrations.paris.client import ParisClient
 from repositories.order_repository import OrderRepository
@@ -23,6 +24,18 @@ logger = logging.getLogger(__name__)
 
 BATCH_SIZE = 50
 _SANTIAGO_TZ = ZoneInfo("America/Santiago")
+
+
+def _get_welivery_id(order: Order) -> str | None:
+    """Get Welivery reference ID for a Shopify order."""
+    raw = order.raw_data or {}
+    fulfillments = raw.get("fulfillments") or []
+    if len(fulfillments) == 1 and isinstance(fulfillments[0], dict):
+        tracking = fulfillments[0].get("tracking_number")
+        if tracking:
+            return str(tracking)
+    name = str(raw.get("name", "")).lstrip("#")
+    return name or None
 
 
 def _get_delivery_date(order: Order) -> datetime | None:
@@ -45,11 +58,15 @@ def _get_delivery_date(order: Order) -> datetime | None:
         if order.first_delivered_at:
             return order.first_delivered_at
         # Fallback for rows pre-dating the trigger (Falabella only)
+        # Use MAX(UpdatedAt) across all items for multi-bulto accuracy
         if order.source == "falabella":
             raw = order.raw_data or {}
             items = raw.get("_items") or []
-            first_item = items[0] if isinstance(items, list) and items else {}
-            return parse_falabella_datetime(first_item.get("UpdatedAt"))
+            if isinstance(items, list) and items:
+                dates = [parse_falabella_datetime(it.get("UpdatedAt")) for it in items if isinstance(it, dict)]
+                dates = [d for d in dates if d is not None]
+                return max(dates) if dates else None
+            return None
         return None
 
     if order.source == "mercadolibre":
@@ -421,11 +438,32 @@ class SyncService:
 
         delivery_dates = {o.id: _get_delivery_date(o) for o in late + on_time}
 
+        # Enrich Shopify orders with Welivery API data (depot + delivery dates)
+        for o in late + on_time:
+            if o.source.startswith("shopify"):
+                wid = _get_welivery_id(o)
+                if wid:
+                    try:
+                        ws = welivery_get_status(wid)
+                        if ws:
+                            if ws.delivered_at:
+                                delivery_dates[o.id] = ws.delivered_at
+                            # depot_at = when Welivery received the package (INGRESO A DEPOSITO)
+                            # Store as a temporary attribute for handoff_dates below
+                            object.__setattr__(o, '_welivery_depot_at', ws.depot_at)
+                    except Exception as e:
+                        logger.warning(f"[welivery] Failed to get status for {wid}: {e}")
+
         # Compute handoff dates and blame for each resolved order
         handoff_dates: dict[str, datetime | None] = {}
         blame_map: dict[str, str | None] = {}
         for o in late + on_time:
-            handoff_dt = _get_handoff_date(o)
+            if o.source.startswith("shopify"):
+                # Use Welivery depot_at as authoritative handoff date
+                depot_at = getattr(o, '_welivery_depot_at', None)
+                handoff_dt = depot_at or _get_handoff_date(o)
+            else:
+                handoff_dt = _get_handoff_date(o)
             handoff_dates[o.id] = handoff_dt
             blame_map[o.id] = _compute_blame(o, handoff_dt, delivery_dates.get(o.id))
 

@@ -19,6 +19,10 @@ export interface Order {
   synced_at: string;
   updated_at: string;
   raw_data?: Record<string, unknown>;
+  // Welivery enrichment (from yesterday-delays endpoint)
+  welivery_status?: string | null;
+  welivery_depot_at?: string | null;
+  welivery_delivered_at?: string | null;
 }
 
 export interface OrdersPage {
@@ -126,6 +130,10 @@ export interface HistoricalOrder {
   status?: string | null;
   blame?: string | null;  // 'bodega' | 'transportista'
   raw_data?: Record<string, unknown>;
+  // Welivery enrichment (from yesterday-delays endpoint)
+  welivery_status?: string | null;
+  welivery_depot_at?: string | null;
+  welivery_delivered_at?: string | null;
   comprobante?: string | null;
   case_number?: string | null;
   comments?: string | null;
@@ -168,6 +176,17 @@ export interface YesterdayDelays {
   archived_delayed_count: number;
   active_overdue: Order[];
   active_overdue_count: number;
+  total: number;
+}
+
+export interface DailyDelaysDay {
+  date: string;
+  orders: HistoricalOrder[];
+  count: number;
+}
+
+export interface DailyDelays {
+  days: DailyDelaysDay[];
   total: number;
 }
 

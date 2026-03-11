@@ -53,6 +53,7 @@ class WeliveryStatus:
     status: str                           # e.g. "COMPLETADO", "EN CURSO"
     delivered: bool                        # True if status == "COMPLETADO"
     delivered_at: datetime | None          # from DeliveryDate or status_history
+    depot_at: datetime | None             # when package arrived at Welivery depot (INGRESO A DEPOSITO)
     comprobante_url: str | None           # PDF receipt URL
     tracking_url: str | None
     comments: str | None
@@ -83,6 +84,24 @@ def _parse_delivery_date(data: dict) -> datetime | None:
     history = data.get("status_history") or []
     for entry in reversed(history):
         if entry.get("estado", "").upper() == "COMPLETADO":
+            dt_str = entry.get("date_time", "")
+            if dt_str:
+                try:
+                    dt = datetime.strptime(dt_str, "%Y-%m-%d %H:%M:%S")
+                    return dt.replace(tzinfo=_SANTIAGO)
+                except ValueError:
+                    pass
+    return None
+
+
+def _parse_depot_date(data: dict) -> datetime | None:
+    """Extract when the package arrived at Welivery's distribution center.
+
+    Looks for "INGRESO A DEPOSITO" status in status_history.
+    """
+    history = data.get("status_history") or []
+    for entry in history:
+        if entry.get("estado", "").upper() == "INGRESO A DEPOSITO":
             dt_str = entry.get("date_time", "")
             if dt_str:
                 try:
@@ -130,12 +149,14 @@ def get_delivery_status(order_id: str) -> WeliveryStatus | None:
     status_text = str(data.get("Status", "")).strip().upper()
     is_delivered = status_text == "COMPLETADO"
     delivered_at = _parse_delivery_date(data) if is_delivered else None
+    depot_at = _parse_depot_date(data)
 
     return WeliveryStatus(
         welivery_id=order_id,
         status=status_text,
         delivered=is_delivered,
         delivered_at=delivered_at,
+        depot_at=depot_at,
         comprobante_url=data.get("Comprobante") or None,
         tracking_url=data.get("TrackingUrl") or None,
         comments=data.get("Comments") or None,

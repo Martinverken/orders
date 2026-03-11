@@ -65,12 +65,13 @@ class TestMultiLine:
 
 
 class TestMultiBulto:
-    def test_single_line_no_split(self, walmart_raw):
+    def test_single_line(self, walmart_raw):
         results = to_order_creates(walmart_raw)
         assert len(results) == 1
         assert results[0].external_id == "WM-001"
 
-    def test_multi_line_different_tracking_splits(self, walmart_raw):
+    def test_multi_line_different_tracking_one_record(self, walmart_raw):
+        """Multiple lines with different tracking produce ONE record (no split)."""
         walmart_raw["orderLines"]["orderLine"] = [
             {
                 "lineNumber": "1",
@@ -86,27 +87,26 @@ class TestMultiBulto:
             },
         ]
         results = to_order_creates(walmart_raw)
-        assert len(results) == 2
-        assert results[0].external_id == "WM-001-0"
-        assert results[1].external_id == "WM-001-1"
-        assert results[0].product_name == "Item A"
-        assert results[1].product_name == "Item B"
-        assert results[0].raw_data["_line_index"] == 0
-        assert results[1].raw_data["_line_index"] == 1
+        assert len(results) == 1
+        assert results[0].external_id == "WM-001"
+        assert results[0].product_name == "Item A"  # First line's product
+        # All lines preserved in raw_data
+        assert len(results[0].raw_data["orderLines"]["orderLine"]) == 2
 
-    def test_multi_line_same_tracking_no_split(self, walmart_raw):
+    def test_multi_line_least_advanced_status(self, walmart_raw):
+        """Status = least advanced across all lines."""
         walmart_raw["orderLines"]["orderLine"] = [
             {
                 "lineNumber": "1",
                 "item": {"productName": "Item A"},
-                "orderLineStatuses": [{"status": "Created", "trackingInfo": {"trackingNumber": "TRK-001"}}],
+                "orderLineStatuses": [{"status": "Shipped", "trackingInfo": {"trackingNumber": "TRK-001"}}],
             },
             {
                 "lineNumber": "2",
                 "item": {"productName": "Item B"},
-                "orderLineStatuses": [{"status": "Created", "trackingInfo": {"trackingNumber": "TRK-001"}}],
+                "orderLineStatuses": [{"status": "Created", "trackingInfo": {"trackingNumber": "TRK-002"}}],
             },
         ]
         results = to_order_creates(walmart_raw)
         assert len(results) == 1
-        assert results[0].external_id == "WM-001"
+        assert results[0].status == "pending"  # Created = pending (least advanced)
