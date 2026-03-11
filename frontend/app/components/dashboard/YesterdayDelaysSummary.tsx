@@ -32,8 +32,10 @@ interface DetailOrder {
   blame: string | null;
   location: "historico" | "activo";
   status: string;
-  limitDate: string | null;
-  deliveryDate: string | null;
+  limitBodega: string | null;
+  entregaBodega: string | null;
+  limitCliente: string | null;
+  entregaCliente: string | null;
   delayHrs: number | null;
   daysDelayed: number | null;
   tracking: string;
@@ -48,19 +50,25 @@ function toDetailFromArchived(o: HistoricalOrder): DetailOrder {
   const tracking = getTrackingCode(o.raw_data);
   const dest = getShippingDestination(o.raw_data);
   const prod = getProductDetails(o.raw_data);
+  // For CE orders, delivered_at in delayed_orders IS the handoff time (first_shipped_at)
+  // handoff_at is also first_shipped_at. Client delivery is not tracked for CE.
+  const method = o.raw_data ? getShippingMethod(o.source, o.raw_data) : "—";
+  const isCE = method === "Regular/Centro Envíos";
   return {
     id: o.id,
     external_id: o.external_id,
     source: o.source,
     orderNumber: getOrderNumber(o.raw_data, o.external_id),
     sourceName: SOURCE_LABEL[o.source] || o.source,
-    method: o.raw_data ? getShippingMethod(o.source, o.raw_data) : "—",
+    method,
     operator: o.logistics_operator || (o.raw_data ? getOperator(o.source, o.raw_data) : "—"),
     blame: o.blame || null,
     location: "historico",
     status: o.status || "archived",
-    limitDate: o.limit_handoff_date || o.limit_delivery_date,
-    deliveryDate: o.handoff_at || o.delivered_at || o.resolved_at,
+    limitBodega: o.limit_handoff_date || o.limit_delivery_date,
+    entregaBodega: o.handoff_at || o.delivered_at || null,
+    limitCliente: o.limit_delivery_date,
+    entregaCliente: isCE ? null : (o.delivered_at || null),
     delayHrs: o.days_delayed != null ? Math.round(o.days_delayed * 24) : null,
     daysDelayed: o.days_delayed,
     tracking,
@@ -87,8 +95,10 @@ function toDetailFromActive(o: Order): DetailOrder {
     blame: null,
     location: "activo",
     status: o.status,
-    limitDate: o.limit_handoff_date || o.limit_delivery_date,
-    deliveryDate: o.first_shipped_at || null,
+    limitBodega: o.limit_handoff_date || o.limit_delivery_date,
+    entregaBodega: o.first_shipped_at || null,
+    limitCliente: o.limit_delivery_date,
+    entregaCliente: null,
     delayHrs: null,
     daysDelayed: null,
     tracking,
@@ -247,26 +257,34 @@ function OrderDetailModal({ detail, onClose }: { detail: DetailOrder; onClose: (
             </div>
           </div>
 
-          {/* Dates comparison */}
-          <div className="bg-red-50 border border-red-100 rounded-lg p-3 space-y-2">
+          {/* Dates comparison — 4 rows */}
+          <div className="bg-red-50 border border-red-100 rounded-lg p-3 space-y-1.5">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-red-700 font-medium">Fecha límite</span>
-              <span className="text-gray-800 font-mono">{formatDeadline(detail.limitDate)}</span>
+              <span className="text-gray-600 font-medium">Limite bodega</span>
+              <span className="text-gray-800 font-mono text-xs">{formatDeadline(detail.limitBodega)}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-red-700 font-medium">
-                {detail.location === "historico" ? "Fecha entrega" : "Entrega bodega"}
+              <span className="text-gray-600 font-medium">Entrega bodega</span>
+              <span className={`font-mono text-xs ${detail.entregaBodega && detail.limitBodega && detail.entregaBodega > detail.limitBodega ? "text-red-600 font-bold" : "text-gray-800"}`}>
+                {detail.entregaBodega ? formatDeadline(detail.entregaBodega) : "Pendiente"}
               </span>
-              <span className="text-gray-800 font-mono">{detail.deliveryDate ? formatDeadline(detail.deliveryDate) : "Pendiente"}</span>
+            </div>
+            <div className="border-t border-red-200 my-1" />
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-600 font-medium">Limite cliente</span>
+              <span className="text-gray-800 font-mono text-xs">{formatDeadline(detail.limitCliente)}</span>
+            </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-600 font-medium">Entrega cliente</span>
+              <span className={`font-mono text-xs ${detail.entregaCliente && detail.limitCliente && detail.entregaCliente > detail.limitCliente ? "text-red-600 font-bold" : "text-gray-800"}`}>
+                {detail.entregaCliente ? formatDeadline(detail.entregaCliente) : (detail.method === "Regular/Centro Envíos" ? "N/A (transportista)" : "Pendiente")}
+              </span>
             </div>
             {detail.delayHrs != null && (
               <div className="flex items-center justify-between text-sm pt-1 border-t border-red-200">
                 <span className="text-red-800 font-semibold">Retraso</span>
                 <span className="text-red-600 font-bold">+{formatDelayLabel(detail.delayHrs)}</span>
               </div>
-            )}
-            {detail.daysDelayed != null && (
-              <p className="text-xs text-red-500 text-right">{detail.daysDelayed} días</p>
             )}
           </div>
 
@@ -445,17 +463,20 @@ export function YesterdayDelaysSummary({ data }: Props) {
                   <thead>
                     <tr className="border-b border-red-200 text-left text-red-600">
                       <th className="pb-2 pr-3 font-medium">Order N</th>
-                      <th className="pb-2 pr-3 font-medium">Fuente</th>
                       <th className="pb-2 pr-3 font-medium">Operador</th>
                       <th className="pb-2 pr-3 font-medium">Culpa</th>
-                      <th className="pb-2 pr-3 font-medium">Limite</th>
-                      <th className="pb-2 pr-3 font-medium">Entrega</th>
+                      <th className="pb-2 pr-3 font-medium">Lim. bodega</th>
+                      <th className="pb-2 pr-3 font-medium">Entreg. bodega</th>
+                      <th className="pb-2 pr-3 font-medium">Lim. cliente</th>
+                      <th className="pb-2 pr-3 font-medium">Entreg. cliente</th>
                       <th className="pb-2 font-medium">Retraso</th>
                     </tr>
                   </thead>
                   <tbody>
                     {data.archived_delayed.map((order) => {
                       const hrs = Math.round(order.days_delayed * 24);
+                      const method = order.raw_data ? getShippingMethod(order.source, order.raw_data) : "";
+                      const isCE = method === "Regular/Centro Envíos";
                       return (
                         <tr
                           key={order.id}
@@ -465,7 +486,6 @@ export function YesterdayDelaysSummary({ data }: Props) {
                           <td className="py-2 pr-3 font-mono text-gray-700">
                             {getOrderNumber(order.raw_data, order.external_id)}
                           </td>
-                          <td className="py-2 pr-3 text-gray-600">{SOURCE_LABEL[order.source] || order.source}</td>
                           <td className="py-2 pr-3 text-gray-500">
                             {order.logistics_operator || (order.raw_data ? getOperator(order.source, order.raw_data) : "—")}
                           </td>
@@ -482,7 +502,13 @@ export function YesterdayDelaysSummary({ data }: Props) {
                             {formatDeadline(order.limit_handoff_date || order.limit_delivery_date)}
                           </td>
                           <td className="py-2 pr-3 text-gray-600 whitespace-nowrap">
-                            {formatDeadline(order.handoff_at || order.delivered_at || order.resolved_at)}
+                            {formatDeadline(order.handoff_at || order.delivered_at || null)}
+                          </td>
+                          <td className="py-2 pr-3 text-gray-600 whitespace-nowrap">
+                            {formatDeadline(order.limit_delivery_date)}
+                          </td>
+                          <td className="py-2 pr-3 text-gray-500 whitespace-nowrap">
+                            {isCE ? <span className="text-gray-300">N/A</span> : formatDeadline(order.delivered_at || null)}
                           </td>
                           <td className="py-2 text-red-600 font-medium whitespace-nowrap">
                             +{formatDelayLabel(hrs)}
