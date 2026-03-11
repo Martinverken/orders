@@ -14,6 +14,7 @@ import {
   getProductDetails,
   getShippingDestination,
   getCreatedAt,
+  getBultoCount,
 } from "@/app/lib/utils";
 import { addOrderCase, deleteOrderCase, fetchWeliveryBatch } from "@/app/lib/api";
 
@@ -393,6 +394,8 @@ function DaySection({ day }: { day: DailyDelaysDay }) {
 
   const dateLabel = formatDayLabel(day.date);
   const activeCount = day.orders.filter((o) => (o as HistoricalOrder & { _active?: boolean })._active).length;
+  const totalPackages = day.orders.reduce((sum, o) => sum + getBultoCount(o.raw_data), 0);
+  const showPackages = totalPackages > day.count;
 
   const handleExpand = () => {
     const wasExpanded = expanded;
@@ -435,7 +438,7 @@ function DaySection({ day }: { day: DailyDelaysDay }) {
         <div className="flex items-center gap-3">
           <span className="text-sm font-semibold text-red-800 capitalize">{dateLabel}</span>
           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-red-200 text-red-800">
-            {day.count} pedido{day.count !== 1 ? "s" : ""}
+            {day.count} orden{day.count !== 1 ? "es" : ""}{showPackages ? `, ${totalPackages} paquete${totalPackages !== 1 ? "s" : ""}` : ""}
           </span>
           {activeCount > 0 && (
             <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-amber-200 text-amber-800">
@@ -492,6 +495,14 @@ function DaySection({ day }: { day: DailyDelaysDay }) {
                       <td className="py-2 pr-3 font-mono text-gray-700">
                         <span className="flex items-center gap-1.5">
                           {getOrderNumber(order.raw_data, order.external_id)}
+                          {(() => {
+                            const bultos = getBultoCount(order.raw_data);
+                            return bultos > 1 ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-600">
+                                {bultos} bultos
+                              </span>
+                            ) : null;
+                          })()}
                           {isActive && (
                             <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-200 text-amber-800">
                               Activo
@@ -605,12 +616,19 @@ function MonthSelector({ currentMonth }: { currentMonth?: string }) {
 }
 
 export function DailyDelaysSummary({ data, currentMonth }: Props) {
+  const totalOrders = data.total;
+  const totalPkgs = data.days.reduce(
+    (sum, day) => sum + day.orders.reduce((s, o) => s + getBultoCount(o.raw_data), 0),
+    0
+  );
+  const showTotalPkgs = totalPkgs > totalOrders;
+
   return (
     <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
       <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
         <div>
           <h2 className="text-base font-medium text-gray-900">
-            Pedidos Atrasados por Día ({data.total})
+            Pedidos Atrasados por Día ({totalOrders} orden{totalOrders !== 1 ? "es" : ""}{showTotalPkgs ? `, ${totalPkgs} paquetes` : ""})
           </h2>
           <p className="text-xs text-gray-500 mt-0.5">
             Pedidos atrasados agrupados por fecha de deadline.{" "}

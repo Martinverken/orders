@@ -74,7 +74,8 @@ class Order(OrderCreate):
     limit_handoff_date: Optional[datetime] = None  # warehouse → carrier deadline
     # Stored in DB at sync time; falls back to computed value for legacy rows without it
     urgency: Optional[OrderUrgency] = None
-    # Set by DB trigger on first transition to 'shipped'/'delivered' (Falabella); immutable thereafter
+    # Set by DB trigger on first transition to 'ready_to_ship'/'shipped'/'delivered' (Falabella); immutable thereafter
+    first_ready_to_ship_at: Optional[datetime] = None
     first_shipped_at: Optional[datetime] = None
     first_delivered_at: Optional[datetime] = None
 

@@ -248,6 +248,19 @@ export function getOrderNumber(raw_data?: Record<string, unknown>, fallback?: st
   return fallback ?? "";
 }
 
+export function getBultoCount(raw_data?: Record<string, unknown>): number {
+  if (!raw_data) return 1;
+  // Falabella: _items array
+  if (Array.isArray(raw_data._items) && raw_data._items.length > 1) return raw_data._items.length;
+  // Shopify: fulfillments
+  if (Array.isArray(raw_data.fulfillments) && raw_data.fulfillments.length > 1) return raw_data.fulfillments.length;
+  // Walmart: orderLines
+  if (Array.isArray(raw_data.orderLines) && raw_data.orderLines.length > 1) return raw_data.orderLines.length;
+  // Paris: subOrders
+  if (Array.isArray(raw_data.subOrders) && raw_data.subOrders.length > 1) return raw_data.subOrders.length;
+  return 1;
+}
+
 export function getTrackingUrl(raw_data?: Record<string, unknown>, tracking?: string): string | null {
   if (!raw_data || !tracking) return null;
 
