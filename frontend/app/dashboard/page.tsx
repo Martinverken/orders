@@ -271,7 +271,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       const [hp, hc, overdueResult] = await Promise.all([
         getHistoricalOrders({ ...hFilters, page: hPage, per_page: 25 }),
         getDistinctHistoricalCities(),
-        getHistoricalOrders({ ...hFilters, urgency: "overdue", per_page: 1 }),
+        getHistoricalOrders({ ...hFilters, urgency: "atrasado", per_page: 1 }),
       ]);
       historicalPage = hp;
       historicalCities = hc;
@@ -281,7 +281,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         getHistoricalOrders({ ...hFilters, urgency: params.h_urgency, page: hPage, per_page: 25 }),
         getDistinctHistoricalCities(),
       ]);
-      historicalDelayedCount = params.h_urgency === "overdue" ? historicalPage.total : 0;
+      historicalDelayedCount = params.h_urgency === "atrasado" ? historicalPage.total : 0;
     }
   } else if (tab === "atrasados") {
     const aMonth = params.a_month || undefined;
