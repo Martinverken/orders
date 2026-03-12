@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
-import { createProduct, deleteProduct, getProducts, syncShopifyProducts, updateProduct } from "@/app/lib/api";
+import { useRef, useState } from "react";
+import { createProduct, deleteProduct, exportProducts, getProducts, importProducts, syncShopifyProducts, updateProduct } from "@/app/lib/api";
 import { Product, ProductsPage } from "@/app/types";
 
 interface Props {
@@ -27,6 +27,27 @@ export function ProductsTable({ initialData }: Props) {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [syncing, setSyncing] = useState(false);
   const [syncResult, setSyncResult] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
+  const [importing, setImporting] = useState(false);
+  const [importResult, setImportResult] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Filters
+  const [search, setSearch] = useState("");
+  const [filterBrand, setFilterBrand] = useState("");
+  const [filterCategory, setFilterCategory] = useState("");
+
+  const allCategories = Array.from(new Set(products.map((p) => p.category).filter(Boolean) as string[])).sort();
+
+  const filtered = products.filter((p) => {
+    if (filterBrand && p.brand !== filterBrand) return false;
+    if (filterCategory && p.category !== filterCategory) return false;
+    if (search) {
+      const q = search.toLowerCase();
+      if (!p.name.toLowerCase().includes(q) && !p.sku.toLowerCase().includes(q)) return false;
+    }
+    return true;
+  });
 
   function openNew() {
     setEditingId(null);
@@ -131,6 +152,40 @@ export function ProductsTable({ initialData }: Props) {
     }
   }
 
+  async function handleExport() {
+    setExporting(true);
+    try {
+      const blob = await exportProducts();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "productos.csv";
+      a.click();
+      URL.revokeObjectURL(url);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Error al exportar");
+    } finally {
+      setExporting(false);
+    }
+  }
+
+  async function handleImport(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    e.target.value = "";
+    setImporting(true);
+    setImportResult(null);
+    try {
+      const result = await importProducts(file);
+      await refreshList();
+      setImportResult(`✓ ${result.inserted} nuevos · ${result.updated} actualizados`);
+    } catch (e) {
+      setImportResult(`Error: ${e instanceof Error ? e.message : "Error desconocido"}`);
+    } finally {
+      setImporting(false);
+    }
+  }
+
   const inputClass =
     "border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent w-full";
 
@@ -229,13 +284,31 @@ export function ProductsTable({ initialData }: Props) {
 
       {/* Toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <p className="text-xs text-gray-500">{total} productos</p>
+        <p className="text-xs text-gray-500">{total} productos{filtered.length !== total ? ` · ${filtered.length} mostrados` : ""}</p>
         <div className="flex items-center gap-2 flex-wrap">
-          {syncResult && (
-            <span className={`text-xs ${syncResult.startsWith("Error") ? "text-red-500" : "text-green-600"}`}>
-              {syncResult}
+          {(syncResult || importResult) && (
+            <span className={`text-xs ${(syncResult ?? importResult ?? "").startsWith("Error") ? "text-red-500" : "text-green-600"}`}>
+              {syncResult ?? importResult}
             </span>
           )}
+          {/* Export */}
+          <button
+            onClick={handleExport}
+            disabled={exporting}
+            className="px-3 py-1.5 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            {exporting ? "Exportando..." : "Exportar CSV"}
+          </button>
+          {/* Import */}
+          <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={importing}
+            className="px-3 py-1.5 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
+          >
+            {importing ? "Importando..." : "Importar CSV"}
+          </button>
+          {/* Sync Shopify */}
           <button
             onClick={handleSyncShopify}
             disabled={syncing}
@@ -259,16 +332,54 @@ export function ProductsTable({ initialData }: Props) {
         </div>
       </div>
 
+      {/* Filters */}
+      <div className="flex flex-wrap gap-2">
+        <input
+          type="text"
+          value={search}
+          onChange={(e) => setSearch(e.target.value)}
+          placeholder="Buscar por nombre o SKU..."
+          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent w-56"
+        />
+        <select
+          value={filterBrand}
+          onChange={(e) => setFilterBrand(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+        >
+          <option value="">Todas las marcas</option>
+          {BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}
+        </select>
+        <select
+          value={filterCategory}
+          onChange={(e) => setFilterCategory(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
+        >
+          <option value="">Todas las categorías</option>
+          {allCategories.map((c) => <option key={c} value={c}>{c}</option>)}
+        </select>
+        {(search || filterBrand || filterCategory) && (
+          <button
+            onClick={() => { setSearch(""); setFilterBrand(""); setFilterCategory(""); }}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
+          >
+            Limpiar filtros
+          </button>
+        )}
+      </div>
+
       {/* Table */}
-      {products.length === 0 ? (
+      {filtered.length === 0 ? (
         <div className="text-center py-12 text-gray-400 text-sm">
-          No hay productos. Usa "Sincronizar Shopify" o agrega uno manualmente.
+          {products.length === 0
+            ? 'No hay productos. Usa "Sincronizar Shopify" o agrega uno manualmente.'
+            : "No hay productos que coincidan con los filtros."}
         </div>
       ) : (
         <div className="overflow-x-auto">
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
+                <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-400 w-10">#</th>
                 <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Nombre</th>
                 <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">SKU</th>
                 <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Marca</th>
@@ -281,10 +392,11 @@ export function ProductsTable({ initialData }: Props) {
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {products.map((p) => {
+              {filtered.map((p, idx) => {
                 const missingDimensions = !p.height_cm || !p.width_cm || !p.length_cm || !p.weight_kg;
                 return (
                   <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="py-3 px-3 text-right text-xs text-gray-400">{idx + 1}</td>
                     <td className="py-3 px-3 font-medium text-gray-900">{p.name}</td>
                     <td className="py-3 px-3 text-gray-500 font-mono text-xs">{p.sku}</td>
                     <td className="py-3 px-3">

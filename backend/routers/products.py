@@ -1,8 +1,11 @@
+import csv
+import io
 import logging
 from typing import Optional
 
 import httpx
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, File, HTTPException, Query, UploadFile
+from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 
 from config import get_settings
@@ -37,6 +40,75 @@ class ProductUpdateRequest(BaseModel):
     width_cm: Optional[float] = None
     length_cm: Optional[float] = None
     weight_kg: Optional[float] = None
+
+
+@router.get("/export")
+def export_products():
+    """Export all products as a CSV file."""
+    all_products = repo.list_all()
+
+    output = io.StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["sku", "name", "brand", "category", "height_cm", "width_cm", "length_cm", "weight_kg"])
+    for p in all_products:
+        writer.writerow([
+            p.sku,
+            p.name,
+            p.brand or "",
+            p.category or "",
+            p.height_cm if p.height_cm is not None else "",
+            p.width_cm if p.width_cm is not None else "",
+            p.length_cm if p.length_cm is not None else "",
+            p.weight_kg if p.weight_kg is not None else "",
+        ])
+
+    output.seek(0)
+    return StreamingResponse(
+        iter([output.getvalue()]),
+        media_type="text/csv",
+        headers={"Content-Disposition": "attachment; filename=productos.csv"},
+    )
+
+
+@router.post("/import")
+async def import_products(file: UploadFile = File(...)):
+    """Import products from a CSV file. Upserts by SKU."""
+    content = await file.read()
+    try:
+        text = content.decode("utf-8-sig")
+    except UnicodeDecodeError:
+        text = content.decode("latin-1")
+
+    reader = csv.DictReader(io.StringIO(text))
+    records = []
+    for row in reader:
+        sku = (row.get("sku") or "").strip()
+        name = (row.get("name") or "").strip()
+        if not sku or not name:
+            continue
+        records.append({
+            "sku": sku,
+            "name": name,
+            "brand": row.get("brand", "").strip() or None,
+            "category": row.get("category", "").strip() or None,
+            "height_cm": _parse_float(row.get("height_cm", "")),
+            "width_cm": _parse_float(row.get("width_cm", "")),
+            "length_cm": _parse_float(row.get("length_cm", "")),
+            "weight_kg": _parse_float(row.get("weight_kg", "")),
+        })
+
+    if not records:
+        raise HTTPException(status_code=400, detail="No se encontraron filas válidas en el CSV")
+
+    inserted, updated = repo.bulk_upsert(records)
+    return {"success": True, "inserted": inserted, "updated": updated}
+
+
+def _parse_float(v: str) -> Optional[float]:
+    try:
+        return float(v.strip()) if v.strip() else None
+    except ValueError:
+        return None
 
 
 @router.get("")

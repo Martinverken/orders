@@ -254,6 +254,23 @@ export async function syncShopifyProducts(): Promise<{ inserted: number; updated
   return res;
 }
 
+export async function exportProducts(): Promise<Blob> {
+  const res = await fetch(`${API_URL}/api/products/export`);
+  if (!res.ok) throw new Error(`API error ${res.status}`);
+  return res.blob();
+}
+
+export async function importProducts(file: File): Promise<{ inserted: number; updated: number }> {
+  const form = new FormData();
+  form.append("file", file);
+  const res = await fetch(`${API_URL}/api/products/import`, { method: "POST", body: form });
+  if (!res.ok) {
+    const error = await res.text();
+    throw new Error(`API error ${res.status}: ${error}`);
+  }
+  return res.json();
+}
+
 // ── Couriers ──────────────────────────────────────────────────────────────────
 
 export async function getCouriers(): Promise<Courier[]> {
