@@ -16,6 +16,26 @@ const BRAND_COLOR: Record<string, string> = {
   Kaut: "bg-purple-50 text-purple-700",
 };
 
+type SizeTag = "Chico" | "Mediano" | "Grande" | "Extra Grande" | "Gigante";
+
+const SIZE_COLOR: Record<SizeTag, string> = {
+  Chico: "bg-green-50 text-green-700",
+  Mediano: "bg-teal-50 text-teal-700",
+  Grande: "bg-yellow-50 text-yellow-700",
+  "Extra Grande": "bg-orange-50 text-orange-700",
+  Gigante: "bg-red-50 text-red-700",
+};
+
+function computeSize(p: Product): SizeTag | null {
+  if (p.height_cm == null || p.width_cm == null || p.length_cm == null || p.weight_kg == null) return null;
+  const sum = p.height_cm + p.width_cm + p.length_cm;
+  if (sum > 180 || p.weight_kg > 20) return "Gigante";
+  if (sum <= 55) return "Chico";
+  if (sum <= 120) return "Mediano";
+  if (sum <= 150) return "Grande";
+  return "Extra Grande";
+}
+
 export function ProductsTable({ initialData }: Props) {
   const [products, setProducts] = useState<Product[]>(initialData.data);
   const [total, setTotal] = useState(initialData.total);
@@ -384,6 +404,7 @@ export function ProductsTable({ initialData }: Props) {
                 <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">SKU</th>
                 <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Marca</th>
                 <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Categoría</th>
+                <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tamaño</th>
                 <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Alto</th>
                 <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Ancho</th>
                 <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Largo</th>
@@ -394,6 +415,7 @@ export function ProductsTable({ initialData }: Props) {
             <tbody className="divide-y divide-gray-50">
               {filtered.map((p, idx) => {
                 const missingDimensions = !p.height_cm || !p.width_cm || !p.length_cm || !p.weight_kg;
+                const sizeTag = computeSize(p);
                 return (
                   <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                     <td className="py-3 px-3 text-right text-xs text-gray-400">{idx + 1}</td>
@@ -410,6 +432,15 @@ export function ProductsTable({ initialData }: Props) {
                     </td>
                     <td className="py-3 px-3 text-xs text-gray-500">
                       {p.category ?? <span className="text-gray-300">—</span>}
+                    </td>
+                    <td className="py-3 px-3">
+                      {sizeTag ? (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${SIZE_COLOR[sizeTag]}`}>
+                          {sizeTag}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
                     </td>
                     <td className={`py-3 px-3 text-right text-xs ${p.height_cm ? "text-gray-700" : "text-amber-400"}`}>
                       {p.height_cm != null ? `${p.height_cm} cm` : "—"}
