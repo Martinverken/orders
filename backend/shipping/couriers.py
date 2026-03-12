@@ -251,6 +251,97 @@ def quote_starken(
     )
 
 
+# ── Falabella Cofinanciamiento Logístico (Bluexpress / Chilexpress) ───────────
+# Precio determinado por: peso tarificable + precio del producto + rating vendedor.
+# Peso tarificable: max(peso_real, peso_volumétrico) donde vol = h×w×l / 4000.
+# Precios con IVA incluido (CLP).
+# Sin restricción geográfica: Falabella gestiona la entrega.
+
+# Tramos de peso (límite superior en kg)
+_FALA_UPPER_KG = [1, 2, 3, 6, 10, 15, 20, 30, 50, 80, 100, 125, 150, 175, 200, 225, 250, 300, 400, 500, 600]
+
+# Columnas: [5/5_low, 4/5_low, 3/5_low, 2/5_low, 5/5_high, 4/5_high, 3/5_high, 2/5_high]
+# _low = producto < $19.990 / _high = producto >= $19.990
+_FALA_PRICES: list[list[int]] = [
+    [1000,  1190,  1890,  2390,  2790,  3490,  5290,  6590],   # 0–1 kg
+    [1000,  1190,  1890,  2390,  2890,  3490,  5590,  6990],   # 1–2 kg
+    [1000,  1190,  1890,  2390,  3090,  3690,  5890,  7390],   # 2–3 kg
+    [2490,  2990,  4790,  5990,  3390,  3990,  6390,  7990],   # 3–6 kg
+    [3790,  4490,  7190,  8990,  3790,  4490,  7190,  8990],   # 6–10 kg
+    [4590,  5490,  8790,  10990, 4590,  5490,  8790,  10990],  # 10–15 kg
+    [5490,  6490,  10390, 12990, 5490,  6490,  10390, 12990],  # 15–20 kg
+    [6690,  7990,  12790, 15990, 6690,  7990,  12790, 15990],  # 20–30 kg
+    [7590,  8990,  14390, 17990, 7590,  8990,  14390, 17990],  # 30–50 kg
+    [8390,  9990,  15990, 19990, 8390,  9990,  15990, 19990],  # 50–80 kg
+    [9190,  10990, 17590, 21990, 9190,  10990, 17590, 21990],  # 80–100 kg
+    [9190,  10990, 17590, 21990, 9190,  10990, 17590, 21990],  # 100–125 kg
+    [10890, 12990, 20790, 25990, 10890, 12990, 20790, 25990],  # 125–150 kg
+    [10890, 12990, 20790, 25990, 10890, 12990, 20790, 25990],  # 150–175 kg
+    [12590, 14990, 23990, 29990, 12590, 14990, 23990, 29990],  # 175–200 kg
+    [15990, 18990, 30390, 37990, 15990, 18990, 30390, 37990],  # 200–225 kg
+    [15990, 18990, 30390, 37990, 15990, 18990, 30390, 37990],  # 225–250 kg
+    [20990, 24990, 39990, 49990, 20990, 24990, 39990, 49990],  # 250–300 kg
+    [21790, 25990, 41590, 51990, 21790, 25990, 41590, 51990],  # 300–400 kg
+    [22690, 26990, 43190, 53990, 22690, 26990, 43190, 53990],  # 400–500 kg
+    [29390, 34990, 55990, 69990, 29390, 34990, 55990, 69990],  # 500–600 kg
+]
+
+# >600 kg: tarifa por kg (CLP con IVA) — misma para ambos grupos de precio
+_FALA_PER_KG: list[int] = [34, 40, 64, 80, 34, 40, 64, 80]
+
+_FALA_RATING_IDX = {"5/5": 0, "4/5": 1, "3/5": 2, "2/5": 3}
+
+
+def quote_falabella(
+    weight_kg: float,
+    height_cm: float = 0,
+    width_cm: float = 0,
+    length_cm: float = 0,
+    product_price: float = 0,
+    rating: str = "5/5",
+) -> CourierQuote:
+    """Cofinanciamiento logístico Falabella (Bluexpress/Chilexpress).
+
+    Peso tarificable = max(peso_real, h×w×l / 4000).
+    Precios con IVA incluido.
+    """
+    if rating not in _FALA_RATING_IDX:
+        return CourierQuote(
+            courier="Falabella",
+            available=False,
+            reason=f"Rating inválido '{rating}'. Valores: 5/5, 4/5, 3/5, 2/5",
+        )
+
+    vol_weight = (height_cm * width_cm * length_cm) / 4000 if height_cm and width_cm and length_cm else 0.0
+    billable_kg = max(weight_kg, vol_weight)
+
+    # Column index: 0–3 for <19990, 4–7 for >=19990
+    price_group_offset = 4 if product_price >= 19990 else 0
+    col = price_group_offset + _FALA_RATING_IDX[rating]
+
+    if billable_kg > 600:
+        price_iva = math.ceil(billable_kg * _FALA_PER_KG[col])
+        tier_label = "Sobrepeso"
+    else:
+        price_iva = _FALA_PRICES[-1][col]  # fallback (shouldn't happen)
+        tier_label = "Estándar"
+        for i, upper in enumerate(_FALA_UPPER_KG):
+            if billable_kg <= upper:
+                price_iva = _FALA_PRICES[i][col]
+                break
+
+    price_net = math.ceil(price_iva / 1.19)
+    product_tier = "Producto ≥$19.990" if product_price >= 19990 else "Producto <$19.990"
+
+    return CourierQuote(
+        courier="Falabella (Bluexpress/Chilexpress)",
+        available=True,
+        price=price_iva,
+        price_net=price_net,
+        tier=f"{tier_label} · Rating {rating} · {product_tier}",
+    )
+
+
 # ── Cotización global ────────────────────────────────────────────────────────
 
 def quote_all(
@@ -260,10 +351,14 @@ def quote_all(
     height_cm: float = 0,
     width_cm: float = 0,
     length_cm: float = 0,
+    product_price: float = 0,
+    rating: str = "5/5",
 ) -> list[CourierQuote]:
     """Get quotes from all couriers for a given product + destination."""
     return [
         quote_rapiboy(weight_kg, sum_sides_cm, commune),
         quote_welivery(weight_kg, sum_sides_cm, commune),
         quote_starken(weight_kg, commune, height_cm=height_cm, width_cm=width_cm, length_cm=length_cm),
+        quote_falabella(weight_kg, height_cm=height_cm, width_cm=width_cm, length_cm=length_cm,
+                        product_price=product_price, rating=rating),
     ]

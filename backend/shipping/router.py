@@ -43,10 +43,17 @@ def delete_sku(sku_id: str):
 # ── Cotización ───────────────────────────────────────────────────────────────
 
 @router.get("/quote/{sku_code}", response_model=ShippingQuoteResponse)
-def get_shipping_quote(sku_code: str, commune: str):
+def get_shipping_quote(
+    sku_code: str,
+    commune: str,
+    product_price: float = 0,
+    rating: str = "5/5",
+):
     """Get shipping cost quotes from all couriers for a SKU + commune.
 
-    Example: GET /api/shipping/quote/POL-001?commune=Providencia
+    product_price: precio del producto en CLP (afecta tarifa Falabella).
+    rating: calificación del vendedor en Falabella (5/5, 4/5, 3/5, 2/5).
+    Example: GET /api/shipping/quote/POL-001?commune=Providencia&product_price=25000&rating=5/5
     """
     sku = repository.get_sku_by_code(sku_code)
     if not sku:
@@ -55,6 +62,7 @@ def get_shipping_quote(sku_code: str, commune: str):
     quotes = quote_all(
         sku.weight_kg, sku.sum_sides_cm, commune,
         height_cm=sku.height_cm, width_cm=sku.width_cm, length_cm=sku.length_cm,
+        product_price=product_price, rating=rating,
     )
 
     return ShippingQuoteResponse(
@@ -69,15 +77,26 @@ def get_shipping_quote(sku_code: str, commune: str):
 
 
 @router.post("/quote/calculate")
-def calculate_quote(weight_kg: float, height_cm: float, width_cm: float, length_cm: float, commune: str):
+def calculate_quote(
+    weight_kg: float,
+    height_cm: float,
+    width_cm: float,
+    length_cm: float,
+    commune: str,
+    product_price: float = 0,
+    rating: str = "5/5",
+):
     """Calculate shipping quotes without a saved SKU (ad-hoc).
 
+    product_price: precio del producto en CLP (afecta tarifa Falabella para <$19.990 vs >=19.990).
+    rating: calificación del vendedor en Falabella (5/5, 4/5, 3/5, 2/5).
     Example: POST /api/shipping/quote/calculate?weight_kg=5&height_cm=30&width_cm=40&length_cm=50&commune=Santiago
     """
     sum_sides = height_cm + width_cm + length_cm
     quotes = quote_all(
         weight_kg, sum_sides, commune,
         height_cm=height_cm, width_cm=width_cm, length_cm=length_cm,
+        product_price=product_price, rating=rating,
     )
     return {
         "weight_kg": weight_kg,
