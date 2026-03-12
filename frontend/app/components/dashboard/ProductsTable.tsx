@@ -12,11 +12,6 @@ const BRANDS = ["Verken", "Kaut"];
 const EMPTY_FORM = { name: "", sku: "", brand: "", category: "", height_cm: "", width_cm: "", length_cm: "", weight_kg: "" };
 const STANDARD_BAG = { height_cm: "32", width_cm: "42", length_cm: "5", weight_kg: "3" };
 
-const BRAND_COLOR: Record<string, string> = {
-  Verken: "bg-blue-50 text-blue-700",
-  Kaut: "bg-purple-50 text-purple-700",
-};
-
 type SizeTag = "Chico" | "Mediano" | "Grande" | "Extra Grande" | "Gigante";
 
 const SIZE_COLOR: Record<SizeTag, string> = {
@@ -59,9 +54,11 @@ export function ProductsTable({ initialData }: Props) {
   const [importResult, setImportResult] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // Brand tab
+  const [activeBrand, setActiveBrand] = useState<"Verken" | "Kaut">("Verken");
+
   // Filters
   const [search, setSearch] = useState("");
-  const [filterBrand, setFilterBrand] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
 
   // Sort
@@ -74,10 +71,10 @@ export function ProductsTable({ initialData }: Props) {
     else { setSortKey(key); setSortDir("asc"); }
   }
 
-  const allCategories = Array.from(new Set(products.map((p) => p.category).filter(Boolean) as string[])).sort();
+  const brandProducts = products.filter((p) => p.brand === activeBrand);
+  const allCategories = Array.from(new Set(brandProducts.map((p) => p.category).filter(Boolean) as string[])).sort();
 
-  const filtered = products.filter((p) => {
-    if (filterBrand && p.brand !== filterBrand) return false;
+  const filtered = brandProducts.filter((p) => {
     if (filterCategory && p.category !== filterCategory) return false;
     if (search) {
       const q = search.toLowerCase();
@@ -118,7 +115,7 @@ export function ProductsTable({ initialData }: Props) {
 
   function openNew() {
     setEditingId(null);
-    setForm(EMPTY_FORM);
+    setForm({ ...EMPTY_FORM, brand: activeBrand });
     setError(null);
     setShowForm(true);
   }
@@ -256,8 +253,35 @@ export function ProductsTable({ initialData }: Props) {
   const inputClass =
     "border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent w-full";
 
+  const verkenCount = products.filter((p) => p.brand === "Verken").length;
+  const kautCount = products.filter((p) => p.brand === "Kaut").length;
+
   return (
     <div className="space-y-4">
+      {/* Brand tabs */}
+      <div className="flex items-center gap-1 border-b border-gray-100">
+        {(["Verken", "Kaut"] as const).map((brand) => {
+          const count = brand === "Verken" ? verkenCount : kautCount;
+          const active = activeBrand === brand;
+          return (
+            <button
+              key={brand}
+              onClick={() => { setActiveBrand(brand); setSearch(""); setFilterCategory(""); setSortKey(null); }}
+              className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
+                active
+                  ? "border-gray-900 text-gray-900"
+                  : "border-transparent text-gray-400 hover:text-gray-600"
+              }`}
+            >
+              {brand}
+              <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${active ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"}`}>
+                {count}
+              </span>
+            </button>
+          );
+        })}
+      </div>
+
       {/* Form */}
       {showForm && (
         <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
@@ -361,14 +385,15 @@ export function ProductsTable({ initialData }: Props) {
 
       {/* Toolbar */}
       <div className="flex items-center justify-between flex-wrap gap-3">
-        <p className="text-xs text-gray-500">{total} productos{filtered.length !== total ? ` · ${filtered.length} mostrados` : ""}</p>
+        <p className="text-xs text-gray-500">
+          {brandProducts.length} productos{filtered.length !== brandProducts.length ? ` · ${filtered.length} mostrados` : ""}
+        </p>
         <div className="flex items-center gap-2 flex-wrap">
           {(syncResult || importResult) && (
             <span className={`text-xs ${(syncResult ?? importResult ?? "").startsWith("Error") ? "text-red-500" : "text-green-600"}`}>
               {syncResult ?? importResult}
             </span>
           )}
-          {/* Export */}
           <button
             onClick={handleExport}
             disabled={exporting}
@@ -376,7 +401,6 @@ export function ProductsTable({ initialData }: Props) {
           >
             {exporting ? "Exportando..." : "Exportar CSV"}
           </button>
-          {/* Import */}
           <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />
           <button
             onClick={() => fileInputRef.current?.click()}
@@ -385,7 +409,6 @@ export function ProductsTable({ initialData }: Props) {
           >
             {importing ? "Importando..." : "Importar CSV"}
           </button>
-          {/* Sync Shopify */}
           <button
             onClick={handleSyncShopify}
             disabled={syncing}
@@ -419,14 +442,6 @@ export function ProductsTable({ initialData }: Props) {
           className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent w-56"
         />
         <select
-          value={filterBrand}
-          onChange={(e) => setFilterBrand(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-        >
-          <option value="">Todas las marcas</option>
-          {BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}
-        </select>
-        <select
           value={filterCategory}
           onChange={(e) => setFilterCategory(e.target.value)}
           className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
@@ -434,9 +449,9 @@ export function ProductsTable({ initialData }: Props) {
           <option value="">Todas las categorías</option>
           {allCategories.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
-        {(search || filterBrand || filterCategory) && (
+        {(search || filterCategory) && (
           <button
-            onClick={() => { setSearch(""); setFilterBrand(""); setFilterCategory(""); }}
+            onClick={() => { setSearch(""); setFilterCategory(""); }}
             className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
           >
             Limpiar filtros
@@ -447,8 +462,8 @@ export function ProductsTable({ initialData }: Props) {
       {/* Table */}
       {filtered.length === 0 ? (
         <div className="text-center py-12 text-gray-400 text-sm">
-          {products.length === 0
-            ? 'No hay productos. Usa "Sincronizar Shopify" o agrega uno manualmente.'
+          {brandProducts.length === 0
+            ? `No hay productos ${activeBrand}. Usa "Sincronizar Shopify" o agrega uno manualmente.`
             : "No hay productos que coincidan con los filtros."}
         </div>
       ) : (
@@ -457,9 +472,9 @@ export function ProductsTable({ initialData }: Props) {
             <thead>
               <tr className="border-b border-gray-100">
                 <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-400 w-10">#</th>
+                <th className="py-2.5 px-3 w-12" />
                 <SortableHeader label="Nombre" colKey="name" />
                 <SortableHeader label="SKU" colKey="sku" />
-                <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Marca</th>
                 <SortableHeader label="Categoría" colKey="category" />
                 <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tamaño</th>
                 <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Alto (cm)</th>
@@ -479,17 +494,23 @@ export function ProductsTable({ initialData }: Props) {
                 return (
                   <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                     <td className="py-3 px-3 text-right text-xs text-gray-400">{idx + 1}</td>
-                    <td className="py-3 px-3 font-medium text-gray-900">{p.name}</td>
-                    <td className="py-3 px-3 text-gray-500 font-mono text-xs">{p.sku}</td>
-                    <td className="py-3 px-3">
-                      {p.brand ? (
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${BRAND_COLOR[p.brand] ?? "bg-gray-100 text-gray-600"}`}>
-                          {p.brand}
-                        </span>
+                    <td className="py-2 px-3">
+                      {p.image_url ? (
+                        <img
+                          src={p.image_url}
+                          alt={p.name}
+                          className="w-10 h-10 object-cover rounded-md border border-gray-100"
+                        />
                       ) : (
-                        <span className="text-gray-300">—</span>
+                        <div className="w-10 h-10 rounded-md border border-gray-100 bg-gray-50 flex items-center justify-center">
+                          <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                          </svg>
+                        </div>
                       )}
                     </td>
+                    <td className="py-3 px-3 font-medium text-gray-900">{p.name}</td>
+                    <td className="py-3 px-3 text-gray-500 font-mono text-xs">{p.sku}</td>
                     <td className="py-3 px-3 text-xs text-gray-500">
                       {p.category ?? <span className="text-gray-300">—</span>}
                     </td>

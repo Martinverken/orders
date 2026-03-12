@@ -12,6 +12,7 @@ class ProductCreate(BaseModel):
     width_cm: Optional[float] = None
     length_cm: Optional[float] = None
     weight_kg: Optional[float] = None
+    image_url: Optional[str] = None
 
 
 class Product(ProductCreate):

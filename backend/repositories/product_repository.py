@@ -138,6 +138,7 @@ class ProductRepository:
                     "name": r["name"],
                     "sku": r["sku"],
                     "brand": r.get("brand"),
+                    "image_url": r.get("image_url"),
                     "updated_at": now,
                 })
 
@@ -148,6 +149,7 @@ class ProductRepository:
             self.db.table(self.table).update({
                 "name": r["name"],
                 "brand": r.get("brand"),
+                "image_url": r.get("image_url"),
                 "updated_at": now,
             }).eq("sku", r["sku"]).execute()
 

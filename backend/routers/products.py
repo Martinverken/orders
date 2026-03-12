@@ -195,7 +195,7 @@ def _fetch_shopify_products(store_url: str, token: str) -> list[dict]:
     params: dict | None = {
         "limit": 250,
         "status": "active",
-        "fields": "id,title,variants",
+        "fields": "id,title,variants,images",
     }
 
     all_products: list[dict] = []
@@ -220,6 +220,11 @@ def _products_to_records(products: list[dict], brand: str) -> list[dict]:
     for p in products:
         title = p.get("title", "").strip()
         variants = p.get("variants") or []
+        images = p.get("images") or []
+        # Build a map from image_id -> src for variant-specific images
+        image_map: dict[int, str] = {img["id"]: img["src"] for img in images if img.get("id") and img.get("src")}
+        # Product-level featured image (first image)
+        product_image = images[0]["src"] if images else None
         for v in variants:
             sku = (v.get("sku") or "").strip()
             if not sku or sku in seen_skus:
@@ -232,7 +237,11 @@ def _products_to_records(products: list[dict], brand: str) -> list[dict]:
             else:
                 name = title
 
-            records.append({"name": name, "sku": sku, "brand": brand})
+            # Use variant-specific image if available, else product image
+            variant_image_id = v.get("image_id")
+            image_url = image_map.get(variant_image_id) if variant_image_id else product_image
+
+            records.append({"name": name, "sku": sku, "brand": brand, "image_url": image_url})
 
     return records
 
