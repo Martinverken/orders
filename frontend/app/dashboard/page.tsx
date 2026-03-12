@@ -97,6 +97,83 @@ function IconCheckCircle() {
   );
 }
 
+// Top-nav icons
+function IconShoppingBag() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0">
+      <path d="M6 2L3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4z" />
+      <line x1="3" y1="6" x2="21" y2="6" />
+      <path d="M16 10a4 4 0 0 1-8 0" />
+    </svg>
+  );
+}
+
+function IconCalculator() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0">
+      <rect x="4" y="2" width="16" height="20" rx="2" />
+      <line x1="8" y1="6" x2="16" y2="6" />
+      <line x1="8" y1="10" x2="8" y2="10" strokeWidth="3" strokeLinecap="round" />
+      <line x1="12" y1="10" x2="12" y2="10" strokeWidth="3" strokeLinecap="round" />
+      <line x1="16" y1="10" x2="16" y2="10" strokeWidth="3" strokeLinecap="round" />
+      <line x1="8" y1="14" x2="8" y2="14" strokeWidth="3" strokeLinecap="round" />
+      <line x1="12" y1="14" x2="12" y2="14" strokeWidth="3" strokeLinecap="round" />
+      <line x1="16" y1="14" x2="16" y2="14" strokeWidth="3" strokeLinecap="round" />
+      <line x1="8" y1="18" x2="8" y2="18" strokeWidth="3" strokeLinecap="round" />
+      <line x1="12" y1="18" x2="12" y2="18" strokeWidth="3" strokeLinecap="round" />
+      <line x1="16" y1="18" x2="16" y2="18" strokeWidth="3" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function IconTag() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0">
+      <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+      <line x1="7" y1="7" x2="7.01" y2="7" strokeWidth="3" />
+    </svg>
+  );
+}
+
+function IconNavTruck() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0">
+      <rect x="1" y="3" width="15" height="13" />
+      <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+      <circle cx="5.5" cy="18.5" r="2.5" />
+      <circle cx="18.5" cy="18.5" r="2.5" />
+    </svg>
+  );
+}
+
+function IconTicket() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0">
+      <path d="M2 9a3 3 0 0 1 0 6v2a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-2a3 3 0 0 1 0-6V7a2 2 0 0 0-2-2H4a2 2 0 0 0-2 2z" />
+    </svg>
+  );
+}
+
+function IconBarChart() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0">
+      <line x1="18" y1="20" x2="18" y2="10" />
+      <line x1="12" y1="20" x2="12" y2="4" />
+      <line x1="6" y1="20" x2="6" y2="14" />
+      <line x1="2" y1="20" x2="22" y2="20" />
+    </svg>
+  );
+}
+
+function IconSettings() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0">
+      <circle cx="12" cy="12" r="3" />
+      <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
 // ─────────────────────────────────────────────────────────────────────────────
 
 export default async function DashboardPage({ searchParams }: PageProps) {
@@ -155,7 +232,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   const showCEWarning = isFriday && nextWeekDates.some((iso) => !ceSchedule.value?.[iso]);
 
   let summary = null, ordersPage = null, cities: string[] = [];
-  let historicalPage = null, historicalCities: string[] = [];
+  let historicalPage = null, historicalCities: string[] = [], historicalDelayedCount = 0;
   let ticketsPage = null;
   let activeWithCases = null;
   let delayMetrics = null;
@@ -180,21 +257,32 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     ]);
   } else if (tab === "historial") {
     const hPage = Number(params.h_page || 1);
-    [historicalPage, historicalCities] = await Promise.all([
-      getHistoricalOrders({
-        source: params.h_source,
-        urgency: params.h_urgency,
-        logistics_operator: params.h_logistics_operator,
-        city: params.h_city,
-        commune: params.h_commune,
-        order_number: params.h_order_number,
-        date_from: params.h_date_from,
-        date_to: params.h_date_to,
-        page: hPage,
-        per_page: 25,
-      }),
-      getDistinctHistoricalCities(),
-    ]);
+    const hFilters = {
+      source: params.h_source,
+      logistics_operator: params.h_logistics_operator,
+      city: params.h_city,
+      commune: params.h_commune,
+      order_number: params.h_order_number,
+      date_from: params.h_date_from,
+      date_to: params.h_date_to,
+    };
+    if (!params.h_urgency) {
+      // Fetch page + delayed count in parallel
+      const [hp, hc, overdueResult] = await Promise.all([
+        getHistoricalOrders({ ...hFilters, page: hPage, per_page: 25 }),
+        getDistinctHistoricalCities(),
+        getHistoricalOrders({ ...hFilters, urgency: "overdue", per_page: 1 }),
+      ]);
+      historicalPage = hp;
+      historicalCities = hc;
+      historicalDelayedCount = overdueResult.total;
+    } else {
+      [historicalPage, historicalCities] = await Promise.all([
+        getHistoricalOrders({ ...hFilters, urgency: params.h_urgency, page: hPage, per_page: 25 }),
+        getDistinctHistoricalCities(),
+      ]);
+      historicalDelayedCount = params.h_urgency === "overdue" ? historicalPage.total : 0;
+    }
   } else if (tab === "atrasados") {
     const aMonth = params.a_month || undefined;
     dailyDelays = await getDelaysByDay(aMonth ? { month: aMonth } : { days: 30 });
@@ -241,7 +329,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   };
 
   const topNavClass = (active: boolean) =>
-    `px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+    `flex items-center gap-1.5 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
       active
         ? "border-gray-900 text-gray-900"
         : "border-transparent text-gray-500 hover:text-gray-700"
@@ -269,46 +357,32 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
         {/* Top-level Tabs */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-1 -mb-px">
-          <a
-            href={buildUrl(allParams, { tab: "atrasados" })}
-            className={topNavClass(isPedidosGroup)}
-          >
+          <a href={buildUrl(allParams, { tab: "atrasados" })} className={topNavClass(isPedidosGroup)}>
+            <IconShoppingBag />
             Pedidos
           </a>
-          <a
-            href={buildUrl(allParams, { tab: "cotizador" })}
-            className={topNavClass(tab === "cotizador")}
-          >
+          <a href={buildUrl(allParams, { tab: "cotizador" })} className={topNavClass(tab === "cotizador")}>
+            <IconCalculator />
             Cotizador
           </a>
-          <a
-            href={buildUrl(allParams, { tab: "productos" })}
-            className={topNavClass(tab === "productos")}
-          >
+          <a href={buildUrl(allParams, { tab: "productos" })} className={topNavClass(tab === "productos")}>
+            <IconTag />
             Productos
           </a>
-          <a
-            href={buildUrl(allParams, { tab: "couriers" })}
-            className={topNavClass(tab === "couriers")}
-          >
+          <a href={buildUrl(allParams, { tab: "couriers" })} className={topNavClass(tab === "couriers")}>
+            <IconNavTruck />
             Couriers
           </a>
-          <a
-            href={buildUrl(allParams, { tab: "tickets" })}
-            className={topNavClass(tab === "tickets")}
-          >
+          <a href={buildUrl(allParams, { tab: "tickets" })} className={topNavClass(tab === "tickets")}>
+            <IconTicket />
             Tickets
           </a>
-          <a
-            href={buildUrl(allParams, { tab: "estadisticas" })}
-            className={topNavClass(tab === "estadisticas")}
-          >
+          <a href={buildUrl(allParams, { tab: "estadisticas" })} className={topNavClass(tab === "estadisticas")}>
+            <IconBarChart />
             Estadísticas
           </a>
-          <a
-            href={buildUrl(allParams, { tab: "configuracion" })}
-            className={topNavClass(tab === "configuracion")}
-          >
+          <a href={buildUrl(allParams, { tab: "configuracion" })} className={topNavClass(tab === "configuracion")}>
+            <IconSettings />
             Configuración
           </a>
         </div>
@@ -479,12 +553,33 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         {tab === "historial" && historicalPage && (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
-              <h2 className="text-base font-medium text-gray-900">
-                Entregados ({historicalPage.total})
-              </h2>
+              <div>
+                <h2 className="text-base font-medium text-gray-900">
+                  Entregados ({historicalPage.total})
+                </h2>
+                <p className="text-xs text-gray-400 mt-0.5">
+                  Pedidos resueltos · el estado refleja el último registrado al salir del feed activo
+                </p>
+              </div>
               <Suspense fallback={null}>
                 <HistoricalFilterBar cities={historicalCities} />
               </Suspense>
+            </div>
+
+            {/* Summary cards */}
+            <div className="px-6 py-4 border-b border-gray-100 grid grid-cols-3 gap-3">
+              <div className="rounded-lg bg-gray-50 px-4 py-3 text-center">
+                <div className="text-2xl font-semibold text-gray-900">{historicalPage.total}</div>
+                <div className="text-xs text-gray-500 mt-0.5">Total resueltos</div>
+              </div>
+              <div className="rounded-lg bg-red-50 px-4 py-3 text-center">
+                <div className="text-2xl font-semibold text-red-600">{historicalDelayedCount}</div>
+                <div className="text-xs text-red-500 mt-0.5">Atrasados</div>
+              </div>
+              <div className="rounded-lg bg-green-50 px-4 py-3 text-center">
+                <div className="text-2xl font-semibold text-green-600">{historicalPage.total - historicalDelayedCount}</div>
+                <div className="text-xs text-green-500 mt-0.5">A tiempo</div>
+              </div>
             </div>
 
             <div className="px-6 py-4">
