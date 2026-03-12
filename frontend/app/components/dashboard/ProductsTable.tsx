@@ -582,20 +582,20 @@ export function ProductsTable({ initialData }: Props) {
                       )}
                     </td>
                     <td className="py-3 px-3">
-                      <div className="flex items-center justify-end gap-3">
+                      <div className="flex items-center justify-end gap-2">
                         {missingDimensions && (
-                          <span className="text-xs text-amber-500">Pendiente</span>
+                          <span className="text-xs px-2 py-0.5 border border-amber-300 text-amber-600 rounded-md">Pendiente</span>
                         )}
                         <button
                           onClick={() => openEdit(p)}
-                          className="text-xs text-gray-500 hover:text-gray-900 transition-colors"
+                          className="text-xs px-2 py-0.5 border border-gray-900 text-gray-700 rounded-md hover:bg-gray-900 hover:text-white transition-colors"
                         >
                           Editar
                         </button>
                         <button
                           onClick={() => handleDelete(p.id)}
                           disabled={deletingId === p.id}
-                          className="text-xs text-red-400 hover:text-red-600 transition-colors disabled:opacity-50"
+                          className="text-xs px-2 py-0.5 border border-gray-900 text-gray-700 rounded-md hover:bg-red-600 hover:border-red-600 hover:text-white transition-colors disabled:opacity-50"
                         >
                           {deletingId === p.id ? "..." : "Eliminar"}
                         </button>
