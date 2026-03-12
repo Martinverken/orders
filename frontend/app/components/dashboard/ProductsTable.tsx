@@ -64,6 +64,16 @@ export function ProductsTable({ initialData }: Props) {
   const [filterBrand, setFilterBrand] = useState("");
   const [filterCategory, setFilterCategory] = useState("");
 
+  // Sort
+  type SortKey = "name" | "sku" | "category" | "weight_kg" | "billable";
+  const [sortKey, setSortKey] = useState<SortKey | null>(null);
+  const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
+
+  function handleSort(key: SortKey) {
+    if (sortKey === key) setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+    else { setSortKey(key); setSortDir("asc"); }
+  }
+
   const allCategories = Array.from(new Set(products.map((p) => p.category).filter(Boolean) as string[])).sort();
 
   const filtered = products.filter((p) => {
@@ -75,6 +85,36 @@ export function ProductsTable({ initialData }: Props) {
     }
     return true;
   });
+
+  const sorted = sortKey
+    ? [...filtered].sort((a, b) => {
+        let av: string | number | null = null;
+        let bv: string | number | null = null;
+        if (sortKey === "name") { av = a.name; bv = b.name; }
+        else if (sortKey === "sku") { av = a.sku; bv = b.sku; }
+        else if (sortKey === "category") { av = a.category ?? null; bv = b.category ?? null; }
+        else if (sortKey === "weight_kg") { av = a.weight_kg ?? null; bv = b.weight_kg ?? null; }
+        else if (sortKey === "billable") { av = computeBillableWeight(a); bv = computeBillableWeight(b); }
+        if (av == null && bv == null) return 0;
+        if (av == null) return 1;
+        if (bv == null) return -1;
+        const cmp = av < bv ? -1 : av > bv ? 1 : 0;
+        return sortDir === "asc" ? cmp : -cmp;
+      })
+    : filtered;
+
+  function SortableHeader({ label, colKey, right }: { label: string; colKey: SortKey; right?: boolean }) {
+    const active = sortKey === colKey;
+    const arrow = active ? (sortDir === "asc" ? " ↑" : " ↓") : " ↕";
+    return (
+      <th
+        onClick={() => handleSort(colKey)}
+        className={`py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide cursor-pointer select-none hover:text-gray-700 ${right ? "text-right" : "text-left"}`}
+      >
+        {label}<span className={`ml-0.5 ${active ? "text-gray-700" : "text-gray-300"}`}>{arrow}</span>
+      </th>
+    );
+  }
 
   function openNew() {
     setEditingId(null);
@@ -417,21 +457,21 @@ export function ProductsTable({ initialData }: Props) {
             <thead>
               <tr className="border-b border-gray-100">
                 <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-400 w-10">#</th>
-                <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Nombre</th>
-                <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">SKU</th>
+                <SortableHeader label="Nombre" colKey="name" />
+                <SortableHeader label="SKU" colKey="sku" />
                 <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Marca</th>
-                <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Categoría</th>
+                <SortableHeader label="Categoría" colKey="category" />
                 <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Tamaño</th>
-                <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Alto</th>
-                <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Ancho</th>
-                <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Largo</th>
-                <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Peso</th>
-                <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">P. Tarificable</th>
+                <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Alto (cm)</th>
+                <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Ancho (cm)</th>
+                <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Largo (cm)</th>
+                <SortableHeader label="Peso (kg)" colKey="weight_kg" right />
+                <SortableHeader label="P. Tarificable (kg)" colKey="billable" right />
                 <th className="py-2.5 px-3" />
               </tr>
             </thead>
             <tbody className="divide-y divide-gray-50">
-              {filtered.map((p, idx) => {
+              {sorted.map((p, idx) => {
                 const missingDimensions = !p.height_cm || !p.width_cm || !p.length_cm || !p.weight_kg;
                 const sizeTag = computeSize(p);
                 const billableWeight = computeBillableWeight(p);
@@ -463,21 +503,21 @@ export function ProductsTable({ initialData }: Props) {
                       )}
                     </td>
                     <td className={`py-3 px-3 text-right text-xs ${p.height_cm ? "text-gray-700" : "text-amber-400"}`}>
-                      {p.height_cm != null ? `${p.height_cm} cm` : "—"}
+                      {p.height_cm != null ? p.height_cm : "—"}
                     </td>
                     <td className={`py-3 px-3 text-right text-xs ${p.width_cm ? "text-gray-700" : "text-amber-400"}`}>
-                      {p.width_cm != null ? `${p.width_cm} cm` : "—"}
+                      {p.width_cm != null ? p.width_cm : "—"}
                     </td>
                     <td className={`py-3 px-3 text-right text-xs ${p.length_cm ? "text-gray-700" : "text-amber-400"}`}>
-                      {p.length_cm != null ? `${p.length_cm} cm` : "—"}
+                      {p.length_cm != null ? p.length_cm : "—"}
                     </td>
                     <td className={`py-3 px-3 text-right text-xs ${p.weight_kg ? "text-gray-700" : "text-amber-400"}`}>
-                      {p.weight_kg != null ? `${p.weight_kg} kg` : "—"}
+                      {p.weight_kg != null ? p.weight_kg : "—"}
                     </td>
                     <td className="py-3 px-3 text-right text-xs">
                       {billableWeight != null ? (
                         <span className={isVolumetric ? "text-orange-600 font-semibold" : "text-gray-700"}>
-                          {billableWeight % 1 === 0 ? billableWeight : billableWeight.toFixed(2)} kg
+                          {billableWeight % 1 === 0 ? billableWeight : billableWeight.toFixed(2)}
                           {isVolumetric && <span className="ml-1 text-orange-400 font-normal">(vol)</span>}
                         </span>
                       ) : (
