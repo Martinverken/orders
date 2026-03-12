@@ -298,6 +298,7 @@ export function ProductsTable({ initialData }: Props) {
                 className={inputClass}
                 placeholder="Ej: Camiseta básica"
               />
+              {editingId && <p className="mt-1 text-xs text-red-500">Solo se puede editar desde Shopify</p>}
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">SKU *</label>
@@ -308,6 +309,7 @@ export function ProductsTable({ initialData }: Props) {
                 className={inputClass}
                 placeholder="Ej: CAM-001"
               />
+              {editingId && <p className="mt-1 text-xs text-red-500">Solo se puede editar desde Shopify</p>}
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Marca</label>
