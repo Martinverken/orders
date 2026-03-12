@@ -29,6 +29,9 @@ class ProductRequest(BaseModel):
     width_cm: Optional[float] = None
     length_cm: Optional[float] = None
     weight_kg: Optional[float] = None
+    num_bultos: int = 1
+    is_service: bool = False
+    is_pack: bool = False
 
 
 class ProductUpdateRequest(BaseModel):
@@ -40,6 +43,9 @@ class ProductUpdateRequest(BaseModel):
     width_cm: Optional[float] = None
     length_cm: Optional[float] = None
     weight_kg: Optional[float] = None
+    num_bultos: Optional[int] = None
+    is_service: Optional[bool] = None
+    is_pack: Optional[bool] = None
 
 
 @router.get("/export")

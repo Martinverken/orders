@@ -207,6 +207,9 @@ export interface Product {
   length_cm?: number | null;
   weight_kg?: number | null;
   image_url?: string | null;
+  num_bultos: number;
+  is_service: boolean;
+  is_pack: boolean;
   created_at: string;
   updated_at: string;
 }

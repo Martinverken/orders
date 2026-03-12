@@ -9,7 +9,26 @@ interface Props {
 }
 
 const BRANDS = ["Verken", "Kaut"];
-const EMPTY_FORM = { name: "", sku: "", brand: "", category: "", height_cm: "", width_cm: "", length_cm: "", weight_kg: "" };
+
+interface FormState {
+  name: string;
+  sku: string;
+  brand: string;
+  category: string;
+  height_cm: string;
+  width_cm: string;
+  length_cm: string;
+  weight_kg: string;
+  num_bultos: number;
+  is_service: boolean;
+  is_pack: boolean;
+}
+
+const EMPTY_FORM: FormState = {
+  name: "", sku: "", brand: "", category: "",
+  height_cm: "", width_cm: "", length_cm: "", weight_kg: "",
+  num_bultos: 1, is_service: false, is_pack: false,
+};
 const STANDARD_BAG = { height_cm: "32", width_cm: "42", length_cm: "5", weight_kg: "3" };
 
 type SizeTag = "Chico" | "Mediano" | "Grande" | "Extra Grande" | "Gigante";
@@ -23,12 +42,15 @@ const SIZE_COLOR: Record<SizeTag, string> = {
 };
 
 function computeBillableWeight(p: Product): number | null {
+  if (p.is_service) return null;
   if (p.height_cm == null || p.width_cm == null || p.length_cm == null || p.weight_kg == null) return null;
   const volWeight = (p.height_cm * p.width_cm * p.length_cm) / 4000;
-  return Math.max(p.weight_kg, volWeight);
+  const perBulto = Math.max(p.weight_kg, volWeight);
+  return perBulto * (p.num_bultos ?? 1);
 }
 
 function computeSize(p: Product): SizeTag | null {
+  if (p.is_service) return null;
   if (p.height_cm == null || p.width_cm == null || p.length_cm == null || p.weight_kg == null) return null;
   const sum = p.height_cm + p.width_cm + p.length_cm;
   if (sum > 180 || p.weight_kg > 20) return "Gigante";
@@ -43,7 +65,7 @@ export function ProductsTable({ initialData }: Props) {
   const [total, setTotal] = useState(initialData.total);
   const [showForm, setShowForm] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState(EMPTY_FORM);
+  const [form, setForm] = useState<FormState>(EMPTY_FORM);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [deletingId, setDeletingId] = useState<string | null>(null);
@@ -140,6 +162,9 @@ export function ProductsTable({ initialData }: Props) {
       width_cm: p.width_cm != null ? String(p.width_cm) : "",
       length_cm: p.length_cm != null ? String(p.length_cm) : "",
       weight_kg: p.weight_kg != null ? String(p.weight_kg) : "",
+      num_bultos: p.num_bultos ?? 1,
+      is_service: p.is_service ?? false,
+      is_pack: p.is_pack ?? false,
     });
     setError(null);
     setShowForm(true);
@@ -176,10 +201,13 @@ export function ProductsTable({ initialData }: Props) {
         sku: form.sku.trim(),
         brand: form.brand || null,
         category: form.category.trim() || null,
-        height_cm: parseNum(form.height_cm),
-        width_cm: parseNum(form.width_cm),
-        length_cm: parseNum(form.length_cm),
-        weight_kg: parseNum(form.weight_kg),
+        height_cm: form.is_service ? null : parseNum(form.height_cm),
+        width_cm: form.is_service ? null : parseNum(form.width_cm),
+        length_cm: form.is_service ? null : parseNum(form.length_cm),
+        weight_kg: form.is_service ? null : parseNum(form.weight_kg),
+        num_bultos: form.num_bultos,
+        is_service: form.is_service,
+        is_pack: form.is_pack,
       };
       if (editingId) {
         const updated = await updateProduct(editingId, payload);
@@ -315,6 +343,38 @@ export function ProductsTable({ initialData }: Props) {
           <h3 className="text-sm font-semibold text-gray-900 mb-4">
             {editingId ? "Editar producto" : "Nuevo producto"}
           </h3>
+
+          {/* Toggles row */}
+          <div className="flex items-center gap-6 mb-4">
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={form.is_service}
+                onClick={() => setForm((f) => ({ ...f, is_service: !f.is_service, is_pack: f.is_pack && !f.is_service ? false : f.is_pack }))}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${form.is_service ? "bg-purple-600" : "bg-gray-200"}`}
+              >
+                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${form.is_service ? "translate-x-4" : "translate-x-0.5"}`} />
+              </button>
+              <span className="text-sm text-gray-700">Servicio</span>
+              <span className="text-xs text-gray-400">(sin peso/dimensiones)</span>
+            </label>
+
+            <label className="flex items-center gap-2 cursor-pointer select-none">
+              <button
+                type="button"
+                role="switch"
+                aria-checked={form.is_pack}
+                onClick={() => setForm((f) => ({ ...f, is_pack: !f.is_pack }))}
+                className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${form.is_pack ? "bg-blue-600" : "bg-gray-200"}`}
+              >
+                <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${form.is_pack ? "translate-x-4" : "translate-x-0.5"}`} />
+              </button>
+              <span className="text-sm text-gray-700">Pack</span>
+              <span className="text-xs text-gray-400">(composición de SKUs)</span>
+            </label>
+          </div>
+
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
             <div className="col-span-2">
               <label className="block text-xs text-gray-500 mb-1">Nombre *</label>
@@ -361,40 +421,73 @@ export function ProductsTable({ initialData }: Props) {
                 placeholder="Ej: Ropa, Accesorios"
               />
             </div>
-            <div className="col-span-2 sm:col-span-3 lg:col-span-4 flex items-center gap-2">
-              <button
-                type="button"
-                onClick={() => setForm((f) => ({ ...f, ...STANDARD_BAG }))}
-                className="px-2.5 py-1 text-xs border border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
-              >
-                📦 Bolsa estándar — 32×42×5 cm · 3 kg
-              </button>
-              <span className="text-xs text-gray-400">Pedidos pequeños en bolsa plástica</span>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Alto (cm)</label>
-              <input type="number" step="0.01" min="0" value={form.height_cm}
-                onChange={(e) => setForm({ ...form, height_cm: e.target.value })}
-                className={inputClass} placeholder="0.00" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Ancho (cm)</label>
-              <input type="number" step="0.01" min="0" value={form.width_cm}
-                onChange={(e) => setForm({ ...form, width_cm: e.target.value })}
-                className={inputClass} placeholder="0.00" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Largo (cm)</label>
-              <input type="number" step="0.01" min="0" value={form.length_cm}
-                onChange={(e) => setForm({ ...form, length_cm: e.target.value })}
-                className={inputClass} placeholder="0.00" />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Peso (kg)</label>
-              <input type="number" step="0.001" min="0" value={form.weight_kg}
-                onChange={(e) => setForm({ ...form, weight_kg: e.target.value })}
-                className={inputClass} placeholder="0.000" />
-            </div>
+
+            {/* Num bultos stepper */}
+            {!form.is_service && (
+              <div>
+                <label className="block text-xs text-gray-500 mb-1">Bultos</label>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, num_bultos: Math.max(1, f.num_bultos - 1) }))}
+                    className="w-8 h-8 flex items-center justify-center border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors text-base font-medium"
+                  >
+                    −
+                  </button>
+                  <span className="w-8 text-center text-sm font-semibold text-gray-900">{form.num_bultos}</span>
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, num_bultos: f.num_bultos + 1 }))}
+                    className="w-8 h-8 flex items-center justify-center border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors text-base font-medium"
+                  >
+                    +
+                  </button>
+                </div>
+                {form.num_bultos > 1 && (
+                  <p className="mt-1 text-xs text-gray-400">Dimensiones = 1 bulto</p>
+                )}
+              </div>
+            )}
+
+            {/* Dimension fields — hidden when service */}
+            {!form.is_service && (
+              <>
+                <div className="col-span-2 sm:col-span-3 lg:col-span-4 flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setForm((f) => ({ ...f, ...STANDARD_BAG }))}
+                    className="px-2.5 py-1 text-xs border border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
+                  >
+                    📦 Bolsa estándar — 32×42×5 cm · 3 kg
+                  </button>
+                  <span className="text-xs text-gray-400">Pedidos pequeños en bolsa plástica</span>
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Alto (cm)</label>
+                  <input type="number" step="0.01" min="0" value={form.height_cm}
+                    onChange={(e) => setForm({ ...form, height_cm: e.target.value })}
+                    className={inputClass} placeholder="0.00" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Ancho (cm)</label>
+                  <input type="number" step="0.01" min="0" value={form.width_cm}
+                    onChange={(e) => setForm({ ...form, width_cm: e.target.value })}
+                    className={inputClass} placeholder="0.00" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Largo (cm)</label>
+                  <input type="number" step="0.01" min="0" value={form.length_cm}
+                    onChange={(e) => setForm({ ...form, length_cm: e.target.value })}
+                    className={inputClass} placeholder="0.00" />
+                </div>
+                <div>
+                  <label className="block text-xs text-gray-500 mb-1">Peso (kg)</label>
+                  <input type="number" step="0.001" min="0" value={form.weight_kg}
+                    onChange={(e) => setForm({ ...form, weight_kg: e.target.value })}
+                    className={inputClass} placeholder="0.000" />
+                </div>
+              </>
+            )}
           </div>
           {error && <p className="mt-3 text-sm text-red-500">{error}</p>}
           <div className="mt-4 flex items-center gap-3">
@@ -516,10 +609,14 @@ export function ProductsTable({ initialData }: Props) {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {sorted.map((p, idx) => {
-                const missingDimensions = !p.height_cm || !p.width_cm || !p.length_cm || !p.weight_kg;
+                const missingDimensions = !p.is_service && (!p.height_cm || !p.width_cm || !p.length_cm || !p.weight_kg);
                 const sizeTag = computeSize(p);
                 const billableWeight = computeBillableWeight(p);
-                const isVolumetric = billableWeight != null && p.weight_kg != null && billableWeight > p.weight_kg;
+                const perBulto = p.weight_kg != null && p.height_cm != null && p.width_cm != null && p.length_cm != null
+                  ? Math.max(p.weight_kg, (p.height_cm * p.width_cm * p.length_cm) / 4000)
+                  : null;
+                const isVolumetric = perBulto != null && p.weight_kg != null && perBulto > p.weight_kg;
+                const numBultos = p.num_bultos ?? 1;
                 return (
                   <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                     <td className="py-3 px-3 text-right text-xs text-gray-400">{idx + 1}</td>
@@ -545,13 +642,28 @@ export function ProductsTable({ initialData }: Props) {
                         </div>
                       )}
                     </td>
-                    <td className="py-3 px-3 font-medium text-gray-900">{p.name}</td>
+                    <td className="py-3 px-3 font-medium text-gray-900">
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span>{p.name}</span>
+                        {p.is_service && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700">Servicio</span>
+                        )}
+                        {p.is_pack && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">Pack</span>
+                        )}
+                        {numBultos > 1 && (
+                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700">×{numBultos} bultos</span>
+                        )}
+                      </div>
+                    </td>
                     <td className="py-3 px-3 text-gray-500 font-mono text-xs">{p.sku}</td>
                     <td className="py-3 px-3 text-xs text-gray-500">
                       {p.category ?? <span className="text-gray-300">—</span>}
                     </td>
                     <td className="py-3 px-3">
-                      {sizeTag ? (
+                      {p.is_service ? (
+                        <span className="text-gray-300">—</span>
+                      ) : sizeTag ? (
                         <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${SIZE_COLOR[sizeTag]}`}>
                           {sizeTag}
                         </span>
@@ -559,23 +671,26 @@ export function ProductsTable({ initialData }: Props) {
                         <span className="text-gray-300">—</span>
                       )}
                     </td>
-                    <td className={`py-3 px-3 text-right text-xs ${p.height_cm ? "text-gray-700" : "text-amber-400"}`}>
-                      {p.height_cm != null ? p.height_cm : "—"}
+                    <td className={`py-3 px-3 text-right text-xs ${p.is_service ? "text-gray-300" : p.height_cm ? "text-gray-700" : "text-amber-400"}`}>
+                      {p.is_service ? "—" : p.height_cm != null ? p.height_cm : "—"}
                     </td>
-                    <td className={`py-3 px-3 text-right text-xs ${p.width_cm ? "text-gray-700" : "text-amber-400"}`}>
-                      {p.width_cm != null ? p.width_cm : "—"}
+                    <td className={`py-3 px-3 text-right text-xs ${p.is_service ? "text-gray-300" : p.width_cm ? "text-gray-700" : "text-amber-400"}`}>
+                      {p.is_service ? "—" : p.width_cm != null ? p.width_cm : "—"}
                     </td>
-                    <td className={`py-3 px-3 text-right text-xs ${p.length_cm ? "text-gray-700" : "text-amber-400"}`}>
-                      {p.length_cm != null ? p.length_cm : "—"}
+                    <td className={`py-3 px-3 text-right text-xs ${p.is_service ? "text-gray-300" : p.length_cm ? "text-gray-700" : "text-amber-400"}`}>
+                      {p.is_service ? "—" : p.length_cm != null ? p.length_cm : "—"}
                     </td>
-                    <td className={`py-3 px-3 text-right text-xs ${p.weight_kg ? "text-gray-700" : "text-amber-400"}`}>
-                      {p.weight_kg != null ? p.weight_kg : "—"}
+                    <td className={`py-3 px-3 text-right text-xs ${p.is_service ? "text-gray-300" : p.weight_kg ? "text-gray-700" : "text-amber-400"}`}>
+                      {p.is_service ? "—" : p.weight_kg != null ? p.weight_kg : "—"}
                     </td>
                     <td className="py-3 px-3 text-right text-xs">
-                      {billableWeight != null ? (
+                      {p.is_service ? (
+                        <span className="text-gray-300">—</span>
+                      ) : billableWeight != null ? (
                         <span className={isVolumetric ? "text-orange-600 font-semibold" : "text-gray-700"}>
                           {billableWeight % 1 === 0 ? billableWeight : billableWeight.toFixed(2)}
                           {isVolumetric && <span className="ml-1 text-orange-400 font-normal">(vol)</span>}
+                          {numBultos > 1 && <span className="ml-1 text-amber-500 font-normal">×{numBultos}</span>}
                         </span>
                       ) : (
                         <span className="text-gray-300">—</span>

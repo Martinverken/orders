@@ -13,6 +13,9 @@ class ProductCreate(BaseModel):
     length_cm: Optional[float] = None
     weight_kg: Optional[float] = None
     image_url: Optional[str] = None
+    num_bultos: int = 1
+    is_service: bool = False
+    is_pack: bool = False
 
 
 class Product(ProductCreate):
