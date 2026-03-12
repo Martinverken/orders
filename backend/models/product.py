@@ -6,6 +6,7 @@ from pydantic import BaseModel
 class ProductCreate(BaseModel):
     name: str
     sku: str
+    brand: Optional[str] = None
     height_cm: Optional[float] = None
     width_cm: Optional[float] = None
     length_cm: Optional[float] = None

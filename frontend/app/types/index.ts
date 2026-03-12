@@ -200,6 +200,7 @@ export interface Product {
   id: string;
   name: string;
   sku: string;
+  brand?: string | null;
   height_cm?: number | null;
   width_cm?: number | null;
   length_cm?: number | null;

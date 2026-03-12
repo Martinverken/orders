@@ -249,6 +249,11 @@ export async function deleteProduct(id: string): Promise<void> {
   await apiFetch(`/api/products/${id}`, { method: "DELETE" });
 }
 
+export async function syncShopifyProducts(): Promise<{ inserted: number; updated: number; stores: { store: string; variants: number }[] }> {
+  const res = await apiFetch<{ success: boolean; inserted: number; updated: number; stores: { store: string; variants: number }[] }>("/api/products/sync-shopify", { method: "POST" });
+  return res;
+}
+
 // ── Couriers ──────────────────────────────────────────────────────────────────
 
 export async function getCouriers(): Promise<Courier[]> {
