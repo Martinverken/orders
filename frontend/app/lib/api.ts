@@ -311,3 +311,17 @@ export async function getDelayMetrics(): Promise<HistoricalMetrics> {
     return { delayed: [], on_time: [], delayed_weekly: [], on_time_weekly: [] };
   }
 }
+
+
+export interface MlReputation {
+  level_id: string | null;
+  power_seller_status: string | null;
+  delayed_rate: number | null;
+  claims_rate: number | null;
+  cancellations_rate: number | null;
+  transactions_completed: number | null;
+}
+
+export async function getMlReputation(): Promise<MlReputation> {
+  return apiFetch<MlReputation>("/api/ml/reputation");
+}

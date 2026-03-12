@@ -11,6 +11,7 @@ from routers import orders, sync, dashboard
 from routers import settings as settings_router
 from routers import products as products_router
 from routers import couriers as couriers_router
+from routers import ml as ml_router
 from shipping.router import router as shipping_router
 from jobs.daily_sync import run_daily_sync_sync, run_sync_only_sync, run_shopify_products_sync
 
@@ -83,6 +84,7 @@ app.include_router(settings_router.router)
 app.include_router(shipping_router)
 app.include_router(products_router.router)
 app.include_router(couriers_router.router)
+app.include_router(ml_router.router)
 
 
 @app.get("/health")

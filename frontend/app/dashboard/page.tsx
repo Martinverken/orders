@@ -13,6 +13,7 @@ import { CEScheduleSettings } from "@/app/components/dashboard/CEScheduleSetting
 import { DailyDelaysSummary } from "@/app/components/dashboard/DailyDelaysSummary";
 import { CEScheduleModal } from "@/app/components/dashboard/CEScheduleModal";
 import { ProductsTable } from "@/app/components/dashboard/ProductsTable";
+import { MlReputationBadge } from "@/app/components/dashboard/MlReputationBadge";
 import { CouriersTable } from "@/app/components/dashboard/CouriersTable";
 import type { Courier, ProductsPage } from "@/app/types";
 
@@ -352,7 +353,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             <h1 className="text-xl font-semibold text-gray-900 hover:text-gray-600 transition-colors">Verken Orders</h1>
             <p className="text-xs text-gray-500">Panel de pedidos</p>
           </a>
-          <SyncStatus lastSync={syncStatus.last_sync} />
+          <div className="flex items-center gap-3">
+            <MlReputationBadge />
+            <SyncStatus lastSync={syncStatus.last_sync} />
+          </div>
         </div>
 
         {/* Top-level Tabs */}
