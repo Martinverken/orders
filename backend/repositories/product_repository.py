@@ -139,6 +139,7 @@ class ProductRepository:
                     "sku": r["sku"],
                     "brand": r.get("brand"),
                     "image_url": r.get("image_url"),
+                    "is_pack": r.get("is_pack", False),
                     "updated_at": now,
                 })
 
@@ -146,11 +147,14 @@ class ProductRepository:
             self.db.table(self.table).insert(to_insert).execute()
 
         for r in to_update:
-            self.db.table(self.table).update({
+            update_data: dict = {
                 "name": r["name"],
                 "brand": r.get("brand"),
                 "image_url": r.get("image_url"),
                 "updated_at": now,
-            }).eq("sku", r["sku"]).execute()
+            }
+            if "is_pack" in r:
+                update_data["is_pack"] = r["is_pack"]
+            self.db.table(self.table).update(update_data).eq("sku", r["sku"]).execute()
 
         return len(to_insert), len(to_update)
