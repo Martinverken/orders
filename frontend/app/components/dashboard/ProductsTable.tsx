@@ -288,7 +288,7 @@ export function ProductsTable({ initialData }: Props) {
   }
 
   const inputClass =
-    "border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent w-full";
+    "border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent w-full";
 
   const verkenCount = products.filter((p) => p.brand === "Verken").length;
   const kautCount = products.filter((p) => p.brand === "Kaut").length;
