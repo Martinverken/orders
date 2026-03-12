@@ -7,6 +7,19 @@ import { Courier } from "@/app/types";
 interface Props { initialData: Courier[] }
 
 const clp = (n: number) => `$${n.toLocaleString("es-CL")}`;
+const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
+
+function downloadCsv(filename: string, rows: string[][]) {
+  const bom = "\uFEFF";
+  const content = rows.map((r) => r.map((c) => `"${c}"`).join(",")).join("\n");
+  const blob = new Blob([bom + content], { type: "text/csv;charset=utf-8;" });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement("a");
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
 
 // ── Welivery tiers ────────────────────────────────────────────────────────────
 const WELIVERY_URBAN = [
@@ -64,8 +77,19 @@ function ZonePill({ label, color }: { label: string; color: string }) {
   );
 }
 
-function SectionLabel({ children }: { children: React.ReactNode }) {
-  return <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">{children}</p>;
+function SectionLabel({ children, className = "mb-2" }: { children: React.ReactNode; className?: string }) {
+  return <p className={`text-xs font-semibold text-gray-400 uppercase tracking-wide ${className}`}>{children}</p>;
+}
+
+function DownloadBtn({ onClick, label = "Descargar Excel" }: { onClick: () => void; label?: string }) {
+  return (
+    <button
+      onClick={onClick}
+      className="flex items-center gap-1 px-2.5 py-1 text-xs border border-gray-200 rounded-lg text-gray-600 hover:bg-gray-50 transition-colors"
+    >
+      ↓ {label}
+    </button>
+  );
 }
 
 function Restriction({ children }: { children: React.ReactNode }) {
@@ -103,6 +127,43 @@ export function CouriersTable({ initialData }: Props) {
   const [falaRating, setFalaRating] = useState<"5/5" | "4/5" | "3/5" | "2/5">("5/5");
 
   const falaRatingIdx = { "5/5": 0, "4/5": 1, "3/5": 2, "2/5": 3 }[falaRating];
+
+  function downloadWelivery() {
+    const header = ["Tipo", "Tramo", "Suma lados máx. (cm)", "Peso máx. (kg)", "Precio c/IVA (CLP)", "Precio neto (CLP)"];
+    const rows: string[][] = [header];
+    for (const r of WELIVERY_URBAN) {
+      rows.push(["Urbano", r.tier, String(r.max_sides), String(r.max_weight), String(r.price), String(Math.ceil(r.price / 1.19))]);
+    }
+    for (const r of WELIVERY_RURAL) {
+      rows.push(["Rural", r.tier, String(r.max_sides), String(r.max_weight), String(r.price), String(Math.ceil(r.price / 1.19))]);
+    }
+    downloadCsv("tarifas_welivery.csv", rows);
+  }
+
+  function downloadFalabella() {
+    const header = [
+      "Tramo",
+      "5/5 < $19.990", "4/5 < $19.990", "3/5 < $19.990", "2/5 < $19.990",
+      "5/5 ≥ $19.990", "4/5 ≥ $19.990", "3/5 ≥ $19.990", "2/5 ≥ $19.990",
+    ];
+    const rows: string[][] = [header];
+    for (const row of FALA_ROWS) {
+      rows.push([row.label, ...row.prices.map(String)]);
+    }
+    downloadCsv("tarifas_falabella_cofinanciamiento.csv", rows);
+  }
+
+  async function downloadStarken() {
+    const res = await fetch(`${API_URL}/api/shipping/tariffs/starken`);
+    if (!res.ok) return;
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "tarifas_starken.csv";
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   return (
     <div className="space-y-4">
@@ -144,7 +205,10 @@ export function CouriersTable({ initialData }: Props) {
             </div>
           </div>
           <div className="sm:col-span-2">
-            <SectionLabel>Tarifas por tramo</SectionLabel>
+            <div className="flex items-center justify-between mb-2">
+              <SectionLabel className="mb-0">Tarifas por tramo</SectionLabel>
+              <DownloadBtn onClick={downloadWelivery} />
+            </div>
             <div className="flex gap-1 mb-3">
               {(["urbano", "rural"] as const).map((t) => (
                 <button
@@ -208,7 +272,10 @@ export function CouriersTable({ initialData }: Props) {
             </p>
           </div>
           <div>
-            <SectionLabel>Tramos de peso</SectionLabel>
+            <div className="flex items-center justify-between mb-2">
+              <SectionLabel className="mb-0">Tramos de peso</SectionLabel>
+              <DownloadBtn onClick={downloadStarken} label="Tarifario completo" />
+            </div>
             <div className="flex flex-wrap gap-1 text-xs text-gray-600">
               {["0–0,5", "0,5–1,5", "1,5–3", "3–6", "6–10", "10–20", "20–30", "30–40", "40–50", "50–60", "60–70", "70–80", "80–90", "90–100", "100–499 /kg", "499–1000 /kg"].map((t) => (
                 <span key={t} className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">{t}</span>
@@ -266,8 +333,10 @@ export function CouriersTable({ initialData }: Props) {
         {/* Tariff table */}
         <div>
           <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
-            <SectionLabel>Tabla de tarifas (CLP con IVA)</SectionLabel>
-            <div className="flex gap-1">
+            <SectionLabel className="mb-0">Tabla de tarifas (CLP con IVA)</SectionLabel>
+            <div className="flex gap-1 items-center">
+              <DownloadBtn onClick={downloadFalabella} />
+
               {(["5/5", "4/5", "3/5", "2/5"] as const).map((r) => (
                 <button
                   key={r}

@@ -1,10 +1,28 @@
 """API endpoints for SKU master and shipping cost calculator."""
+import os
 from fastapi import APIRouter, HTTPException
+from fastapi.responses import FileResponse
 from shipping.models import SKUCreate, SKU, ShippingQuoteResponse, classify_size
 from shipping import repository
 from shipping.couriers import quote_all
 
 router = APIRouter(prefix="/api/shipping", tags=["shipping"])
+
+
+# ── Tariff downloads ─────────────────────────────────────────────────────────
+
+@router.get("/tariffs/starken")
+def download_starken_tariff():
+    """Download the full Starken tariff matrix as CSV."""
+    csv_path = os.path.join(os.path.dirname(__file__), "starken_tariffs.csv")
+    if not os.path.exists(csv_path):
+        raise HTTPException(status_code=404, detail="Starken tariff file not found")
+    return FileResponse(
+        csv_path,
+        media_type="text/csv",
+        filename="tarifas_starken.csv",
+        headers={"Content-Disposition": "attachment; filename=tarifas_starken.csv"},
+    )
 
 
 # ── SKU CRUD ─────────────────────────────────────────────────────────────────
