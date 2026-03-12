@@ -10,6 +10,7 @@ interface Props {
 
 const BRANDS = ["Verken", "Kaut"];
 const EMPTY_FORM = { name: "", sku: "", brand: "", category: "", height_cm: "", width_cm: "", length_cm: "", weight_kg: "" };
+const STANDARD_BAG = { height_cm: "32", width_cm: "42", length_cm: "5", weight_kg: "3" };
 
 const BRAND_COLOR: Record<string, string> = {
   Verken: "bg-blue-50 text-blue-700",
@@ -266,6 +267,16 @@ export function ProductsTable({ initialData }: Props) {
                 className={inputClass}
                 placeholder="Ej: Ropa, Accesorios"
               />
+            </div>
+            <div className="col-span-2 sm:col-span-3 lg:col-span-4 flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => setForm((f) => ({ ...f, ...STANDARD_BAG }))}
+                className="px-2.5 py-1 text-xs border border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
+              >
+                📦 Bolsa estándar — 32×42×5 cm · 3 kg
+              </button>
+              <span className="text-xs text-gray-400">Pedidos pequeños en bolsa plástica</span>
             </div>
             <div>
               <label className="block text-xs text-gray-500 mb-1">Alto (cm)</label>
