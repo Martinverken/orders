@@ -41,6 +41,19 @@ const WELIVERY_RURAL = [
   { tier: "6XL Rural",max_sides: 450, max_weight: 50, price: 33000 },
 ];
 
+// ── Flex communes ─────────────────────────────────────────────────────────────
+const FLEX_COMMUNES = [
+  "Cerrillos", "Cerro Navia", "Colina", "Conchalí", "El Bosque",
+  "Estación Central", "Huechuraba", "Independencia", "La Cisterna", "La Florida",
+  "La Granja", "La Pintana", "La Reina", "Las Condes", "Lo Barnechea",
+  "Lo Espejo", "Lo Prado", "Macul", "Maipú", "Ñuñoa",
+  "Padre Hurtado", "Pedro Aguirre Cerda", "Peñalolén", "Providencia", "Pudahuel",
+  "Puente Alto", "Quilicura", "Quinta Normal", "Recoleta", "Renca",
+  "San Bernardo", "San Joaquín", "San Miguel", "San Ramón", "Santiago", "Vitacura",
+].sort();
+
+const WELIVERY_RURAL_COMMUNES = new Set(["Colina", "Padre Hurtado"]);
+
 // ── MercadoLibre Centro de Envíos ─────────────────────────────────────────────
 // Peso tarificable = max(real, volumétrico) donde vol = l×w×h / 4000.
 // Precios con IVA incluido (CLP). Descuentos según reputación + precio producto.
@@ -145,6 +158,35 @@ function BultoNote() {
     <p className="text-xs text-blue-600 font-medium mt-1.5">
       📦 Cobro por bulto — pedidos multibulto se cobran por cada bulto por separado.
     </p>
+  );
+}
+
+function FlexCommunesList({ rural = false }: { rural?: boolean }) {
+  return (
+    <details className="group">
+      <summary className="text-xs text-gray-400 cursor-pointer hover:text-gray-600 transition-colors list-none flex items-center gap-1">
+        <span className="group-open:rotate-90 transition-transform inline-block">▶</span>
+        Ver {FLEX_COMMUNES.length} comunas
+      </summary>
+      <div className="mt-2 flex flex-wrap gap-1">
+        {FLEX_COMMUNES.map((c) => {
+          const isRural = WELIVERY_RURAL_COMMUNES.has(c);
+          return (
+            <span
+              key={c}
+              className={`px-1.5 py-0.5 rounded text-xs ${
+                isRural && rural
+                  ? "bg-teal-50 text-teal-700 font-medium"
+                  : "bg-gray-100 text-gray-600"
+              }`}
+            >
+              {c}{isRural && rural ? " *" : ""}
+            </span>
+          );
+        })}
+      </div>
+      {rural && <p className="mt-1.5 text-xs text-teal-600">* Tarifa rural</p>}
+    </details>
   );
 }
 
@@ -259,9 +301,10 @@ export function CouriersTable({ initialData }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div>
             <SectionLabel>Zonas disponibles</SectionLabel>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-1.5 mb-2">
               <ZonePill label="Santiago Flex" color="bg-blue-50 text-blue-700" />
             </div>
+            <FlexCommunesList />
           </div>
           <div>
             <SectionLabel>Tarifa</SectionLabel>
@@ -286,10 +329,12 @@ export function CouriersTable({ initialData }: Props) {
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
           <div>
             <SectionLabel>Zonas disponibles</SectionLabel>
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-1.5 mb-2">
               <ZonePill label="Santiago Flex (urbano)" color="bg-green-50 text-green-700" />
-              <ZonePill label="Santiago Flex (rural)" color="bg-teal-50 text-teal-700" />
+              <ZonePill label="Colina · Padre Hurtado (rural)" color="bg-teal-50 text-teal-700" />
             </div>
+            <p className="text-xs text-gray-500 mb-2">Colina y Padre Hurtado son comunas Flex con tarifa rural diferenciada.</p>
+            <FlexCommunesList rural />
           </div>
           <div className="sm:col-span-2">
             <div className="flex items-center justify-between mb-2">
