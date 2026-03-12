@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createProduct, deleteProduct, exportProducts, getProducts, importProducts, syncShopifyProducts, updateProduct } from "@/app/lib/api";
 import { Product, ProductsPage } from "@/app/types";
 
@@ -53,6 +53,15 @@ export function ProductsTable({ initialData }: Props) {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // Lightbox
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  useEffect(() => {
+    if (!lightboxUrl) return;
+    const onKey = (e: KeyboardEvent) => { if (e.key === "Escape") setLightboxUrl(null); };
+    window.addEventListener("keydown", onKey);
+    return () => window.removeEventListener("keydown", onKey);
+  }, [lightboxUrl]);
 
   // Brand tab
   const [activeBrand, setActiveBrand] = useState<"Verken" | "Kaut">("Verken");
@@ -258,6 +267,24 @@ export function ProductsTable({ initialData }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* Lightbox */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <div className="relative max-w-3xl max-h-[90vh] p-2" onClick={(e) => e.stopPropagation()}>
+            <button
+              onClick={() => setLightboxUrl(null)}
+              className="absolute -top-3 -right-3 w-7 h-7 bg-white rounded-full flex items-center justify-center text-gray-600 hover:text-gray-900 shadow-md text-sm font-bold z-10"
+            >
+              ✕
+            </button>
+            <img src={lightboxUrl} alt="Producto" className="max-w-full max-h-[85vh] object-contain rounded-xl shadow-2xl" />
+          </div>
+        </div>
+      )}
+
       {/* Brand tabs */}
       <div className="flex items-center gap-1 border-b border-gray-100">
         {(["Verken", "Kaut"] as const).map((brand) => {
@@ -498,11 +525,18 @@ export function ProductsTable({ initialData }: Props) {
                     <td className="py-3 px-3 text-right text-xs text-gray-400">{idx + 1}</td>
                     <td className="py-2 px-3">
                       {p.image_url ? (
-                        <img
-                          src={p.image_url}
-                          alt={p.name}
-                          className="w-10 h-10 object-cover rounded-md border border-gray-100"
-                        />
+                        <button onClick={() => setLightboxUrl(p.image_url!)} className="block group relative">
+                          <img
+                            src={p.image_url}
+                            alt={p.name}
+                            className="w-10 h-10 object-cover rounded-md border border-gray-100 group-hover:opacity-80 transition-opacity"
+                          />
+                          <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                            <svg className="w-4 h-4 text-white drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
+                            </svg>
+                          </div>
+                        </button>
                       ) : (
                         <div className="w-10 h-10 rounded-md border border-gray-100 bg-gray-50 flex items-center justify-center">
                           <svg className="w-4 h-4 text-gray-300" fill="none" viewBox="0 0 24 24" stroke="currentColor">
