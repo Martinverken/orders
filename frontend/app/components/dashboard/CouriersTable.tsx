@@ -1,377 +1,316 @@
 "use client";
 
 import { useState } from "react";
-import { createCourier, deleteCourier, updateCourier } from "@/app/lib/api";
 import { Courier } from "@/app/types";
 
-interface Props {
-  initialData: Courier[];
-}
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+interface Props { initialData: Courier[] }
 
-const PRICING_OPTIONS = [
-  { value: "por_peso", label: "Por peso" },
-  { value: "por_dimensiones", label: "Por dimensiones" },
-  { value: "mixto", label: "Mixto (peso + dimensiones)" },
-  { value: "tarifa_plana", label: "Tarifa plana" },
-  { value: "por_zona", label: "Por zona" },
+const clp = (n: number) => `$${n.toLocaleString("es-CL")}`;
+
+// ── Welivery tiers ────────────────────────────────────────────────────────────
+const WELIVERY_URBAN = [
+  { tier: "Normal",   max_sides: 150, max_weight: 20, price: 2450 },
+  { tier: "XL",       max_sides: 200, max_weight: 25, price: 4300 },
+  { tier: "2XL",      max_sides: 250, max_weight: 30, price: 10000 },
+  { tier: "3XL",      max_sides: 300, max_weight: 35, price: 16000 },
+  { tier: "4XL",      max_sides: 350, max_weight: 40, price: 21000 },
+  { tier: "5XL",      max_sides: 400, max_weight: 45, price: 26000 },
+  { tier: "6XL",      max_sides: 450, max_weight: 50, price: 30000 },
+];
+const WELIVERY_RURAL = [
+  { tier: "Rural",    max_sides: 150, max_weight: 20, price: 4600 },
+  { tier: "XL Rural", max_sides: 200, max_weight: 25, price: 6500 },
+  { tier: "2XL Rural",max_sides: 250, max_weight: 30, price: 13000 },
+  { tier: "3XL Rural",max_sides: 300, max_weight: 35, price: 19000 },
+  { tier: "4XL Rural",max_sides: 350, max_weight: 40, price: 24000 },
+  { tier: "5XL Rural",max_sides: 400, max_weight: 45, price: 29000 },
+  { tier: "6XL Rural",max_sides: 450, max_weight: 50, price: 33000 },
 ];
 
-const EMPTY_FORM = {
-  name: "",
-  pricing_type: "",
-  base_price: "",
-  price_per_kg: "",
-  max_weight_kg: "",
-  max_length_cm: "",
-  max_width_cm: "",
-  max_height_cm: "",
-  notes: "",
-  active: true,
-};
+// ── Falabella tariff table ────────────────────────────────────────────────────
+// Columns: [5/5_low, 4/5_low, 3/5_low, 2/5_low, 5/5_high, 4/5_high, 3/5_high, 2/5_high]
+const FALA_ROWS = [
+  { label: "0–1 kg",     prices: [1000, 1190, 1890, 2390, 2790, 3490, 5290, 6590] },
+  { label: "1–2 kg",     prices: [1000, 1190, 1890, 2390, 2890, 3490, 5590, 6990] },
+  { label: "2–3 kg",     prices: [1000, 1190, 1890, 2390, 3090, 3690, 5890, 7390] },
+  { label: "3–6 kg",     prices: [2490, 2990, 4790, 5990, 3390, 3990, 6390, 7990] },
+  { label: "6–10 kg",    prices: [3790, 4490, 7190, 8990, 3790, 4490, 7190, 8990] },
+  { label: "10–15 kg",   prices: [4590, 5490, 8790, 10990, 4590, 5490, 8790, 10990] },
+  { label: "15–20 kg",   prices: [5490, 6490, 10390, 12990, 5490, 6490, 10390, 12990] },
+  { label: "20–30 kg",   prices: [6690, 7990, 12790, 15990, 6690, 7990, 12790, 15990] },
+  { label: "30–50 kg",   prices: [7590, 8990, 14390, 17990, 7590, 8990, 14390, 17990] },
+  { label: "50–80 kg",   prices: [8390, 9990, 15990, 19990, 8390, 9990, 15990, 19990] },
+  { label: "80–100 kg",  prices: [9190, 10990, 17590, 21990, 9190, 10990, 17590, 21990] },
+  { label: "100–125 kg", prices: [9190, 10990, 17590, 21990, 9190, 10990, 17590, 21990] },
+  { label: "125–150 kg", prices: [10890, 12990, 20790, 25990, 10890, 12990, 20790, 25990] },
+  { label: "150–175 kg", prices: [10890, 12990, 20790, 25990, 10890, 12990, 20790, 25990] },
+  { label: "175–200 kg", prices: [12590, 14990, 23990, 29990, 12590, 14990, 23990, 29990] },
+  { label: "200–225 kg", prices: [15990, 18990, 30390, 37990, 15990, 18990, 30390, 37990] },
+  { label: "225–250 kg", prices: [15990, 18990, 30390, 37990, 15990, 18990, 30390, 37990] },
+  { label: "250–300 kg", prices: [20990, 24990, 39990, 49990, 20990, 24990, 39990, 49990] },
+  { label: "300–400 kg", prices: [21790, 25990, 41590, 51990, 21790, 25990, 41590, 51990] },
+  { label: "400–500 kg", prices: [22690, 26990, 43190, 53990, 22690, 26990, 43190, 53990] },
+  { label: "500–600 kg", prices: [29390, 34990, 55990, 69990, 29390, 34990, 55990, 69990] },
+  { label: ">600 kg/kg", prices: [34, 40, 64, 80, 34, 40, 64, 80] },
+];
 
-type FormState = typeof EMPTY_FORM;
+// ── Shared UI pieces ──────────────────────────────────────────────────────────
+function ZonePill({ label, color }: { label: string; color: string }) {
+  return (
+    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${color}`}>
+      {label}
+    </span>
+  );
+}
 
+function SectionLabel({ children }: { children: React.ReactNode }) {
+  return <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-2">{children}</p>;
+}
+
+function Restriction({ children }: { children: React.ReactNode }) {
+  return (
+    <li className="flex items-start gap-1.5 text-xs text-gray-600">
+      <span className="mt-0.5 text-red-400 shrink-0">✕</span>
+      {children}
+    </li>
+  );
+}
+
+function CourierCard({ name, color, children }: { name: string; color: string; children: React.ReactNode }) {
+  const [open, setOpen] = useState(true);
+  return (
+    <div className="border border-gray-200 rounded-xl overflow-hidden">
+      <button
+        onClick={() => setOpen((v) => !v)}
+        className="w-full flex items-center justify-between px-5 py-3.5 bg-white hover:bg-gray-50 transition-colors"
+      >
+        <div className="flex items-center gap-3">
+          <span className={`w-2.5 h-2.5 rounded-full ${color}`} />
+          <span className="font-semibold text-gray-900 text-sm">{name}</span>
+        </div>
+        <span className="text-gray-400 text-xs">{open ? "▲" : "▼"}</span>
+      </button>
+      {open && <div className="px-5 py-5 border-t border-gray-100 bg-white space-y-5">{children}</div>}
+    </div>
+  );
+}
+
+// ── Main component ────────────────────────────────────────────────────────────
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
 export function CouriersTable({ initialData }: Props) {
-  const [couriers, setCouriers] = useState<Courier[]>(initialData);
-  const [showForm, setShowForm] = useState(false);
-  const [editingId, setEditingId] = useState<string | null>(null);
-  const [form, setForm] = useState<FormState>(EMPTY_FORM);
-  const [saving, setSaving] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [weliveryTab, setWeliveryTab] = useState<"urbano" | "rural">("urbano");
+  const [falaRating, setFalaRating] = useState<"5/5" | "4/5" | "3/5" | "2/5">("5/5");
 
-  function openNew() {
-    setEditingId(null);
-    setForm(EMPTY_FORM);
-    setError(null);
-    setShowForm(true);
-  }
-
-  function openEdit(c: Courier) {
-    setEditingId(c.id);
-    setForm({
-      name: c.name,
-      pricing_type: c.pricing_type ?? "",
-      base_price: c.base_price != null ? String(c.base_price) : "",
-      price_per_kg: c.price_per_kg != null ? String(c.price_per_kg) : "",
-      max_weight_kg: c.max_weight_kg != null ? String(c.max_weight_kg) : "",
-      max_length_cm: c.max_length_cm != null ? String(c.max_length_cm) : "",
-      max_width_cm: c.max_width_cm != null ? String(c.max_width_cm) : "",
-      max_height_cm: c.max_height_cm != null ? String(c.max_height_cm) : "",
-      notes: c.notes ?? "",
-      active: c.active,
-    });
-    setError(null);
-    setShowForm(true);
-  }
-
-  function cancelForm() {
-    setShowForm(false);
-    setEditingId(null);
-    setForm(EMPTY_FORM);
-    setError(null);
-  }
-
-  function parseNum(v: string): number | null {
-    const n = parseFloat(v);
-    return isNaN(n) ? null : n;
-  }
-
-  async function handleSave() {
-    if (!form.name.trim()) {
-      setError("El nombre es obligatorio");
-      return;
-    }
-    setSaving(true);
-    setError(null);
-    try {
-      const payload = {
-        name: form.name.trim(),
-        pricing_type: form.pricing_type || null,
-        base_price: parseNum(form.base_price),
-        price_per_kg: parseNum(form.price_per_kg),
-        max_weight_kg: parseNum(form.max_weight_kg),
-        max_length_cm: parseNum(form.max_length_cm),
-        max_width_cm: parseNum(form.max_width_cm),
-        max_height_cm: parseNum(form.max_height_cm),
-        notes: form.notes.trim() || null,
-        active: form.active,
-      };
-      if (editingId) {
-        const updated = await updateCourier(editingId, payload);
-        setCouriers((prev) => prev.map((c) => (c.id === editingId ? updated : c)));
-      } else {
-        const created = await createCourier(payload);
-        setCouriers((prev) => [...prev, created]);
-      }
-      cancelForm();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Error al guardar");
-    } finally {
-      setSaving(false);
-    }
-  }
-
-  async function handleDelete(id: string) {
-    setDeletingId(id);
-    try {
-      await deleteCourier(id);
-      setCouriers((prev) => prev.filter((c) => c.id !== id));
-    } catch (e) {
-      alert(e instanceof Error ? e.message : "Error al eliminar");
-    } finally {
-      setDeletingId(null);
-    }
-  }
-
-  const inputClass =
-    "border border-gray-200 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent w-full";
-
-  const pricingLabel = (type: string | null | undefined) =>
-    PRICING_OPTIONS.find((o) => o.value === type)?.label ?? type ?? "—";
+  const falaRatingIdx = { "5/5": 0, "4/5": 1, "3/5": 2, "2/5": 3 }[falaRating];
 
   return (
     <div className="space-y-4">
-      {/* Form */}
-      {showForm && (
-        <div className="bg-gray-50 border border-gray-200 rounded-xl p-6">
-          <h3 className="text-sm font-semibold text-gray-900 mb-4">
-            {editingId ? "Editar courier" : "Nuevo courier"}
-          </h3>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2">
-              <label className="block text-xs text-gray-500 mb-1">Nombre *</label>
-              <input
-                type="text"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className={inputClass}
-                placeholder="Ej: Chilexpress, Starken, Welivery..."
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Tipo de tarificación</label>
-              <select
-                value={form.pricing_type}
-                onChange={(e) => setForm({ ...form, pricing_type: e.target.value })}
-                className={inputClass}
-              >
-                <option value="">Sin especificar</option>
-                {PRICING_OPTIONS.map((o) => (
-                  <option key={o.value} value={o.value}>{o.label}</option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Precio base (CLP)</label>
-              <input
-                type="number"
-                step="1"
-                min="0"
-                value={form.base_price}
-                onChange={(e) => setForm({ ...form, base_price: e.target.value })}
-                className={inputClass}
-                placeholder="0"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Precio por kg (CLP)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.price_per_kg}
-                onChange={(e) => setForm({ ...form, price_per_kg: e.target.value })}
-                className={inputClass}
-                placeholder="0.00"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Peso máx. (kg)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.max_weight_kg}
-                onChange={(e) => setForm({ ...form, max_weight_kg: e.target.value })}
-                className={inputClass}
-                placeholder="0.00"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Largo máx. (cm)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.max_length_cm}
-                onChange={(e) => setForm({ ...form, max_length_cm: e.target.value })}
-                className={inputClass}
-                placeholder="0.00"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Ancho máx. (cm)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.max_width_cm}
-                onChange={(e) => setForm({ ...form, max_width_cm: e.target.value })}
-                className={inputClass}
-                placeholder="0.00"
-              />
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Alto máx. (cm)</label>
-              <input
-                type="number"
-                step="0.01"
-                min="0"
-                value={form.max_height_cm}
-                onChange={(e) => setForm({ ...form, max_height_cm: e.target.value })}
-                className={inputClass}
-                placeholder="0.00"
-              />
-            </div>
-
-            <div className="sm:col-span-2 lg:col-span-3">
-              <label className="block text-xs text-gray-500 mb-1">Notas / Restricciones adicionales</label>
-              <textarea
-                value={form.notes}
-                onChange={(e) => setForm({ ...form, notes: e.target.value })}
-                className={`${inputClass} resize-none`}
-                rows={3}
-                placeholder="Ej: No acepta objetos frágiles. Solo RM. Requiere embalaje especial para +5 kg..."
-              />
-            </div>
-
-            <div className="flex items-center gap-2">
-              <input
-                id="courier-active"
-                type="checkbox"
-                checked={form.active}
-                onChange={(e) => setForm({ ...form, active: e.target.checked })}
-                className="w-4 h-4 rounded border-gray-300 text-gray-900 focus:ring-gray-900"
-              />
-              <label htmlFor="courier-active" className="text-sm text-gray-700">
-                Activo
-              </label>
+      {/* ── Rapiboy ── */}
+      <CourierCard name="Rapiboy" color="bg-blue-500">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          <div>
+            <SectionLabel>Zonas disponibles</SectionLabel>
+            <div className="flex flex-wrap gap-1.5">
+              <ZonePill label="Santiago Flex" color="bg-blue-50 text-blue-700" />
             </div>
           </div>
-
-          {error && <p className="mt-3 text-sm text-red-500">{error}</p>}
-          <div className="mt-4 flex items-center gap-3">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors"
-            >
-              {saving ? "Guardando..." : editingId ? "Guardar cambios" : "Agregar courier"}
-            </button>
-            <button
-              onClick={cancelForm}
-              className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors"
-            >
-              Cancelar
-            </button>
+          <div>
+            <SectionLabel>Tarifa</SectionLabel>
+            <p className="text-sm text-gray-700">Tarifa plana</p>
+            <p className="text-lg font-semibold text-gray-900 mt-0.5">{clp(2856)} <span className="text-xs font-normal text-gray-400">c/IVA</span></p>
+            <p className="text-xs text-gray-500">{clp(2400)} neto</p>
+          </div>
+          <div>
+            <SectionLabel>Restricciones</SectionLabel>
+            <ul className="space-y-1">
+              <Restriction>Suma de lados máx. 180 cm</Restriction>
+              <Restriction>Peso máx. 20 kg</Restriction>
+              <Restriction>Solo comunas zona Flex</Restriction>
+            </ul>
           </div>
         </div>
-      )}
+      </CourierCard>
 
-      {/* Table */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <p className="text-xs text-gray-500">{couriers.length} couriers</p>
-          {!showForm && (
-            <button
-              onClick={openNew}
-              className="px-3 py-1.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors"
-            >
-              + Agregar courier
-            </button>
-          )}
+      {/* ── Welivery ── */}
+      <CourierCard name="Welivery" color="bg-green-500">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          <div>
+            <SectionLabel>Zonas disponibles</SectionLabel>
+            <div className="flex flex-wrap gap-1.5">
+              <ZonePill label="Santiago Flex (urbano)" color="bg-green-50 text-green-700" />
+              <ZonePill label="Santiago Flex (rural)" color="bg-teal-50 text-teal-700" />
+            </div>
+          </div>
+          <div className="sm:col-span-2">
+            <SectionLabel>Tarifas por tramo</SectionLabel>
+            <div className="flex gap-1 mb-3">
+              {(["urbano", "rural"] as const).map((t) => (
+                <button
+                  key={t}
+                  onClick={() => setWeliveryTab(t)}
+                  className={`px-3 py-1 text-xs rounded-lg transition-colors ${weliveryTab === t ? "bg-gray-900 text-white" : "border border-gray-200 text-gray-600 hover:bg-gray-50"}`}
+                >
+                  {t.charAt(0).toUpperCase() + t.slice(1)}
+                </button>
+              ))}
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-xs">
+                <thead>
+                  <tr className="border-b border-gray-100">
+                    <th className="text-left py-1.5 pr-3 text-gray-500 font-medium">Tramo</th>
+                    <th className="text-right py-1.5 pr-3 text-gray-500 font-medium">Suma lados</th>
+                    <th className="text-right py-1.5 pr-3 text-gray-500 font-medium">Peso máx.</th>
+                    <th className="text-right py-1.5 text-gray-500 font-medium">Precio c/IVA</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {(weliveryTab === "urbano" ? WELIVERY_URBAN : WELIVERY_RURAL).map((row) => (
+                    <tr key={row.tier}>
+                      <td className="py-1.5 pr-3 font-medium text-gray-700">{row.tier}</td>
+                      <td className="py-1.5 pr-3 text-right text-gray-600">≤ {row.max_sides} cm</td>
+                      <td className="py-1.5 pr-3 text-right text-gray-600">≤ {row.max_weight} kg</td>
+                      <td className="py-1.5 text-right font-semibold text-gray-900">{clp(row.price)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+        <div>
+          <SectionLabel>Restricciones y otros</SectionLabel>
+          <ul className="space-y-1">
+            <Restriction>Solo comunas zona Flex</Restriction>
+            <Restriction>Máx. 450 cm (suma de lados) y 50 kg</Restriction>
+          </ul>
+          <p className="mt-2 text-xs text-gray-500">El tramo se determina por el criterio más restrictivo entre lados y peso.</p>
+        </div>
+      </CourierCard>
+
+      {/* ── Starken ── */}
+      <CourierCard name="Starken" color="bg-yellow-500">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          <div>
+            <SectionLabel>Zonas disponibles</SectionLabel>
+            <div className="flex flex-wrap gap-1.5">
+              <ZonePill label="Todo Chile" color="bg-yellow-50 text-yellow-700" />
+            </div>
+          </div>
+          <div>
+            <SectionLabel>Cálculo de tarifa</SectionLabel>
+            <p className="text-xs text-gray-600 leading-relaxed">
+              Tarifa por <strong>localidad + peso tarificable</strong>.<br />
+              <strong>Peso tarificable</strong> = max(peso real, peso volumétrico)<br />
+              <strong>Peso volumétrico</strong> = alto × ancho × largo / 4.000
+            </p>
+          </div>
+          <div>
+            <SectionLabel>Tramos de peso</SectionLabel>
+            <div className="flex flex-wrap gap-1 text-xs text-gray-600">
+              {["0–0,5", "0,5–1,5", "1,5–3", "3–6", "6–10", "10–20", "20–30", "30–40", "40–50", "50–60", "60–70", "70–80", "80–90", "90–100", "100–499 /kg", "499–1000 /kg"].map((t) => (
+                <span key={t} className="px-1.5 py-0.5 bg-gray-100 rounded text-gray-600">{t}</span>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div>
+          <SectionLabel>Restricciones y otros</SectionLabel>
+          <ul className="space-y-1">
+            <Restriction>Peso tarificable máx. 1.000 kg</Restriction>
+          </ul>
+          <div className="mt-2 flex gap-2 text-xs">
+            <span className="px-2 py-0.5 bg-gray-100 rounded">Estándar ≤ 30 kg</span>
+            <span className="px-2 py-0.5 bg-amber-50 rounded text-amber-700">Pesado 30–100 kg</span>
+            <span className="px-2 py-0.5 bg-red-50 rounded text-red-700">Sobrepeso &gt; 100 kg</span>
+          </div>
+          <p className="mt-2 text-xs text-gray-500">Tarifario cargado con ~600 localidades. Precios netos (+ 19% IVA al cotizar).</p>
+        </div>
+      </CourierCard>
+
+      {/* ── Falabella ── */}
+      <CourierCard name="Falabella — Cofinanciamiento logístico (Bluexpress / Chilexpress)" color="bg-purple-500">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          <div>
+            <SectionLabel>Zonas disponibles</SectionLabel>
+            <div className="flex flex-wrap gap-1.5">
+              <ZonePill label="Todo Chile" color="bg-purple-50 text-purple-700" />
+            </div>
+            <p className="mt-2 text-xs text-gray-500">Falabella gestiona la entrega vía Bluexpress o Chilexpress según destino.</p>
+          </div>
+          <div>
+            <SectionLabel>Cálculo de tarifa</SectionLabel>
+            <p className="text-xs text-gray-600 leading-relaxed">
+              Tarifa por <strong>peso tarificable + precio del producto + rating vendedor</strong>.<br />
+              <strong>Peso tarificable</strong> = max(peso real, peso volumétrico)<br />
+              <strong>Peso volumétrico</strong> = alto × ancho × largo / 4.000
+            </p>
+          </div>
+          <div>
+            <SectionLabel>Restricciones</SectionLabel>
+            <ul className="space-y-1">
+              <li className="flex items-start gap-1.5 text-xs text-gray-600">
+                <span className="mt-0.5 text-green-500 shrink-0">✓</span>
+                Sin restricciones de dimensiones
+              </li>
+              <li className="flex items-start gap-1.5 text-xs text-gray-600">
+                <span className="mt-0.5 text-green-500 shrink-0">✓</span>
+                Sin restricciones de zona
+              </li>
+            </ul>
+          </div>
         </div>
 
-        {couriers.length === 0 ? (
-          <div className="text-center py-12 text-gray-400 text-sm">
-            No hay couriers. Agrega uno para comenzar.
+        {/* Tariff table */}
+        <div>
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+            <SectionLabel>Tabla de tarifas (CLP con IVA)</SectionLabel>
+            <div className="flex gap-1">
+              {(["5/5", "4/5", "3/5", "2/5"] as const).map((r) => (
+                <button
+                  key={r}
+                  onClick={() => setFalaRating(r)}
+                  className={`px-2.5 py-1 text-xs rounded-lg transition-colors ${falaRating === r ? "bg-gray-900 text-white" : "border border-gray-200 text-gray-600 hover:bg-gray-50"}`}
+                >
+                  {r}
+                </button>
+              ))}
+            </div>
           </div>
-        ) : (
-          <div className="space-y-3">
-            {couriers.map((c) => (
-              <div
-                key={c.id}
-                className={`border rounded-xl p-4 transition-colors ${
-                  c.active ? "border-gray-200 bg-white" : "border-gray-100 bg-gray-50 opacity-60"
-                }`}
-              >
-                <div className="flex items-start justify-between gap-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-gray-900">{c.name}</span>
-                      {!c.active && (
-                        <span className="text-xs px-2 py-0.5 bg-gray-100 text-gray-500 rounded-full">
-                          Inactivo
-                        </span>
-                      )}
-                      {c.pricing_type && (
-                        <span className="text-xs px-2 py-0.5 bg-blue-50 text-blue-700 rounded-full">
-                          {pricingLabel(c.pricing_type)}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-xs text-gray-500">
-                      {c.base_price != null && (
-                        <span>Base: <strong className="text-gray-700">${c.base_price.toLocaleString("es-CL")}</strong></span>
-                      )}
-                      {c.price_per_kg != null && (
-                        <span>Por kg: <strong className="text-gray-700">${c.price_per_kg.toLocaleString("es-CL")}</strong></span>
-                      )}
-                      {c.max_weight_kg != null && (
-                        <span>Peso máx: <strong className="text-gray-700">{c.max_weight_kg} kg</strong></span>
-                      )}
-                      {(c.max_length_cm != null || c.max_width_cm != null || c.max_height_cm != null) && (
-                        <span>
-                          Dimensiones máx:{" "}
-                          <strong className="text-gray-700">
-                            {[c.max_length_cm, c.max_width_cm, c.max_height_cm]
-                              .map((v) => (v != null ? `${v}` : "—"))
-                              .join(" × ")}{" "}cm
-                          </strong>
-                        </span>
-                      )}
-                    </div>
-
-                    {c.notes && (
-                      <p className="mt-1.5 text-xs text-gray-500 italic">{c.notes}</p>
-                    )}
-                  </div>
-
-                  <div className="flex items-center gap-3 shrink-0">
-                    <button
-                      onClick={() => openEdit(c)}
-                      className="text-xs text-gray-500 hover:text-gray-900 transition-colors"
-                    >
-                      Editar
-                    </button>
-                    <button
-                      onClick={() => handleDelete(c.id)}
-                      disabled={deletingId === c.id}
-                      className="text-xs text-red-400 hover:text-red-600 transition-colors disabled:opacity-50"
-                    >
-                      {deletingId === c.id ? "..." : "Eliminar"}
-                    </button>
-                  </div>
-                </div>
-              </div>
-            ))}
+          <div className="overflow-x-auto">
+            <table className="w-full text-xs">
+              <thead>
+                <tr className="border-b border-gray-100">
+                  <th className="text-left py-1.5 pr-4 text-gray-500 font-medium">Tramo</th>
+                  <th className="text-right py-1.5 pr-4 text-gray-500 font-medium">Producto &lt; $19.990</th>
+                  <th className="text-right py-1.5 text-gray-500 font-medium">Producto ≥ $19.990</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-gray-50">
+                {FALA_ROWS.map((row) => {
+                  const low = row.prices[falaRatingIdx];
+                  const high = row.prices[falaRatingIdx + 4];
+                  const isPerKg = row.label.includes("/kg");
+                  return (
+                    <tr key={row.label} className={isPerKg ? "bg-gray-50" : ""}>
+                      <td className="py-1.5 pr-4 font-medium text-gray-700">{row.label}</td>
+                      <td className="py-1.5 pr-4 text-right text-gray-900">{isPerKg ? `${clp(low)}/kg` : clp(low)}</td>
+                      <td className={`py-1.5 text-right font-semibold ${low === high ? "text-gray-400" : "text-gray-900"}`}>
+                        {isPerKg ? `${clp(high)}/kg` : clp(high)}
+                        {low === high && <span className="ml-1 text-gray-300">—</span>}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
-        )}
-      </div>
+          <p className="mt-2 text-xs text-gray-400">El precio del producto afecta solo los tramos 0–6 kg. Desde 6 kg en adelante ambas columnas son iguales.</p>
+        </div>
+      </CourierCard>
+
     </div>
   );
 }
