@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { ActiveOrderWithCases, HistoricalOrder, OrderCase } from "@/app/types";
-import { SOURCE_LABEL, getCarrier, getOrderNumber, URGENCY_LABEL, URGENCY_CLASSES } from "@/app/lib/utils";
+import { SOURCE_LABEL, getCarrier, getOrderNumber, URGENCY_LABEL, URGENCY_CLASSES, getBultoCount } from "@/app/lib/utils";
 import { addOrderCase, addActiveOrderCase } from "@/app/lib/api";
 import { CaseHistoryModal } from "./CaseHistoryModal";
 
@@ -82,7 +82,19 @@ function HistoricalTicketRow({ order }: { order: HistoricalOrder }) {
         <td className="py-3 pr-3">
           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-gray-100 text-gray-500">Histórico</span>
         </td>
-        <td className="py-3 pr-4 font-mono text-gray-700 text-xs">{orderNumber}</td>
+        <td className="py-3 pr-4 font-mono text-gray-700 text-xs">
+          <span className="flex items-center gap-1.5">
+            {orderNumber}
+            {(() => {
+              const bultos = getBultoCount(order.raw_data);
+              return bultos > 1 ? (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-600">
+                  {bultos} bultos
+                </span>
+              ) : null;
+            })()}
+          </span>
+        </td>
         <td className="py-3 pr-4 text-gray-600 text-xs">{SOURCE_LABEL[order.source] || order.source}</td>
         <td className="py-3 pr-4 text-gray-500 text-xs">{carrier || order.logistics_operator || "—"}</td>
         <td className="py-3 pr-4 text-sm whitespace-nowrap">
@@ -128,7 +140,19 @@ function ActiveTicketRow({ item }: { item: ActiveOrderWithCases }) {
         <td className="py-3 pr-3">
           <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-600">Activo</span>
         </td>
-        <td className="py-3 pr-4 font-mono text-gray-700 text-xs">{orderNumber}</td>
+        <td className="py-3 pr-4 font-mono text-gray-700 text-xs">
+          <span className="flex items-center gap-1.5">
+            {orderNumber}
+            {(() => {
+              const bultos = getBultoCount(order.raw_data);
+              return bultos > 1 ? (
+                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-600">
+                  {bultos} bultos
+                </span>
+              ) : null;
+            })()}
+          </span>
+        </td>
         <td className="py-3 pr-4 text-gray-600 text-xs">{SOURCE_LABEL[order.source] || order.source}</td>
         <td className="py-3 pr-4 text-gray-500 text-xs">{carrier || "—"}</td>
         <td className="py-3 pr-4">

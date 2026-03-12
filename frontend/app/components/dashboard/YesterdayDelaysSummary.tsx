@@ -13,6 +13,7 @@ import {
   getTrackingUrl,
   getProductDetails,
   getShippingDestination,
+  getBultoCount,
 } from "@/app/lib/utils";
 import { addOrderCase, addActiveOrderCase, deleteOrderCase, getActiveOrderCases } from "@/app/lib/api";
 
@@ -495,7 +496,17 @@ export function YesterdayDelaysSummary({ data }: Props) {
                           onClick={() => setSelectedOrder(toDetailFromArchived(order))}
                         >
                           <td className="py-2 pr-3 font-mono text-gray-700">
-                            {getOrderNumber(order.raw_data, order.external_id)}
+                            <span className="flex items-center gap-1.5">
+                              {getOrderNumber(order.raw_data, order.external_id)}
+                              {(() => {
+                                const bultos = getBultoCount(order.raw_data);
+                                return bultos > 1 ? (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-600">
+                                    {bultos} bultos
+                                  </span>
+                                ) : null;
+                              })()}
+                            </span>
                           </td>
                           <td className="py-2 pr-3 text-gray-600">
                             {SOURCE_LABEL[order.source] || order.source}
@@ -569,7 +580,17 @@ export function YesterdayDelaysSummary({ data }: Props) {
                           onClick={() => setSelectedOrder(toDetailFromActive(order))}
                         >
                           <td className="py-2 pr-3 font-mono text-gray-700">
-                            {getOrderNumber(order.raw_data, order.external_id)}
+                            <span className="flex items-center gap-1.5">
+                              {getOrderNumber(order.raw_data, order.external_id)}
+                              {(() => {
+                                const bultos = getBultoCount(order.raw_data);
+                                return bultos > 1 ? (
+                                  <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-600">
+                                    {bultos} bultos
+                                  </span>
+                                ) : null;
+                              })()}
+                            </span>
                           </td>
                           <td className="py-2 pr-3 text-gray-600">{SOURCE_LABEL[order.source] || order.source}</td>
                           <td className="py-2 pr-3 text-gray-500">

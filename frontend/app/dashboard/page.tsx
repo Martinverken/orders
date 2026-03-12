@@ -1,5 +1,5 @@
 import { Suspense } from "react";
-import { getActiveOrdersWithCases, getCESchedule, getDashboardSummary, getDelayMetrics, getDelaysByDay, getDistinctCities, getDistinctHistoricalCities, getHistoricalOrders, getKpiMetrics, getOrders, getSyncStatus } from "@/app/lib/api";
+import { getActiveOrdersWithCases, getCESchedule, getCouriers, getDashboardSummary, getDelayMetrics, getDelaysByDay, getDistinctCities, getDistinctHistoricalCities, getHistoricalOrders, getKpiMetrics, getOrders, getProducts, getSyncStatus } from "@/app/lib/api";
 import { SummaryCards } from "@/app/components/dashboard/SummaryCards";
 import { OrdersTable } from "@/app/components/dashboard/OrdersTable";
 import { SyncStatus } from "@/app/components/dashboard/SyncStatus";
@@ -12,11 +12,13 @@ import { KpiTable } from "@/app/components/dashboard/KpiTable";
 import { CEScheduleSettings } from "@/app/components/dashboard/CEScheduleSettings";
 import { DailyDelaysSummary } from "@/app/components/dashboard/DailyDelaysSummary";
 import { CEScheduleModal } from "@/app/components/dashboard/CEScheduleModal";
-import type { Perspective } from "@/app/types";
+import { ProductsTable } from "@/app/components/dashboard/ProductsTable";
+import { CouriersTable } from "@/app/components/dashboard/CouriersTable";
+import type { Courier, ProductsPage } from "@/app/types";
 
 interface PageProps {
   searchParams: Promise<{
-    // Pedidos activos filters
+    // Pedidos activos / en tránsito filters
     source?: string;
     urgency?: string;
     status?: string;
@@ -40,8 +42,6 @@ interface PageProps {
     tab?: string;
     // Atrasados month filter
     a_month?: string;
-    // Perspective (bodega | cliente)
-    perspective?: string;
   }>;
 }
 
@@ -56,16 +56,63 @@ function buildUrl(base: Record<string, string | undefined>, overrides: Record<st
   return `/dashboard?${q.toString()}`;
 }
 
+// ── Icons ────────────────────────────────────────────────────────────────────
+
+function IconClock() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0">
+      <circle cx="12" cy="12" r="10" />
+      <polyline points="12 6 12 12 16 14" />
+    </svg>
+  );
+}
+
+function IconBox() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0">
+      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+      <line x1="12" y1="22.08" x2="12" y2="12" />
+    </svg>
+  );
+}
+
+function IconTruck() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0">
+      <rect x="1" y="3" width="15" height="13" />
+      <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+      <circle cx="5.5" cy="18.5" r="2.5" />
+      <circle cx="18.5" cy="18.5" r="2.5" />
+    </svg>
+  );
+}
+
+function IconCheckCircle() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4 shrink-0">
+      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+      <polyline points="22 4 12 14.01 9 11.01" />
+    </svg>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+
 export default async function DashboardPage({ searchParams }: PageProps) {
   const params = await searchParams;
   const tab = params.tab === "pedidos" ? "pedidos"
+    : params.tab === "transito" ? "transito"
     : params.tab === "historial" ? "historial"
     : params.tab === "estadisticas" ? "estadisticas"
     : params.tab === "tickets" ? "tickets"
+    : params.tab === "cotizador" ? "cotizador"
+    : params.tab === "productos" ? "productos"
+    : params.tab === "couriers" ? "couriers"
     : params.tab === "configuracion" ? "configuracion"
     : "atrasados";
 
-  const perspective: Perspective = params.perspective === "cliente" ? "cliente" : "bodega";
+  const isPedidosGroup = tab === "atrasados" || tab === "pedidos" || tab === "transito" || tab === "historial";
 
   const syncStatus = await getSyncStatus();
 
@@ -114,12 +161,21 @@ export default async function DashboardPage({ searchParams }: PageProps) {
   let delayMetrics = null;
   let kpiMetrics = null;
   let dailyDelays = null;
+  let productsPage: ProductsPage | null = null;
+  let couriersData: Courier[] = [];
 
   if (tab === "pedidos") {
     const page = Number(params.page || 1);
     [summary, ordersPage, cities] = await Promise.all([
-      getDashboardSummary({ ...activeFilters, perspective }),
-      getOrders({ ...activeFilters, page, per_page: 25, perspective }),
+      getDashboardSummary({ ...activeFilters, perspective: "bodega" }),
+      getOrders({ ...activeFilters, page, per_page: 25, perspective: "bodega" }),
+      getDistinctCities(),
+    ]);
+  } else if (tab === "transito") {
+    const page = Number(params.page || 1);
+    [summary, ordersPage, cities] = await Promise.all([
+      getDashboardSummary({ ...activeFilters, status: "shipped", perspective: "cliente" }),
+      getOrders({ ...activeFilters, status: "shipped", page, per_page: 25, perspective: "cliente" }),
       getDistinctCities(),
     ]);
   } else if (tab === "historial") {
@@ -147,9 +203,13 @@ export default async function DashboardPage({ searchParams }: PageProps) {
       getHistoricalOrders({ has_case: true, per_page: 100 }),
       getActiveOrdersWithCases(),
     ]);
+  } else if (tab === "productos") {
+    productsPage = await getProducts({ per_page: 200 });
+  } else if (tab === "couriers") {
+    couriersData = await getCouriers();
   } else if (tab === "configuracion") {
     // no extra data needed
-  } else {
+  } else if (tab === "estadisticas") {
     [delayMetrics, kpiMetrics] = await Promise.all([
       getDelayMetrics(),
       getKpiMetrics(),
@@ -169,7 +229,6 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     city: params.city,
     commune: params.commune,
     order_number: params.order_number,
-    perspective: params.perspective,
     h_source: params.h_source,
     h_urgency: params.h_urgency,
     h_logistics_operator: params.h_logistics_operator,
@@ -180,6 +239,20 @@ export default async function DashboardPage({ searchParams }: PageProps) {
     h_date_to: params.h_date_to,
     a_month: params.a_month,
   };
+
+  const topNavClass = (active: boolean) =>
+    `px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
+      active
+        ? "border-gray-900 text-gray-900"
+        : "border-transparent text-gray-500 hover:text-gray-700"
+    }`;
+
+  const subNavClass = (active: boolean) =>
+    `flex items-center gap-1.5 px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+      active
+        ? "border-gray-900 text-gray-900"
+        : "border-transparent text-gray-500 hover:text-gray-700"
+    }`;
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -194,69 +267,85 @@ export default async function DashboardPage({ searchParams }: PageProps) {
           <SyncStatus lastSync={syncStatus.last_sync} />
         </div>
 
-        {/* Tabs */}
+        {/* Top-level Tabs */}
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-1 -mb-px">
           <a
             href={buildUrl(allParams, { tab: "atrasados" })}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === "atrasados"
-                ? "border-gray-900 text-gray-900"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
+            className={topNavClass(isPedidosGroup)}
           >
-            Pedidos atrasados
+            Pedidos
           </a>
           <a
-            href={buildUrl(allParams, { tab: "pedidos" })}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === "pedidos"
-                ? "border-gray-900 text-gray-900"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
+            href={buildUrl(allParams, { tab: "cotizador" })}
+            className={topNavClass(tab === "cotizador")}
           >
-            Pedidos activos
+            Cotizador
           </a>
           <a
-            href={buildUrl(allParams, { tab: "historial" })}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === "historial"
-                ? "border-gray-900 text-gray-900"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
+            href={buildUrl(allParams, { tab: "productos" })}
+            className={topNavClass(tab === "productos")}
           >
-            Pedidos históricos
+            Productos
+          </a>
+          <a
+            href={buildUrl(allParams, { tab: "couriers" })}
+            className={topNavClass(tab === "couriers")}
+          >
+            Couriers
           </a>
           <a
             href={buildUrl(allParams, { tab: "tickets" })}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === "tickets"
-                ? "border-gray-900 text-gray-900"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
+            className={topNavClass(tab === "tickets")}
           >
             Tickets
           </a>
           <a
             href={buildUrl(allParams, { tab: "estadisticas" })}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === "estadisticas"
-                ? "border-gray-900 text-gray-900"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
+            className={topNavClass(tab === "estadisticas")}
           >
             Estadísticas
           </a>
           <a
             href={buildUrl(allParams, { tab: "configuracion" })}
-            className={`px-4 py-2.5 text-sm font-medium border-b-2 transition-colors ${
-              tab === "configuracion"
-                ? "border-gray-900 text-gray-900"
-                : "border-transparent text-gray-500 hover:text-gray-700"
-            }`}
+            className={topNavClass(tab === "configuracion")}
           >
             Configuración
           </a>
         </div>
+
+        {/* Pedidos sub-tabs */}
+        {isPedidosGroup && (
+          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 flex gap-1 bg-gray-50 border-t border-gray-100 -mb-px">
+            <a
+              href={buildUrl(allParams, { tab: "atrasados" })}
+              className={subNavClass(tab === "atrasados")}
+            >
+              <IconClock />
+              Atrasados
+            </a>
+            <a
+              href={buildUrl(allParams, { tab: "pedidos" })}
+              className={subNavClass(tab === "pedidos")}
+            >
+              <IconBox />
+              En Bodega
+            </a>
+            <a
+              href={buildUrl(allParams, { tab: "transito" })}
+              className={subNavClass(tab === "transito")}
+            >
+              <IconTruck />
+              En Tránsito
+            </a>
+            <a
+              href={buildUrl(allParams, { tab: "historial" })}
+              className={subNavClass(tab === "historial")}
+            >
+              <IconCheckCircle />
+              Entregados
+            </a>
+          </div>
+        )}
 
         {showCEWarning && (
           <div className="bg-amber-50 border-t border-amber-200">
@@ -279,94 +368,119 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-6">
 
-        {/* ── Pedidos activos ── */}
+        {/* ── En Bodega ── */}
         {tab === "pedidos" && summary && ordersPage && (
-          <>
-            {/* Perspective toggle */}
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-1 w-fit">
-                <a
-                  href={buildUrl(allParams, { tab: "pedidos", perspective: "bodega", page: "1" })}
-                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                    perspective === "bodega"
-                      ? "bg-white text-gray-900 shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  Bodega
-                </a>
-                <a
-                  href={buildUrl(allParams, { tab: "pedidos", perspective: "cliente", page: "1" })}
-                  className={`px-4 py-2 text-sm font-medium rounded-md transition-colors ${
-                    perspective === "cliente"
-                      ? "bg-white text-gray-900 shadow-sm"
-                      : "text-gray-500 hover:text-gray-700"
-                  }`}
-                >
-                  Cliente Final
-                </a>
-              </div>
-              <p className="text-xs text-gray-500">
-                {perspective === "bodega"
-                  ? "Paquetes que bodega debe entregar al transportista. La urgencia se calcula según la fecha y hora límite de entrega al transportista asignado."
-                  : "Seguimiento de entrega al cliente final. La urgencia se calcula según la fecha y hora límite de entrega al cliente final. Para los casos de los pedidos Regular/Centro Envíos de los marketplaces, no tienen fecha límite de entrega a cliente final."}
-              </p>
-            </div>
-
-            <SummaryCards summary={summary} perspective={perspective} />
-
-            <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-              <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+              <div>
                 <h2 className="text-base font-medium text-gray-900">
-                  Pedidos ({ordersPage.total})
+                  En Bodega ({ordersPage.total})
                 </h2>
-                <Suspense fallback={null}>
-                  <FilterBar cities={cities} />
-                </Suspense>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Pedidos pendientes de entrega al transportista
+                </p>
               </div>
-
-              <div className="px-6 py-4">
-                <OrdersTable orders={ordersPage.data} orderIdsWithCases={ordersPage.order_ids_with_cases} perspective={perspective} />
-              </div>
-
-              {ordersPage.pages > 1 && (
-                <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
-                  <span>Página {ordersPage.page} de {ordersPage.pages}</span>
-                  <div className="flex gap-2">
-                    {ordersPage.page > 1 && (
-                      <a
-                        href={buildUrl(allParams, { tab: "pedidos", page: String(page - 1) })}
-                        className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50"
-                      >
-                        Anterior
-                      </a>
-                    )}
-                    {ordersPage.page < ordersPage.pages && (
-                      <a
-                        href={buildUrl(allParams, { tab: "pedidos", page: String(page + 1) })}
-                        className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50"
-                      >
-                        Siguiente
-                      </a>
-                    )}
-                  </div>
-                </div>
-              )}
+              <Suspense fallback={null}>
+                <FilterBar cities={cities} />
+              </Suspense>
             </div>
-          </>
+
+            <div className="px-6 py-4">
+              <SummaryCards summary={summary} perspective="bodega" />
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100">
+              <OrdersTable orders={ordersPage.data} orderIdsWithCases={ordersPage.order_ids_with_cases} perspective="bodega" />
+            </div>
+
+            {ordersPage.pages > 1 && (
+              <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
+                <span>Página {ordersPage.page} de {ordersPage.pages}</span>
+                <div className="flex gap-2">
+                  {ordersPage.page > 1 && (
+                    <a
+                      href={buildUrl(allParams, { tab: "pedidos", page: String(page - 1) })}
+                      className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
+                      Anterior
+                    </a>
+                  )}
+                  {ordersPage.page < ordersPage.pages && (
+                    <a
+                      href={buildUrl(allParams, { tab: "pedidos", page: String(page + 1) })}
+                      className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
+                      Siguiente
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
         )}
 
-        {/* ── Pedidos atrasados ── */}
+        {/* ── En Tránsito ── */}
+        {tab === "transito" && summary && ordersPage && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
+              <div>
+                <h2 className="text-base font-medium text-gray-900">
+                  En Tránsito ({ordersPage.total})
+                </h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Pedidos despachados en camino al cliente final
+                </p>
+              </div>
+              <Suspense fallback={null}>
+                <FilterBar cities={cities} />
+              </Suspense>
+            </div>
+
+            <div className="px-6 py-4">
+              <SummaryCards summary={summary} perspective="cliente" />
+            </div>
+
+            <div className="px-6 py-4 border-t border-gray-100">
+              <OrdersTable orders={ordersPage.data} orderIdsWithCases={ordersPage.order_ids_with_cases} perspective="cliente" />
+            </div>
+
+            {ordersPage.pages > 1 && (
+              <div className="px-6 py-4 border-t border-gray-100 flex items-center justify-between text-sm text-gray-500">
+                <span>Página {ordersPage.page} de {ordersPage.pages}</span>
+                <div className="flex gap-2">
+                  {ordersPage.page > 1 && (
+                    <a
+                      href={buildUrl(allParams, { tab: "transito", page: String(page - 1) })}
+                      className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
+                      Anterior
+                    </a>
+                  )}
+                  {ordersPage.page < ordersPage.pages && (
+                    <a
+                      href={buildUrl(allParams, { tab: "transito", page: String(page + 1) })}
+                      className="px-3 py-1 border border-gray-200 rounded-lg hover:bg-gray-50"
+                    >
+                      Siguiente
+                    </a>
+                  )}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* ── Atrasados ── */}
         {tab === "atrasados" && dailyDelays && (
           <DailyDelaysSummary data={dailyDelays} currentMonth={params.a_month} />
         )}
 
-        {/* ── Pedidos históricos ── */}
+        {/* ── Entregados (historial) ── */}
         {tab === "historial" && historicalPage && (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
             <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
               <h2 className="text-base font-medium text-gray-900">
-                Pedidos históricos ({historicalPage.total})
+                Entregados ({historicalPage.total})
               </h2>
               <Suspense fallback={null}>
                 <HistoricalFilterBar cities={historicalCities} />
@@ -400,6 +514,51 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                 </div>
               </div>
             )}
+          </div>
+        )}
+
+        {/* ── Productos ── */}
+        {tab === "productos" && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-medium text-gray-900">Productos</h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Catálogo de productos con dimensiones y peso para cotización
+              </p>
+            </div>
+            <div className="px-6 py-6">
+              <ProductsTable
+                initialData={productsPage ?? { data: [], total: 0, page: 1, per_page: 200, pages: 1 }}
+              />
+            </div>
+          </div>
+        )}
+
+        {/* ── Couriers ── */}
+        {tab === "couriers" && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-medium text-gray-900">Couriers</h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Couriers disponibles, tarifas y restricciones de envío
+              </p>
+            </div>
+            <div className="px-6 py-6">
+              <CouriersTable initialData={couriersData} />
+            </div>
+          </div>
+        )}
+
+        {/* ── Cotizador ── */}
+        {tab === "cotizador" && (
+          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-medium text-gray-900">Cotizador</h2>
+              <p className="text-xs text-gray-500 mt-0.5">Próximamente</p>
+            </div>
+            <div className="px-6 py-16 flex items-center justify-center text-gray-400 text-sm">
+              En construcción
+            </div>
           </div>
         )}
 

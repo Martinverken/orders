@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { DelayMetric, HistoricalMetrics, HistoricalOrder, OnTimeMetric, OrderCase } from "@/app/types";
 import { getHistoricalOrders, addOrderCase } from "@/app/lib/api";
-import { SOURCE_LABEL, formatDeadline, getCreatedAt, getOrderNumber, getProductDetails, getShippingDestination, getTrackingCode, getTrackingUrl } from "@/app/lib/utils";
+import { SOURCE_LABEL, formatDeadline, getCreatedAt, getOrderNumber, getProductDetails, getShippingDestination, getTrackingCode, getTrackingUrl, getBultoCount } from "@/app/lib/utils";
 import { CaseHistoryModal } from "./CaseHistoryModal";
 
 interface Props {
@@ -197,7 +197,19 @@ function DelayDetailModal({ row, onClose }: { row: MergedRow; onClose: () => voi
                   const hrs = Math.round(order.days_delayed * 24);
                   return (
                     <tr key={order.id} className="border-b border-gray-50 hover:bg-gray-50">
-                      <td className={`py-2.5 pr-4 font-mono text-xs ${(order.cases?.length ?? 0) > 0 ? "text-amber-600 font-semibold" : "text-gray-700"}`}>{orderNumber}</td>
+                      <td className={`py-2.5 pr-4 font-mono text-xs ${(order.cases?.length ?? 0) > 0 ? "text-amber-600 font-semibold" : "text-gray-700"}`}>
+                        <span className="flex items-center gap-1.5">
+                          {orderNumber}
+                          {(() => {
+                            const bultos = getBultoCount(order.raw_data);
+                            return bultos > 1 ? (
+                              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-600">
+                                {bultos} bultos
+                              </span>
+                            ) : null;
+                          })()}
+                        </span>
+                      </td>
                       <td className="py-2.5 pr-4 font-mono text-xs text-gray-600 max-w-[140px] truncate">{product.sku || "—"}</td>
                       <td className="py-2.5 pr-4 text-xs text-gray-600">{order.status || "—"}</td>
                       <td className="py-2.5 pr-4 text-xs text-gray-600 whitespace-nowrap">{formatDeadline(getCreatedAt(order.raw_data))}</td>

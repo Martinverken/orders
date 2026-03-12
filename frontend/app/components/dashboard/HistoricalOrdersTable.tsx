@@ -3,7 +3,7 @@
 import { useState, useMemo } from "react";
 import { HistoricalOrder, OrderCase } from "@/app/types";
 import { ProductCell } from "@/app/components/ui/ProductCell";
-import { SOURCE_LABEL, formatDeadline, getCarrier, getCreatedAt, getOrderNumber, getProductDetails, getShippingDestination, getTrackingCode, getTrackingUrl, getShippingMethod, getOperator } from "@/app/lib/utils";
+import { SOURCE_LABEL, formatDeadline, getCarrier, getCreatedAt, getOrderNumber, getProductDetails, getShippingDestination, getTrackingCode, getTrackingUrl, getShippingMethod, getOperator, getBultoCount } from "@/app/lib/utils";
 import { addOrderCase } from "@/app/lib/api";
 import { CaseHistoryModal } from "./CaseHistoryModal";
 
@@ -146,7 +146,19 @@ function OrderRow({ order, idx }: { order: HistoricalOrder; idx: number }) {
   return (
     <tr className="border-b border-gray-100 hover:bg-gray-50 transition-colors">
       <td className={`py-3 pr-4 text-xs font-medium ${(order.cases?.length ?? 0) > 0 ? "text-amber-600 bg-amber-50 rounded" : "text-gray-400"}`}>{idx + 1}</td>
-      <td className="py-3 pr-4 font-mono text-gray-700 text-xs">{orderNumber}</td>
+      <td className="py-3 pr-4 font-mono text-gray-700 text-xs">
+        <span className="flex items-center gap-1.5">
+          {orderNumber}
+          {(() => {
+            const bultos = getBultoCount(order.raw_data);
+            return bultos > 1 ? (
+              <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-600">
+                {bultos} bultos
+              </span>
+            ) : null;
+          })()}
+        </span>
+      </td>
       <td className="py-3 pr-4 max-w-[160px]">
         <ProductCell sku={product.sku} title={product.title} quantity={product.quantity} />
       </td>

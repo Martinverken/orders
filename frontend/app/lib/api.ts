@@ -1,4 +1,4 @@
-import { ActiveOrderWithCases, CESchedule, DailyDelays, DashboardSummary, HistoricalMetrics, HistoricalOrdersPage, KpiMetrics, Order, OrderCase, OrdersPage, SyncStatusResponse, YesterdayDelays } from "@/app/types";
+import { ActiveOrderWithCases, CESchedule, Courier, DailyDelays, DashboardSummary, HistoricalMetrics, HistoricalOrdersPage, KpiMetrics, Order, OrderCase, OrdersPage, Product, ProductsPage, SyncStatusResponse, YesterdayDelays } from "@/app/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -219,6 +219,64 @@ export async function getKpiMetrics(): Promise<KpiMetrics> {
     return { monthly: [], weekly: [], monthly_detail: [], weekly_detail: [] };
   }
 }
+
+// ── Products ─────────────────────────────────────────────────────────────────
+
+export async function getProducts(params?: { page?: number; per_page?: number }): Promise<ProductsPage> {
+  const query = new URLSearchParams();
+  if (params?.page) query.set("page", String(params.page));
+  if (params?.per_page) query.set("per_page", String(params.per_page));
+  return apiFetch<ProductsPage>(`/api/products?${query}`);
+}
+
+export async function createProduct(data: Omit<Product, "id" | "created_at" | "updated_at">): Promise<Product> {
+  const res = await apiFetch<{ success: boolean; data: Product }>("/api/products", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  return res.data;
+}
+
+export async function updateProduct(id: string, data: Partial<Omit<Product, "id" | "created_at" | "updated_at">>): Promise<Product> {
+  const res = await apiFetch<{ success: boolean; data: Product }>(`/api/products/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+  return res.data;
+}
+
+export async function deleteProduct(id: string): Promise<void> {
+  await apiFetch(`/api/products/${id}`, { method: "DELETE" });
+}
+
+// ── Couriers ──────────────────────────────────────────────────────────────────
+
+export async function getCouriers(): Promise<Courier[]> {
+  const res = await apiFetch<{ success: boolean; data: Courier[] }>("/api/couriers");
+  return res.data;
+}
+
+export async function createCourier(data: Omit<Courier, "id" | "created_at" | "updated_at">): Promise<Courier> {
+  const res = await apiFetch<{ success: boolean; data: Courier }>("/api/couriers", {
+    method: "POST",
+    body: JSON.stringify(data),
+  });
+  return res.data;
+}
+
+export async function updateCourier(id: string, data: Partial<Omit<Courier, "id" | "created_at" | "updated_at">>): Promise<Courier> {
+  const res = await apiFetch<{ success: boolean; data: Courier }>(`/api/couriers/${id}`, {
+    method: "PATCH",
+    body: JSON.stringify(data),
+  });
+  return res.data;
+}
+
+export async function deleteCourier(id: string): Promise<void> {
+  await apiFetch(`/api/couriers/${id}`, { method: "DELETE" });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 
 export async function getDelayMetrics(): Promise<HistoricalMetrics> {
   try {

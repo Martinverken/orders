@@ -4,7 +4,7 @@ import { useState, useMemo } from "react";
 import { Order, OrderCase, Perspective } from "@/app/types";
 import { UrgencyBadge, StatusBadge } from "@/app/components/ui/Badge";
 import { ProductCell } from "@/app/components/ui/ProductCell";
-import { formatDate, formatDeadline, SOURCE_LABEL, getCarrier, getOrderNumber, getTrackingCode, getTrackingUrl, getProductDetails, getShippingDestination, getShippingMethod, getOperator } from "@/app/lib/utils";
+import { formatDate, formatDeadline, SOURCE_LABEL, getCarrier, getOrderNumber, getTrackingCode, getTrackingUrl, getProductDetails, getShippingDestination, getShippingMethod, getOperator, getBultoCount } from "@/app/lib/utils";
 import { getActiveOrderCases, addActiveOrderCase } from "@/app/lib/api";
 import { CaseHistoryModal } from "./CaseHistoryModal";
 
@@ -175,7 +175,19 @@ export function OrdersTable({ orders, orderIdsWithCases = [], perspective = "bod
             return (
               <tr key={order.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
                 <td className={`py-3 pr-4 text-xs font-medium ${caseSet.has(order.id) ? "text-amber-600 bg-amber-50 rounded" : "text-gray-400"}`}>{idx + 1}</td>
-                <td className="py-3 pr-4 font-mono text-gray-700 text-xs">{orderNumber}</td>
+                <td className="py-3 pr-4 font-mono text-gray-700 text-xs">
+                  <span className="flex items-center gap-1.5">
+                    {orderNumber}
+                    {(() => {
+                      const bultos = getBultoCount(order.raw_data);
+                      return bultos > 1 ? (
+                        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-600">
+                          {bultos} bultos
+                        </span>
+                      ) : null;
+                    })()}
+                  </span>
+                </td>
                 <td className="py-3 pr-4 max-w-[160px]">
                   <ProductCell sku={product.sku} title={product.title} quantity={product.quantity} />
                 </td>

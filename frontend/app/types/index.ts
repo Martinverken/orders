@@ -195,3 +195,39 @@ export interface CESchedule {
   value: Record<string, string>;  // {"monday":"11:00","thursday":"14:45",...}
   updated_at: string | null;
 }
+
+export interface Product {
+  id: string;
+  name: string;
+  sku: string;
+  height_cm?: number | null;
+  width_cm?: number | null;
+  length_cm?: number | null;
+  weight_kg?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface ProductsPage {
+  data: Product[];
+  total: number;
+  page: number;
+  per_page: number;
+  pages: number;
+}
+
+export interface Courier {
+  id: string;
+  name: string;
+  pricing_type?: string | null;
+  base_price?: number | null;
+  price_per_kg?: number | null;
+  max_weight_kg?: number | null;
+  max_length_cm?: number | null;
+  max_width_cm?: number | null;
+  max_height_cm?: number | null;
+  notes?: string | null;
+  active: boolean;
+  created_at: string;
+  updated_at: string;
+}
