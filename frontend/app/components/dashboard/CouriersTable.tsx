@@ -140,6 +140,14 @@ function DownloadBtn({ onClick, label = "Descargar Excel" }: { onClick: () => vo
   );
 }
 
+function BultoNote() {
+  return (
+    <p className="text-xs text-blue-600 font-medium mt-1.5">
+      📦 Cobro por bulto — pedidos multibulto se cobran por cada bulto por separado.
+    </p>
+  );
+}
+
 function Restriction({ children }: { children: React.ReactNode }) {
   return (
     <li className="flex items-start gap-1.5 text-xs text-gray-600">
@@ -268,6 +276,7 @@ export function CouriersTable({ initialData }: Props) {
               <Restriction>Peso máx. 20 kg</Restriction>
               <Restriction>Solo comunas zona Flex</Restriction>
             </ul>
+            <BultoNote />
           </div>
         </div>
       </CourierCard>
@@ -331,6 +340,7 @@ export function CouriersTable({ initialData }: Props) {
             <Restriction>Máx. 450 cm (suma de lados) y 50 kg</Restriction>
           </ul>
           <p className="mt-2 text-xs text-gray-500">El tramo se determina por el criterio más restrictivo entre lados y peso.</p>
+          <BultoNote />
         </div>
       </CourierCard>
 
@@ -375,6 +385,7 @@ export function CouriersTable({ initialData }: Props) {
           </div>
           <p className="mt-2 text-xs text-gray-500">Tarifario cargado con ~600 localidades. Precios netos (+ 19% IVA al cotizar).</p>
           <p className="mt-1.5 text-xs text-amber-600 font-medium">⚠ Pedidos de regiones: se agregan $2.500 neto por picking & packing en el checkout de la página web.</p>
+          <BultoNote />
         </div>
       </CourierCard>
 
@@ -462,6 +473,7 @@ export function CouriersTable({ initialData }: Props) {
             </table>
           </div>
           <p className="mt-2 text-xs text-gray-400">El precio del producto afecta solo los tramos 0–6 kg. Desde 6 kg en adelante ambas columnas son iguales.</p>
+          <BultoNote />
         </div>
       </CourierCard>
 
@@ -569,6 +581,7 @@ export function CouriersTable({ initialData }: Props) {
             </div>
           </div>
           <p className="mt-2 text-xs text-gray-400">Descuentos aplican solo a productos nuevos. Productos usados y publicaciones sin precio mínimo pagan tarifa base.</p>
+          <BultoNote />
         </div>
       </CourierCard>
 
