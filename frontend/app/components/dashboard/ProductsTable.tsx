@@ -26,6 +26,12 @@ const SIZE_COLOR: Record<SizeTag, string> = {
   Gigante: "bg-red-50 text-red-700",
 };
 
+function computeBillableWeight(p: Product): number | null {
+  if (p.height_cm == null || p.width_cm == null || p.length_cm == null || p.weight_kg == null) return null;
+  const volWeight = (p.height_cm * p.width_cm * p.length_cm) / 4000;
+  return Math.max(p.weight_kg, volWeight);
+}
+
 function computeSize(p: Product): SizeTag | null {
   if (p.height_cm == null || p.width_cm == null || p.length_cm == null || p.weight_kg == null) return null;
   const sum = p.height_cm + p.width_cm + p.length_cm;
@@ -409,6 +415,7 @@ export function ProductsTable({ initialData }: Props) {
                 <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Ancho</th>
                 <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Largo</th>
                 <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Peso</th>
+                <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">P. Tarificable</th>
                 <th className="py-2.5 px-3" />
               </tr>
             </thead>
@@ -416,6 +423,8 @@ export function ProductsTable({ initialData }: Props) {
               {filtered.map((p, idx) => {
                 const missingDimensions = !p.height_cm || !p.width_cm || !p.length_cm || !p.weight_kg;
                 const sizeTag = computeSize(p);
+                const billableWeight = computeBillableWeight(p);
+                const isVolumetric = billableWeight != null && p.weight_kg != null && billableWeight > p.weight_kg;
                 return (
                   <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                     <td className="py-3 px-3 text-right text-xs text-gray-400">{idx + 1}</td>
@@ -453,6 +462,16 @@ export function ProductsTable({ initialData }: Props) {
                     </td>
                     <td className={`py-3 px-3 text-right text-xs ${p.weight_kg ? "text-gray-700" : "text-amber-400"}`}>
                       {p.weight_kg != null ? `${p.weight_kg} kg` : "—"}
+                    </td>
+                    <td className="py-3 px-3 text-right text-xs">
+                      {billableWeight != null ? (
+                        <span className={isVolumetric ? "text-orange-600 font-semibold" : "text-gray-700"}>
+                          {billableWeight % 1 === 0 ? billableWeight : billableWeight.toFixed(2)} kg
+                          {isVolumetric && <span className="ml-1 text-orange-400 font-normal">(vol)</span>}
+                        </span>
+                      ) : (
+                        <span className="text-gray-300">—</span>
+                      )}
                     </td>
                     <td className="py-3 px-3">
                       <div className="flex items-center justify-end gap-3">
