@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createProduct, deleteProduct, exportProducts, getProducts, importProducts, syncShopifyProducts, updateProduct } from "@/app/lib/api";
-import { Product, ProductsPage } from "@/app/types";
+import { BultoDims, Product, ProductsPage } from "@/app/types";
 
 interface Props {
   initialData: ProductsPage;
@@ -10,26 +10,32 @@ interface Props {
 
 const BRANDS = ["Verken", "Kaut"];
 
+interface BultoDimsForm {
+  height_cm: string;
+  width_cm: string;
+  length_cm: string;
+  weight_kg: string;
+}
+
 interface FormState {
   name: string;
   sku: string;
   brand: string;
   category: string;
-  height_cm: string;
-  width_cm: string;
-  length_cm: string;
-  weight_kg: string;
   num_bultos: number;
   is_service: boolean;
   is_pack: boolean;
+  bultos: BultoDimsForm[];
 }
+
+const EMPTY_BULTO: BultoDimsForm = { height_cm: "", width_cm: "", length_cm: "", weight_kg: "" };
+const STANDARD_BAG: BultoDimsForm = { height_cm: "32", width_cm: "42", length_cm: "5", weight_kg: "3" };
 
 const EMPTY_FORM: FormState = {
   name: "", sku: "", brand: "", category: "",
-  height_cm: "", width_cm: "", length_cm: "", weight_kg: "",
   num_bultos: 1, is_service: false, is_pack: false,
+  bultos: [{ ...EMPTY_BULTO }],
 };
-const STANDARD_BAG = { height_cm: "32", width_cm: "42", length_cm: "5", weight_kg: "3" };
 
 type SizeTag = "Chico" | "Mediano" | "Grande" | "Extra Grande" | "Gigante";
 
@@ -41,19 +47,45 @@ const SIZE_COLOR: Record<SizeTag, string> = {
   Gigante: "bg-red-50 text-red-700",
 };
 
+function parseDims(b: BultoDims) {
+  return {
+    h: b.height_cm ?? null,
+    w: b.width_cm ?? null,
+    l: b.length_cm ?? null,
+    kg: b.weight_kg ?? null,
+  };
+}
+
 function computeBillableWeight(p: Product): number | null {
   if (p.is_service) return null;
+  const dims = p.bultos_dims;
+  if (dims && dims.length > 0) {
+    let total = 0;
+    for (const b of dims) {
+      const { h, w, l, kg } = parseDims(b);
+      if (h == null || w == null || l == null || kg == null) return null;
+      total += Math.max(kg, (h * w * l) / 4000);
+    }
+    return total;
+  }
+  // Fallback: legacy single-dim fields × num_bultos
   if (p.height_cm == null || p.width_cm == null || p.length_cm == null || p.weight_kg == null) return null;
-  const volWeight = (p.height_cm * p.width_cm * p.length_cm) / 4000;
-  const perBulto = Math.max(p.weight_kg, volWeight);
-  return perBulto * (p.num_bultos ?? 1);
+  const vol = (p.height_cm * p.width_cm * p.length_cm) / 4000;
+  return Math.max(p.weight_kg, vol) * (p.num_bultos ?? 1);
 }
 
 function computeSize(p: Product): SizeTag | null {
   if (p.is_service) return null;
-  if (p.height_cm == null || p.width_cm == null || p.length_cm == null || p.weight_kg == null) return null;
-  const sum = p.height_cm + p.width_cm + p.length_cm;
-  if (sum > 180 || p.weight_kg > 20) return "Gigante";
+  let h: number | null, w: number | null, l: number | null, kg: number | null;
+  if (p.bultos_dims && p.bultos_dims.length > 0) {
+    const b = p.bultos_dims[0];
+    ({ h, w, l, kg } = parseDims(b));
+  } else {
+    h = p.height_cm ?? null; w = p.width_cm ?? null; l = p.length_cm ?? null; kg = p.weight_kg ?? null;
+  }
+  if (h == null || w == null || l == null || kg == null) return null;
+  const sum = h + w + l;
+  if (sum > 180 || kg > 20) return "Gigante";
   if (sum <= 55) return "Chico";
   if (sum <= 120) return "Mediano";
   if (sum <= 150) return "Grande";
@@ -85,8 +117,11 @@ export function ProductsTable({ initialData }: Props) {
     return () => window.removeEventListener("keydown", onKey);
   }, [lightboxUrl]);
 
-  // Brand tab
-  const [activeBrand, setActiveBrand] = useState<"Verken" | "Kaut">("Verken");
+  // Tab
+  type ActiveTab = "Verken" | "Kaut" | "Servicios";
+  const [activeTab, setActiveTab] = useState<ActiveTab>("Verken");
+  // Keep activeBrand alias for new-product default brand
+  const activeBrand = activeTab === "Servicios" ? "Verken" : activeTab;
 
   // Filters
   const [search, setSearch] = useState("");
@@ -102,7 +137,9 @@ export function ProductsTable({ initialData }: Props) {
     else { setSortKey(key); setSortDir("asc"); }
   }
 
-  const brandProducts = products.filter((p) => p.brand === activeBrand);
+  const brandProducts = activeTab === "Servicios"
+    ? products.filter((p) => p.is_service)
+    : products.filter((p) => p.brand === activeTab && !p.is_service);
   const allCategories = Array.from(new Set(brandProducts.map((p) => p.category).filter(Boolean) as string[])).sort();
 
   const filtered = brandProducts.filter((p) => {
@@ -144,6 +181,28 @@ export function ProductsTable({ initialData }: Props) {
     );
   }
 
+  function resizeBultos(bultos: BultoDimsForm[], count: number): BultoDimsForm[] {
+    const result = [...bultos];
+    while (result.length < count) result.push({ ...EMPTY_BULTO });
+    while (result.length > count) result.pop();
+    return result;
+  }
+
+  function handleNumBultosChange(delta: number) {
+    setForm((f) => {
+      const newCount = Math.max(1, f.num_bultos + delta);
+      return { ...f, num_bultos: newCount, bultos: resizeBultos(f.bultos, newCount) };
+    });
+  }
+
+  function updateBulto(idx: number, field: keyof BultoDimsForm, value: string) {
+    setForm((f) => {
+      const bultos = [...f.bultos];
+      bultos[idx] = { ...bultos[idx], [field]: value };
+      return { ...f, bultos };
+    });
+  }
+
   function openNew() {
     setEditingId(null);
     setForm({ ...EMPTY_FORM, brand: activeBrand });
@@ -153,18 +212,33 @@ export function ProductsTable({ initialData }: Props) {
 
   function openEdit(p: Product) {
     setEditingId(p.id);
+    const numBultos = p.num_bultos ?? 1;
+    let bultos: BultoDimsForm[];
+    if (p.bultos_dims && p.bultos_dims.length > 0) {
+      bultos = p.bultos_dims.map((b) => ({
+        height_cm: b.height_cm != null ? String(b.height_cm) : "",
+        width_cm: b.width_cm != null ? String(b.width_cm) : "",
+        length_cm: b.length_cm != null ? String(b.length_cm) : "",
+        weight_kg: b.weight_kg != null ? String(b.weight_kg) : "",
+      }));
+    } else {
+      bultos = [{
+        height_cm: p.height_cm != null ? String(p.height_cm) : "",
+        width_cm: p.width_cm != null ? String(p.width_cm) : "",
+        length_cm: p.length_cm != null ? String(p.length_cm) : "",
+        weight_kg: p.weight_kg != null ? String(p.weight_kg) : "",
+      }];
+    }
+    bultos = resizeBultos(bultos, numBultos);
     setForm({
       name: p.name,
       sku: p.sku,
       brand: p.brand ?? "",
       category: p.category ?? "",
-      height_cm: p.height_cm != null ? String(p.height_cm) : "",
-      width_cm: p.width_cm != null ? String(p.width_cm) : "",
-      length_cm: p.length_cm != null ? String(p.length_cm) : "",
-      weight_kg: p.weight_kg != null ? String(p.weight_kg) : "",
-      num_bultos: p.num_bultos ?? 1,
+      num_bultos: numBultos,
       is_service: p.is_service ?? false,
       is_pack: p.is_pack ?? false,
+      bultos,
     });
     setError(null);
     setShowForm(true);
@@ -196,18 +270,27 @@ export function ProductsTable({ initialData }: Props) {
     setSaving(true);
     setError(null);
     try {
+      const bultoParsed = form.bultos.map((b) => ({
+        height_cm: parseNum(b.height_cm),
+        width_cm: parseNum(b.width_cm),
+        length_cm: parseNum(b.length_cm),
+        weight_kg: parseNum(b.weight_kg),
+      }));
+      const bulto1 = bultoParsed[0] ?? {};
       const payload = {
         name: form.name.trim(),
         sku: form.sku.trim(),
         brand: form.brand || null,
         category: form.category.trim() || null,
-        height_cm: form.is_service ? null : parseNum(form.height_cm),
-        width_cm: form.is_service ? null : parseNum(form.width_cm),
-        length_cm: form.is_service ? null : parseNum(form.length_cm),
-        weight_kg: form.is_service ? null : parseNum(form.weight_kg),
+        // Keep bulto-1 dims in legacy fields for backward compat
+        height_cm: form.is_service ? null : (bulto1.height_cm ?? null),
+        width_cm: form.is_service ? null : (bulto1.width_cm ?? null),
+        length_cm: form.is_service ? null : (bulto1.length_cm ?? null),
+        weight_kg: form.is_service ? null : (bulto1.weight_kg ?? null),
         num_bultos: form.num_bultos,
         is_service: form.is_service,
         is_pack: form.is_pack,
+        bultos_dims: form.is_service ? null : bultoParsed,
       };
       if (editingId) {
         const updated = await updateProduct(editingId, payload);
@@ -289,9 +372,12 @@ export function ProductsTable({ initialData }: Props) {
 
   const inputClass =
     "border border-gray-200 rounded-lg px-3 py-2 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent w-full";
+  const inputReadonlyClass =
+    "border border-gray-100 rounded-lg px-3 py-2 text-sm text-gray-400 bg-gray-50 w-full cursor-not-allowed";
 
-  const verkenCount = products.filter((p) => p.brand === "Verken").length;
-  const kautCount = products.filter((p) => p.brand === "Kaut").length;
+  const verkenCount = products.filter((p) => p.brand === "Verken" && !p.is_service).length;
+  const kautCount = products.filter((p) => p.brand === "Kaut" && !p.is_service).length;
+  const serviciosCount = products.filter((p) => p.is_service).length;
 
   return (
     <div className="space-y-4">
@@ -313,22 +399,23 @@ export function ProductsTable({ initialData }: Props) {
         </div>
       )}
 
-      {/* Brand tabs */}
+      {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-gray-100">
-        {(["Verken", "Kaut"] as const).map((brand) => {
-          const count = brand === "Verken" ? verkenCount : kautCount;
-          const active = activeBrand === brand;
+        {([
+          { key: "Verken", count: verkenCount },
+          { key: "Kaut", count: kautCount },
+          { key: "Servicios", count: serviciosCount },
+        ] as { key: ActiveTab; count: number }[]).map(({ key, count }) => {
+          const active = activeTab === key;
           return (
             <button
-              key={brand}
-              onClick={() => { setActiveBrand(brand); setSearch(""); setFilterCategory(""); setSortKey(null); }}
+              key={key}
+              onClick={() => { setActiveTab(key); setSearch(""); setFilterCategory(""); setSortKey(null); }}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
-                active
-                  ? "border-gray-900 text-gray-900"
-                  : "border-transparent text-gray-400 hover:text-gray-600"
+                active ? "border-gray-900 text-gray-900" : "border-transparent text-gray-400 hover:text-gray-600"
               }`}
             >
-              {brand}
+              {key}
               <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${active ? "bg-gray-900 text-white" : "bg-gray-100 text-gray-500"}`}>
                 {count}
               </span>
@@ -344,14 +431,14 @@ export function ProductsTable({ initialData }: Props) {
             {editingId ? "Editar producto" : "Nuevo producto"}
           </h3>
 
-          {/* Toggles row */}
+          {/* Toggles */}
           <div className="flex items-center gap-6 mb-4">
             <label className="flex items-center gap-2 cursor-pointer select-none">
               <button
                 type="button"
                 role="switch"
                 aria-checked={form.is_service}
-                onClick={() => setForm((f) => ({ ...f, is_service: !f.is_service, is_pack: f.is_pack && !f.is_service ? false : f.is_pack }))}
+                onClick={() => setForm((f) => ({ ...f, is_service: !f.is_service }))}
                 className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors focus:outline-none ${form.is_service ? "bg-purple-600" : "bg-gray-200"}`}
               >
                 <span className={`inline-block h-3.5 w-3.5 transform rounded-full bg-white shadow transition-transform ${form.is_service ? "translate-x-4" : "translate-x-0.5"}`} />
@@ -376,126 +463,119 @@ export function ProductsTable({ initialData }: Props) {
           </div>
 
           <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+            {/* Name — readonly in edit */}
             <div className="col-span-2">
-              <label className="block text-xs text-gray-500 mb-1">Nombre *</label>
-              <input
-                type="text"
-                value={form.name}
-                onChange={(e) => setForm({ ...form, name: e.target.value })}
-                className={inputClass}
-                placeholder="Ej: Camiseta básica"
-              />
-              {editingId && <p className="mt-1 text-xs text-red-500">Solo se puede editar desde Shopify</p>}
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">SKU *</label>
-              <input
-                type="text"
-                value={form.sku}
-                onChange={(e) => setForm({ ...form, sku: e.target.value })}
-                className={inputClass}
-                placeholder="Ej: CAM-001"
-              />
-              {editingId && <p className="mt-1 text-xs text-red-500">Solo se puede editar desde Shopify</p>}
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Marca</label>
-              <select
-                value={form.brand}
-                onChange={(e) => setForm({ ...form, brand: e.target.value })}
-                className={inputClass}
-              >
-                <option value="">Sin especificar</option>
-                {BRANDS.map((b) => (
-                  <option key={b} value={b}>{b}</option>
-                ))}
-              </select>
-            </div>
-            <div>
-              <label className="block text-xs text-gray-500 mb-1">Categoría</label>
-              <input
-                type="text"
-                value={form.category}
-                onChange={(e) => setForm({ ...form, category: e.target.value })}
-                className={inputClass}
-                placeholder="Ej: Ropa, Accesorios"
-              />
+              <label className="block text-xs text-gray-500 mb-1">
+                Nombre {editingId && <span className="text-gray-400">(solo editable desde Shopify)</span>}
+              </label>
+              {editingId ? (
+                <div className={inputReadonlyClass}>{form.name}</div>
+              ) : (
+                <input type="text" value={form.name}
+                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  className={inputClass} placeholder="Ej: Camiseta básica" />
+              )}
             </div>
 
-            {/* Num bultos stepper */}
+            {/* SKU — readonly in edit */}
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">
+                SKU {editingId && <span className="text-gray-400">(solo editable desde Shopify)</span>}
+              </label>
+              {editingId ? (
+                <div className={inputReadonlyClass}>{form.sku}</div>
+              ) : (
+                <input type="text" value={form.sku}
+                  onChange={(e) => setForm({ ...form, sku: e.target.value })}
+                  className={inputClass} placeholder="Ej: CAM-001" />
+              )}
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Marca</label>
+              <select value={form.brand} onChange={(e) => setForm({ ...form, brand: e.target.value })} className={inputClass}>
+                <option value="">Sin especificar</option>
+                {BRANDS.map((b) => <option key={b} value={b}>{b}</option>)}
+              </select>
+            </div>
+
+            <div>
+              <label className="block text-xs text-gray-500 mb-1">Categoría</label>
+              <input type="text" value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                className={inputClass} placeholder="Ej: Ropa, Accesorios" />
+            </div>
+
+            {/* Bultos stepper */}
             {!form.is_service && (
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Bultos</label>
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setForm((f) => ({ ...f, num_bultos: Math.max(1, f.num_bultos - 1) }))}
-                    className="w-8 h-8 flex items-center justify-center border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors text-base font-medium"
-                  >
+                  <button type="button" onClick={() => handleNumBultosChange(-1)}
+                    className="w-8 h-8 flex items-center justify-center border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors text-base font-medium">
                     −
                   </button>
                   <span className="w-8 text-center text-sm font-semibold text-gray-900">{form.num_bultos}</span>
-                  <button
-                    type="button"
-                    onClick={() => setForm((f) => ({ ...f, num_bultos: f.num_bultos + 1 }))}
-                    className="w-8 h-8 flex items-center justify-center border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors text-base font-medium"
-                  >
+                  <button type="button" onClick={() => handleNumBultosChange(1)}
+                    className="w-8 h-8 flex items-center justify-center border border-gray-200 rounded-lg text-gray-500 hover:bg-gray-100 transition-colors text-base font-medium">
                     +
                   </button>
                 </div>
-                {form.num_bultos > 1 && (
-                  <p className="mt-1 text-xs text-gray-400">Dimensiones = 1 bulto</p>
-                )}
               </div>
             )}
+          </div>
 
-            {/* Dimension fields — hidden when service */}
-            {!form.is_service && (
-              <>
-                <div className="col-span-2 sm:col-span-3 lg:col-span-4 flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setForm((f) => ({ ...f, ...STANDARD_BAG }))}
-                    className="px-2.5 py-1 text-xs border border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
-                  >
-                    📦 Bolsa estándar — 32×42×5 cm · 3 kg
-                  </button>
-                  <span className="text-xs text-gray-400">Pedidos pequeños en bolsa plástica</span>
-                </div>
+          {/* Per-bulto dimension fields */}
+          {!form.is_service && form.bultos.map((bulto, idx) => (
+            <div key={idx} className="mt-4">
+              <div className="flex items-center gap-3 mb-2">
+                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
+                  {form.num_bultos > 1 ? `Bulto ${idx + 1}` : "Dimensiones"}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setForm((f) => {
+                    const bultos = f.bultos.map((b, i) => i === idx ? { ...STANDARD_BAG } : b);
+                    return { ...f, bultos };
+                  })}
+                  className="px-2 py-0.5 text-xs border border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
+                >
+                  📦 Bolsa estándar
+                </button>
+              </div>
+              <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Alto (cm)</label>
-                  <input type="number" step="0.01" min="0" value={form.height_cm}
-                    onChange={(e) => setForm({ ...form, height_cm: e.target.value })}
+                  <input type="number" step="0.01" min="0" value={bulto.height_cm}
+                    onChange={(e) => updateBulto(idx, "height_cm", e.target.value)}
                     className={inputClass} placeholder="0.00" />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Ancho (cm)</label>
-                  <input type="number" step="0.01" min="0" value={form.width_cm}
-                    onChange={(e) => setForm({ ...form, width_cm: e.target.value })}
+                  <input type="number" step="0.01" min="0" value={bulto.width_cm}
+                    onChange={(e) => updateBulto(idx, "width_cm", e.target.value)}
                     className={inputClass} placeholder="0.00" />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Largo (cm)</label>
-                  <input type="number" step="0.01" min="0" value={form.length_cm}
-                    onChange={(e) => setForm({ ...form, length_cm: e.target.value })}
+                  <input type="number" step="0.01" min="0" value={bulto.length_cm}
+                    onChange={(e) => updateBulto(idx, "length_cm", e.target.value)}
                     className={inputClass} placeholder="0.00" />
                 </div>
                 <div>
                   <label className="block text-xs text-gray-500 mb-1">Peso (kg)</label>
-                  <input type="number" step="0.001" min="0" value={form.weight_kg}
-                    onChange={(e) => setForm({ ...form, weight_kg: e.target.value })}
+                  <input type="number" step="0.001" min="0" value={bulto.weight_kg}
+                    onChange={(e) => updateBulto(idx, "weight_kg", e.target.value)}
                     className={inputClass} placeholder="0.000" />
                 </div>
-              </>
-            )}
-          </div>
+              </div>
+            </div>
+          ))}
+
           {error && <p className="mt-3 text-sm text-red-500">{error}</p>}
           <div className="mt-4 flex items-center gap-3">
-            <button
-              onClick={handleSave}
-              disabled={saving}
-              className="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors"
-            >
+            <button onClick={handleSave} disabled={saving}
+              className="px-4 py-2 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 disabled:opacity-50 transition-colors">
               {saving ? "Guardando..." : editingId ? "Guardar cambios" : "Agregar producto"}
             </button>
             <button onClick={cancelForm} className="px-4 py-2 text-sm text-gray-500 hover:text-gray-700 transition-colors">
@@ -516,26 +596,17 @@ export function ProductsTable({ initialData }: Props) {
               {syncResult ?? importResult}
             </span>
           )}
-          <button
-            onClick={handleExport}
-            disabled={exporting}
-            className="px-3 py-1.5 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-          >
+          <button onClick={handleExport} disabled={exporting}
+            className="px-3 py-1.5 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors">
             {exporting ? "Exportando..." : "Exportar CSV"}
           </button>
           <input ref={fileInputRef} type="file" accept=".csv" className="hidden" onChange={handleImport} />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={importing}
-            className="px-3 py-1.5 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors"
-          >
+          <button onClick={() => fileInputRef.current?.click()} disabled={importing}
+            className="px-3 py-1.5 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors">
             {importing ? "Importando..." : "Importar CSV"}
           </button>
-          <button
-            onClick={handleSyncShopify}
-            disabled={syncing}
-            className="px-3 py-1.5 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors flex items-center gap-1.5"
-          >
+          <button onClick={handleSyncShopify} disabled={syncing}
+            className="px-3 py-1.5 border border-gray-200 text-gray-600 text-sm rounded-lg hover:bg-gray-50 disabled:opacity-50 transition-colors flex items-center gap-1.5">
             <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={`w-3.5 h-3.5 ${syncing ? "animate-spin" : ""}`}>
               <polyline points="23 4 23 10 17 10" />
               <polyline points="1 20 1 14 7 14" />
@@ -544,10 +615,8 @@ export function ProductsTable({ initialData }: Props) {
             {syncing ? "Sincronizando..." : "Sincronizar Shopify"}
           </button>
           {!showForm && (
-            <button
-              onClick={openNew}
-              className="px-3 py-1.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors"
-            >
+            <button onClick={openNew}
+              className="px-3 py-1.5 bg-gray-900 text-white text-sm rounded-lg hover:bg-gray-700 transition-colors">
               + Agregar producto
             </button>
           )}
@@ -556,26 +625,17 @@ export function ProductsTable({ initialData }: Props) {
 
       {/* Filters */}
       <div className="flex flex-wrap gap-2">
-        <input
-          type="text"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
+        <input type="text" value={search} onChange={(e) => setSearch(e.target.value)}
           placeholder="Buscar por nombre o SKU..."
-          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent w-56"
-        />
-        <select
-          value={filterCategory}
-          onChange={(e) => setFilterCategory(e.target.value)}
-          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent"
-        >
+          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent w-56" />
+        <select value={filterCategory} onChange={(e) => setFilterCategory(e.target.value)}
+          className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-gray-900 focus:border-transparent">
           <option value="">Todas las categorías</option>
           {allCategories.map((c) => <option key={c} value={c}>{c}</option>)}
         </select>
         {(search || filterCategory) && (
-          <button
-            onClick={() => { setSearch(""); setFilterCategory(""); }}
-            className="text-xs text-gray-400 hover:text-gray-600 transition-colors"
-          >
+          <button onClick={() => { setSearch(""); setFilterCategory(""); }}
+            className="text-xs text-gray-400 hover:text-gray-600 transition-colors">
             Limpiar filtros
           </button>
         )}
@@ -585,7 +645,9 @@ export function ProductsTable({ initialData }: Props) {
       {filtered.length === 0 ? (
         <div className="text-center py-12 text-gray-400 text-sm">
           {brandProducts.length === 0
-            ? `No hay productos ${activeBrand}. Usa "Sincronizar Shopify" o agrega uno manualmente.`
+            ? activeTab === "Servicios"
+              ? `No hay SKUs de servicio. Agrega uno y activa el toggle "Servicio".`
+              : `No hay productos ${activeTab}. Usa "Sincronizar Shopify" o agrega uno manualmente.`
             : "No hay productos que coincidan con los filtros."}
         </div>
       ) : (
@@ -609,25 +671,25 @@ export function ProductsTable({ initialData }: Props) {
             </thead>
             <tbody className="divide-y divide-gray-50">
               {sorted.map((p, idx) => {
-                const missingDimensions = !p.is_service && (!p.height_cm || !p.width_cm || !p.length_cm || !p.weight_kg);
+                const dims = p.bultos_dims && p.bultos_dims.length > 0 ? p.bultos_dims[0] : null;
+                const d1h = dims?.height_cm ?? p.height_cm;
+                const d1w = dims?.width_cm ?? p.width_cm;
+                const d1l = dims?.length_cm ?? p.length_cm;
+                const d1kg = dims?.weight_kg ?? p.weight_kg;
+                const missingDimensions = !p.is_service && (!d1h || !d1w || !d1l || !d1kg);
                 const sizeTag = computeSize(p);
                 const billableWeight = computeBillableWeight(p);
-                const perBulto = p.weight_kg != null && p.height_cm != null && p.width_cm != null && p.length_cm != null
-                  ? Math.max(p.weight_kg, (p.height_cm * p.width_cm * p.length_cm) / 4000)
-                  : null;
-                const isVolumetric = perBulto != null && p.weight_kg != null && perBulto > p.weight_kg;
                 const numBultos = p.num_bultos ?? 1;
+                const isVolumetric = billableWeight != null && d1kg != null && d1h != null && d1w != null && d1l != null
+                  && (d1h * d1w * d1l) / 4000 > d1kg;
                 return (
                   <tr key={p.id} className="hover:bg-gray-50 transition-colors">
                     <td className="py-3 px-3 text-right text-xs text-gray-400">{idx + 1}</td>
                     <td className="py-2 px-3">
                       {p.image_url ? (
                         <button onClick={() => setLightboxUrl(p.image_url!)} className="block group relative">
-                          <img
-                            src={p.image_url}
-                            alt={p.name}
-                            className="w-10 h-10 object-cover rounded-md border border-gray-100 group-hover:opacity-80 transition-opacity"
-                          />
+                          <img src={p.image_url} alt={p.name}
+                            className="w-10 h-10 object-cover rounded-md border border-gray-100 group-hover:opacity-80 transition-opacity" />
                           <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
                             <svg className="w-4 h-4 text-white drop-shadow" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0zM10 7v3m0 0v3m0-3h3m-3 0H7" />
@@ -645,73 +707,49 @@ export function ProductsTable({ initialData }: Props) {
                     <td className="py-3 px-3 font-medium text-gray-900">
                       <div className="flex items-center gap-1.5 flex-wrap">
                         <span>{p.name}</span>
-                        {p.is_service && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700">Servicio</span>
-                        )}
-                        {p.is_pack && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">Pack</span>
-                        )}
-                        {numBultos > 1 && (
-                          <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700">×{numBultos} bultos</span>
-                        )}
+                        {p.is_service && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-purple-50 text-purple-700">Servicio</span>}
+                        {p.is_pack && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">Pack</span>}
+                        {numBultos > 1 && <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-amber-50 text-amber-700">×{numBultos} bultos</span>}
                       </div>
                     </td>
                     <td className="py-3 px-3 text-gray-500 font-mono text-xs">{p.sku}</td>
-                    <td className="py-3 px-3 text-xs text-gray-500">
-                      {p.category ?? <span className="text-gray-300">—</span>}
-                    </td>
+                    <td className="py-3 px-3 text-xs text-gray-500">{p.category ?? <span className="text-gray-300">—</span>}</td>
                     <td className="py-3 px-3">
-                      {p.is_service ? (
-                        <span className="text-gray-300">—</span>
-                      ) : sizeTag ? (
-                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${SIZE_COLOR[sizeTag]}`}>
-                          {sizeTag}
-                        </span>
-                      ) : (
-                        <span className="text-gray-300">—</span>
-                      )}
+                      {p.is_service ? <span className="text-gray-300">—</span> : sizeTag ? (
+                        <span className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${SIZE_COLOR[sizeTag]}`}>{sizeTag}</span>
+                      ) : <span className="text-gray-300">—</span>}
                     </td>
-                    <td className={`py-3 px-3 text-right text-xs ${p.is_service ? "text-gray-300" : p.height_cm ? "text-gray-700" : "text-amber-400"}`}>
-                      {p.is_service ? "—" : p.height_cm != null ? p.height_cm : "—"}
+                    <td className={`py-3 px-3 text-right text-xs ${p.is_service ? "text-gray-300" : d1h ? "text-gray-700" : "text-amber-400"}`}>
+                      {p.is_service ? "—" : d1h != null ? d1h : "—"}
                     </td>
-                    <td className={`py-3 px-3 text-right text-xs ${p.is_service ? "text-gray-300" : p.width_cm ? "text-gray-700" : "text-amber-400"}`}>
-                      {p.is_service ? "—" : p.width_cm != null ? p.width_cm : "—"}
+                    <td className={`py-3 px-3 text-right text-xs ${p.is_service ? "text-gray-300" : d1w ? "text-gray-700" : "text-amber-400"}`}>
+                      {p.is_service ? "—" : d1w != null ? d1w : "—"}
                     </td>
-                    <td className={`py-3 px-3 text-right text-xs ${p.is_service ? "text-gray-300" : p.length_cm ? "text-gray-700" : "text-amber-400"}`}>
-                      {p.is_service ? "—" : p.length_cm != null ? p.length_cm : "—"}
+                    <td className={`py-3 px-3 text-right text-xs ${p.is_service ? "text-gray-300" : d1l ? "text-gray-700" : "text-amber-400"}`}>
+                      {p.is_service ? "—" : d1l != null ? d1l : "—"}
                     </td>
-                    <td className={`py-3 px-3 text-right text-xs ${p.is_service ? "text-gray-300" : p.weight_kg ? "text-gray-700" : "text-amber-400"}`}>
-                      {p.is_service ? "—" : p.weight_kg != null ? p.weight_kg : "—"}
+                    <td className={`py-3 px-3 text-right text-xs ${p.is_service ? "text-gray-300" : d1kg ? "text-gray-700" : "text-amber-400"}`}>
+                      {p.is_service ? "—" : d1kg != null ? d1kg : "—"}
                     </td>
                     <td className="py-3 px-3 text-right text-xs">
-                      {p.is_service ? (
-                        <span className="text-gray-300">—</span>
-                      ) : billableWeight != null ? (
+                      {p.is_service ? <span className="text-gray-300">—</span> : billableWeight != null ? (
                         <span className={isVolumetric ? "text-orange-600 font-semibold" : "text-gray-700"}>
                           {billableWeight % 1 === 0 ? billableWeight : billableWeight.toFixed(2)}
                           {isVolumetric && <span className="ml-1 text-orange-400 font-normal">(vol)</span>}
-                          {numBultos > 1 && <span className="ml-1 text-amber-500 font-normal">×{numBultos}</span>}
                         </span>
-                      ) : (
-                        <span className="text-gray-300">—</span>
-                      )}
+                      ) : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="py-3 px-3">
                       <div className="flex items-center justify-end gap-2">
                         {missingDimensions && (
                           <span className="text-xs px-2 py-0.5 border border-amber-300 text-amber-600 rounded-md">Pendiente</span>
                         )}
-                        <button
-                          onClick={() => openEdit(p)}
-                          className="text-xs px-2 py-0.5 border border-gray-900 text-gray-900 rounded-md hover:bg-gray-900 hover:text-white transition-colors"
-                        >
+                        <button onClick={() => openEdit(p)}
+                          className="text-xs px-2 py-0.5 border border-gray-900 text-gray-900 rounded-md hover:bg-gray-900 hover:text-white transition-colors">
                           Editar
                         </button>
-                        <button
-                          onClick={() => handleDelete(p.id)}
-                          disabled={deletingId === p.id}
-                          className="text-xs px-2 py-0.5 border border-gray-900 text-gray-700 rounded-md hover:bg-red-600 hover:border-red-600 hover:text-white transition-colors disabled:opacity-50"
-                        >
+                        <button onClick={() => handleDelete(p.id)} disabled={deletingId === p.id}
+                          className="text-xs px-2 py-0.5 border border-gray-900 text-gray-900 rounded-md hover:bg-red-600 hover:border-red-600 hover:text-white transition-colors disabled:opacity-50">
                           {deletingId === p.id ? "..." : "Eliminar"}
                         </button>
                       </div>

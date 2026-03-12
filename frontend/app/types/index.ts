@@ -196,6 +196,13 @@ export interface CESchedule {
   updated_at: string | null;
 }
 
+export interface BultoDims {
+  height_cm?: number | null;
+  width_cm?: number | null;
+  length_cm?: number | null;
+  weight_kg?: number | null;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -210,6 +217,7 @@ export interface Product {
   num_bultos: number;
   is_service: boolean;
   is_pack: boolean;
+  bultos_dims?: BultoDims[] | null;
   created_at: string;
   updated_at: string;
 }
