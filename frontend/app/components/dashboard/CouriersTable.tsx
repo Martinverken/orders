@@ -129,13 +129,13 @@ export function CouriersTable({ initialData }: Props) {
   const falaRatingIdx = { "5/5": 0, "4/5": 1, "3/5": 2, "2/5": 3 }[falaRating];
 
   function downloadWelivery() {
-    const header = ["Tipo", "Tramo", "Suma lados máx. (cm)", "Peso máx. (kg)", "Precio c/IVA (CLP)", "Precio neto (CLP)"];
+    const header = ["Tipo", "Tramo", "Suma lados máx. (cm)", "Peso máx. (kg)", "Precio neto (CLP)", "Precio c/IVA (CLP)"];
     const rows: string[][] = [header];
     for (const r of WELIVERY_URBAN) {
-      rows.push(["Urbano", r.tier, String(r.max_sides), String(r.max_weight), String(r.price), String(Math.ceil(r.price / 1.19))]);
+      rows.push(["Urbano", r.tier, String(r.max_sides), String(r.max_weight), String(r.price), String(Math.ceil(r.price * 1.19))]);
     }
     for (const r of WELIVERY_RURAL) {
-      rows.push(["Rural", r.tier, String(r.max_sides), String(r.max_weight), String(r.price), String(Math.ceil(r.price / 1.19))]);
+      rows.push(["Rural", r.tier, String(r.max_sides), String(r.max_weight), String(r.price), String(Math.ceil(r.price * 1.19))]);
     }
     downloadCsv("tarifas_welivery.csv", rows);
   }
@@ -227,6 +227,7 @@ export function CouriersTable({ initialData }: Props) {
                     <th className="text-left py-1.5 pr-3 text-gray-500 font-medium">Tramo</th>
                     <th className="text-right py-1.5 pr-3 text-gray-500 font-medium">Suma lados</th>
                     <th className="text-right py-1.5 pr-3 text-gray-500 font-medium">Peso máx.</th>
+                    <th className="text-right py-1.5 pr-3 text-gray-500 font-medium">Precio neto</th>
                     <th className="text-right py-1.5 text-gray-500 font-medium">Precio c/IVA</th>
                   </tr>
                 </thead>
@@ -236,7 +237,8 @@ export function CouriersTable({ initialData }: Props) {
                       <td className="py-1.5 pr-3 font-medium text-gray-700">{row.tier}</td>
                       <td className="py-1.5 pr-3 text-right text-gray-600">≤ {row.max_sides} cm</td>
                       <td className="py-1.5 pr-3 text-right text-gray-600">≤ {row.max_weight} kg</td>
-                      <td className="py-1.5 text-right font-semibold text-gray-900">{clp(row.price)}</td>
+                      <td className="py-1.5 pr-3 text-right text-gray-600">{clp(row.price)}</td>
+                      <td className="py-1.5 text-right font-semibold text-gray-900">{clp(Math.ceil(row.price * 1.19))}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -294,6 +296,7 @@ export function CouriersTable({ initialData }: Props) {
             <span className="px-2 py-0.5 bg-red-50 rounded text-red-700">Sobrepeso &gt; 100 kg</span>
           </div>
           <p className="mt-2 text-xs text-gray-500">Tarifario cargado con ~600 localidades. Precios netos (+ 19% IVA al cotizar).</p>
+          <p className="mt-1.5 text-xs text-amber-600 font-medium">⚠ Pedidos de regiones: se agregan $2.500 neto por picking & packing en el checkout de la página web.</p>
         </div>
       </CourierCard>
 
@@ -334,18 +337,22 @@ export function CouriersTable({ initialData }: Props) {
         <div>
           <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
             <SectionLabel className="mb-0">Tabla de tarifas (CLP con IVA)</SectionLabel>
-            <div className="flex gap-1 items-center">
+            <div className="flex items-end gap-3">
               <DownloadBtn onClick={downloadFalabella} />
-
-              {(["5/5", "4/5", "3/5", "2/5"] as const).map((r) => (
-                <button
-                  key={r}
-                  onClick={() => setFalaRating(r)}
-                  className={`px-2.5 py-1 text-xs rounded-lg transition-colors ${falaRating === r ? "bg-gray-900 text-white" : "border border-gray-200 text-gray-600 hover:bg-gray-50"}`}
-                >
-                  {r}
-                </button>
-              ))}
+              <div>
+                <p className="text-xs text-gray-400 mb-1">Nota F+</p>
+                <div className="flex gap-1">
+                  {(["5/5", "4/5", "3/5", "2/5"] as const).map((r) => (
+                    <button
+                      key={r}
+                      onClick={() => setFalaRating(r)}
+                      className={`px-2.5 py-1 text-xs rounded-lg transition-colors ${falaRating === r ? "bg-gray-900 text-white" : "border border-gray-200 text-gray-600 hover:bg-gray-50"}`}
+                    >
+                      {r}
+                    </button>
+                  ))}
+                </div>
+              </div>
             </div>
           </div>
           <div className="overflow-x-auto">
