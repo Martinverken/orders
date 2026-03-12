@@ -703,7 +703,7 @@ export function ProductsTable({ initialData }: Props) {
                         )}
                         <button
                           onClick={() => openEdit(p)}
-                          className="text-xs px-2 py-0.5 border border-gray-900 text-gray-700 rounded-md hover:bg-gray-900 hover:text-white transition-colors"
+                          className="text-xs px-2 py-0.5 border border-gray-900 text-gray-900 rounded-md hover:bg-gray-900 hover:text-white transition-colors"
                         >
                           Editar
                         </button>
