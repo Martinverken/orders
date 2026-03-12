@@ -9,7 +9,7 @@ interface Props {
 }
 
 const BRANDS = ["Verken", "Kaut"];
-const EMPTY_FORM = { name: "", sku: "", brand: "", height_cm: "", width_cm: "", length_cm: "", weight_kg: "" };
+const EMPTY_FORM = { name: "", sku: "", brand: "", category: "", height_cm: "", width_cm: "", length_cm: "", weight_kg: "" };
 
 const BRAND_COLOR: Record<string, string> = {
   Verken: "bg-blue-50 text-blue-700",
@@ -41,6 +41,7 @@ export function ProductsTable({ initialData }: Props) {
       name: p.name,
       sku: p.sku,
       brand: p.brand ?? "",
+      category: p.category ?? "",
       height_cm: p.height_cm != null ? String(p.height_cm) : "",
       width_cm: p.width_cm != null ? String(p.width_cm) : "",
       length_cm: p.length_cm != null ? String(p.length_cm) : "",
@@ -80,6 +81,7 @@ export function ProductsTable({ initialData }: Props) {
         name: form.name.trim(),
         sku: form.sku.trim(),
         brand: form.brand || null,
+        category: form.category.trim() || null,
         height_cm: parseNum(form.height_cm),
         width_cm: parseNum(form.width_cm),
         length_cm: parseNum(form.length_cm),
@@ -175,6 +177,16 @@ export function ProductsTable({ initialData }: Props) {
               </select>
             </div>
             <div>
+              <label className="block text-xs text-gray-500 mb-1">Categoría</label>
+              <input
+                type="text"
+                value={form.category}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+                className={inputClass}
+                placeholder="Ej: Ropa, Accesorios"
+              />
+            </div>
+            <div>
               <label className="block text-xs text-gray-500 mb-1">Alto (cm)</label>
               <input type="number" step="0.01" min="0" value={form.height_cm}
                 onChange={(e) => setForm({ ...form, height_cm: e.target.value })}
@@ -260,6 +272,7 @@ export function ProductsTable({ initialData }: Props) {
                 <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Nombre</th>
                 <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">SKU</th>
                 <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Marca</th>
+                <th className="text-left py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Categoría</th>
                 <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Alto</th>
                 <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Ancho</th>
                 <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-500 uppercase tracking-wide">Largo</th>
@@ -282,6 +295,9 @@ export function ProductsTable({ initialData }: Props) {
                       ) : (
                         <span className="text-gray-300">—</span>
                       )}
+                    </td>
+                    <td className="py-3 px-3 text-xs text-gray-500">
+                      {p.category ?? <span className="text-gray-300">—</span>}
                     </td>
                     <td className={`py-3 px-3 text-right text-xs ${p.height_cm ? "text-gray-700" : "text-amber-400"}`}>
                       {p.height_cm != null ? `${p.height_cm} cm` : "—"}
