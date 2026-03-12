@@ -41,6 +41,54 @@ const WELIVERY_RURAL = [
   { tier: "6XL Rural",max_sides: 450, max_weight: 50, price: 33000 },
 ];
 
+// ── MercadoLibre Centro de Envíos ─────────────────────────────────────────────
+// Peso tarificable = max(real, volumétrico) donde vol = l×w×h / 4000.
+// Precios con IVA incluido (CLP). Descuentos según reputación + precio producto.
+const ML_ROWS = [
+  { label: "≤ 300g",     base: 6000 },
+  { label: "300g–500g",  base: 6200 },
+  { label: "500g–1kg",   base: 6400 },
+  { label: "1–1,5kg",    base: 6600 },
+  { label: "1,5–2kg",    base: 7200 },
+  { label: "2–3kg",      base: 7600 },
+  { label: "3–4kg",      base: 9100 },
+  { label: "4–5kg",      base: 9500 },
+  { label: "5–6kg",      base: 10100 },
+  { label: "6–8kg",      base: 11300 },
+  { label: "8–10kg",     base: 12100 },
+  { label: "10–15kg",    base: 14000 },
+  { label: "15–20kg",    base: 16600 },
+  { label: "20–25kg",    base: 20000 },
+  { label: "25–30kg",    base: 26100 },
+  { label: "30–40kg",    base: 29200 },
+  { label: "40–50kg",    base: 34600 },
+  { label: "50–60kg",    base: 36200 },
+  { label: "60–70kg",    base: 40000 },
+  { label: "70–80kg",    base: 44000 },
+  { label: "80–90kg",    base: 47600 },
+  { label: "90–100kg",   base: 51600 },
+  { label: "100–110kg",  base: 56800 },
+  { label: "110–120kg",  base: 63200 },
+  { label: "120–130kg",  base: 69800 },
+  { label: "130–140kg",  base: 76800 },
+  { label: "140–150kg",  base: 83200 },
+  { label: "150–175kg",  base: 94800 },
+  { label: "175–200kg",  base: 111200 },
+  { label: "200–225kg",  base: 127800 },
+  { label: "225–250kg",  base: 141800 },
+  { label: "250–275kg",  base: 156800 },
+  { label: "275–300kg",  base: 171800 },
+  { label: "> 300kg",    base: 186800 },
+];
+
+// Líderes/verde/sin rep: descuento por precio del producto nuevo
+const ML_LIDERES_DISCOUNTS = [
+  { label: "Usado / < $19.990", discount: 0 },
+  { label: "$19.990–$30.000",   discount: 0.60 },
+  { label: "$30.001–$40.000",   discount: 0.55 },
+  { label: "$40.001+",          discount: 0.50 },
+];
+
 // ── Falabella tariff table ────────────────────────────────────────────────────
 // Columns: [5/5_low, 4/5_low, 3/5_low, 2/5_low, 5/5_high, 4/5_high, 3/5_high, 2/5_high]
 const FALA_ROWS = [
@@ -125,6 +173,7 @@ function CourierCard({ name, color, children }: { name: string; color: string; c
 export function CouriersTable({ initialData }: Props) {
   const [weliveryTab, setWeliveryTab] = useState<"urbano" | "rural">("urbano");
   const [falaRating, setFalaRating] = useState<"5/5" | "4/5" | "3/5" | "2/5">("5/5");
+  const [mlRep, setMlRep] = useState<"lideres" | "amarilla" | "naranja">("lideres");
 
   const falaRatingIdx = { "5/5": 0, "4/5": 1, "3/5": 2, "2/5": 3 }[falaRating];
 
@@ -151,6 +200,35 @@ export function CouriersTable({ initialData }: Props) {
       rows.push([row.label, ...row.prices.map(String)]);
     }
     downloadCsv("tarifas_falabella_cofinanciamiento.csv", rows);
+  }
+
+  function downloadML() {
+    const header = [
+      "Tramo",
+      "Precio base (CLP)",
+      "Líderes/Verde: usado/<$19.990 (CLP)",
+      "Líderes/Verde: $19.990-$30.000 −60% (CLP)",
+      "Líderes/Verde: $30.001-$40.000 −55% (CLP)",
+      "Líderes/Verde: $40.001+ −50% (CLP)",
+      "Amarilla: <$19.990 (CLP)",
+      "Amarilla: ≥$19.990 −40% (CLP)",
+      "Naranja/Roja: sin descuento (CLP)",
+    ];
+    const rows: string[][] = [header];
+    for (const r of ML_ROWS) {
+      rows.push([
+        r.label,
+        String(r.base),
+        String(r.base),
+        String(Math.round(r.base * 0.40)),
+        String(Math.round(r.base * 0.45)),
+        String(Math.round(r.base * 0.50)),
+        String(r.base),
+        String(Math.round(r.base * 0.60)),
+        String(r.base),
+      ]);
+    }
+    downloadCsv("tarifas_mercadolibre.csv", rows);
   }
 
   async function downloadStarken() {
@@ -384,6 +462,113 @@ export function CouriersTable({ initialData }: Props) {
             </table>
           </div>
           <p className="mt-2 text-xs text-gray-400">El precio del producto afecta solo los tramos 0–6 kg. Desde 6 kg en adelante ambas columnas son iguales.</p>
+        </div>
+      </CourierCard>
+
+      {/* ── MercadoLibre ── */}
+      <CourierCard name="MercadoLibre — Centro de Envíos / Regular" color="bg-yellow-400">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
+          <div>
+            <SectionLabel>Zonas disponibles</SectionLabel>
+            <div className="flex flex-wrap gap-1.5">
+              <ZonePill label="Todo Chile" color="bg-yellow-50 text-yellow-700" />
+            </div>
+          </div>
+          <div>
+            <SectionLabel>Cálculo de tarifa</SectionLabel>
+            <p className="text-xs text-gray-600 leading-relaxed">
+              Tarifa por <strong>peso tarificable</strong>.<br />
+              <strong>Peso tarificable</strong> = max(peso real, peso volumétrico)<br />
+              <strong>Peso volumétrico</strong> = largo × ancho × alto / 4.000<br />
+              Descuento según <strong>reputación + precio del producto nuevo</strong>.
+            </p>
+          </div>
+          <div>
+            <SectionLabel>Restricciones</SectionLabel>
+            <ul className="space-y-1">
+              <li className="flex items-start gap-1.5 text-xs text-gray-600">
+                <span className="mt-0.5 text-green-500 shrink-0">✓</span>
+                Sin restricciones de zona (Todo Chile)
+              </li>
+              <li className="flex items-start gap-1.5 text-xs text-gray-600">
+                <span className="mt-0.5 text-green-500 shrink-0">✓</span>
+                Sin restricciones de dimensiones
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Tariff table */}
+        <div>
+          <div className="flex items-center justify-between flex-wrap gap-3 mb-3">
+            <SectionLabel className="mb-0">Tabla de tarifas (CLP con IVA)</SectionLabel>
+            <div className="flex items-end gap-3">
+              <DownloadBtn onClick={downloadML} />
+              <div>
+                <p className="text-xs text-gray-400 mb-1">Reputación vendedor</p>
+                <div className="flex gap-1">
+                  {([
+                    { key: "lideres",  label: "Líderes / Verde" },
+                    { key: "amarilla", label: "Amarilla" },
+                    { key: "naranja",  label: "Naranja / Roja" },
+                  ] as const).map(({ key, label }) => (
+                    <button
+                      key={key}
+                      onClick={() => setMlRep(key)}
+                      className={`px-2.5 py-1 text-xs rounded-lg transition-colors ${mlRep === key ? "bg-gray-900 text-white" : "border border-gray-200 text-gray-600 hover:bg-gray-50"}`}
+                    >
+                      {label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div className="overflow-x-auto">
+            <div className="max-h-72 overflow-y-auto">
+              <table className="w-full text-xs">
+                <thead className="sticky top-0 bg-white">
+                  <tr className="border-b border-gray-100">
+                    <th className="text-left py-1.5 pr-4 text-gray-500 font-medium">Tramo</th>
+                    {mlRep === "lideres" && ML_LIDERES_DISCOUNTS.map((d) => (
+                      <th key={d.label} className="text-right py-1.5 pr-2 text-gray-500 font-medium whitespace-nowrap">
+                        {d.label}
+                        {d.discount > 0 && <span className="ml-1 text-green-600">−{d.discount * 100}%</span>}
+                      </th>
+                    ))}
+                    {mlRep === "amarilla" && <>
+                      <th className="text-right py-1.5 pr-2 text-gray-500 font-medium">{"< $19.990"}</th>
+                      <th className="text-right py-1.5 text-gray-500 font-medium">≥ $19.990 <span className="text-green-600">−40%</span></th>
+                    </>}
+                    {mlRep === "naranja" && (
+                      <th className="text-right py-1.5 text-gray-500 font-medium">Sin descuento</th>
+                    )}
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-50">
+                  {ML_ROWS.map((row) => (
+                    <tr key={row.label}>
+                      <td className="py-1.5 pr-4 font-medium text-gray-700 whitespace-nowrap">{row.label}</td>
+                      {mlRep === "lideres" && ML_LIDERES_DISCOUNTS.map((d) => (
+                        <td key={d.label} className={`py-1.5 pr-2 text-right ${d.discount > 0 ? "font-semibold text-gray-900" : "text-gray-500"}`}>
+                          {clp(Math.round(row.base * (1 - d.discount)))}
+                        </td>
+                      ))}
+                      {mlRep === "amarilla" && <>
+                        <td className="py-1.5 pr-2 text-right text-gray-500">{clp(row.base)}</td>
+                        <td className="py-1.5 text-right font-semibold text-gray-900">{clp(Math.round(row.base * 0.60))}</td>
+                      </>}
+                      {mlRep === "naranja" && (
+                        <td className="py-1.5 text-right text-gray-900">{clp(row.base)}</td>
+                      )}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </div>
+          <p className="mt-2 text-xs text-gray-400">Descuentos aplican solo a productos nuevos. Productos usados y publicaciones sin precio mínimo pagan tarifa base.</p>
         </div>
       </CourierCard>
 
