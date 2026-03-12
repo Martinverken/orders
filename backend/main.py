@@ -12,7 +12,7 @@ from routers import settings as settings_router
 from routers import products as products_router
 from routers import couriers as couriers_router
 from shipping.router import router as shipping_router
-from jobs.daily_sync import run_daily_sync_sync, run_sync_only_sync
+from jobs.daily_sync import run_daily_sync_sync, run_sync_only_sync, run_shopify_products_sync
 
 logging.basicConfig(
     level=logging.INFO,
@@ -44,11 +44,18 @@ async def lifespan(app: FastAPI):
         id="daily_report",
         replace_existing=True,
     )
+    # Shopify product catalog sync every 6 hours
+    scheduler.add_job(
+        run_shopify_products_sync,
+        IntervalTrigger(hours=6, timezone=settings.scheduler_timezone),
+        id="products_sync",
+        replace_existing=True,
+    )
     scheduler.start()
     logger.info(
         f"Scheduler started — sync every 10 min, daily report at "
         f"{settings.daily_sync_hour:02d}:{settings.daily_sync_minute:02d} "
-        f"({settings.scheduler_timezone})"
+        f"({settings.scheduler_timezone}), products sync every 6h"
     )
     yield
     # Shutdown

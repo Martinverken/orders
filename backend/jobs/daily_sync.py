@@ -73,3 +73,38 @@ async def run_sync_only():
 def run_sync_only_sync():
     """Synchronous wrapper for APScheduler."""
     asyncio.run(run_sync_only())
+
+
+def run_shopify_products_sync():
+    """Sync product catalog from both Shopify stores. Runs on a schedule (every 6h).
+    Preserves existing dimensions/weight — only adds new SKUs and updates names/brands.
+    """
+    from routers.products import _fetch_shopify_products, _products_to_records
+    from repositories.product_repository import ProductRepository
+
+    settings = get_settings()
+    repo = ProductRepository()
+
+    stores = []
+    if settings.shopify_verken_url and settings.shopify_verken_token:
+        stores.append(("Verken", settings.shopify_verken_url, settings.shopify_verken_token))
+    if settings.shopify_kaut_url and settings.shopify_kaut_token:
+        stores.append(("Kaut", settings.shopify_kaut_url, settings.shopify_kaut_token))
+
+    if not stores:
+        logger.info("[products-sync] No Shopify stores configured, skipping")
+        return
+
+    all_records: list[dict] = []
+    for brand, store_url, token in stores:
+        try:
+            products = _fetch_shopify_products(store_url, token)
+            records = _products_to_records(products, brand)
+            all_records.extend(records)
+            logger.info(f"[products-sync] {brand}: {len(products)} products → {len(records)} SKUs")
+        except Exception as e:
+            logger.error(f"[products-sync] Error fetching {brand}: {e}")
+
+    if all_records:
+        inserted, updated = repo.sync_from_shopify(all_records)
+        logger.info(f"[products-sync] Done — {inserted} new, {updated} updated")
