@@ -387,6 +387,27 @@ class OrderRepository:
                     u = "on_time"
                 else:
                     u = r.get("urgency") or ""
+                    # compute_urgency returns ON_TIME for shipped orders with future deadlines,
+                    # but for the cliente view we need to bucket them by date
+                    if u == "on_time" and row_status == "shipped":
+                        delivery_raw = r.get("limit_delivery_date")
+                        if delivery_raw:
+                            if isinstance(delivery_raw, str):
+                                delivery_dt = dt_class.fromisoformat(delivery_raw)
+                            else:
+                                delivery_dt = delivery_raw
+                            today = _today_santiago()
+                            if hasattr(delivery_dt, "astimezone"):
+                                from zoneinfo import ZoneInfo
+                                delivery_date = delivery_dt.astimezone(ZoneInfo("America/Santiago")).date()
+                            elif hasattr(delivery_dt, "date"):
+                                delivery_date = delivery_dt.date()
+                            else:
+                                delivery_date = delivery_dt
+                            if delivery_date == today + timedelta(days=1):
+                                u = "tomorrow"
+                            elif delivery_date >= today + timedelta(days=2):
+                                u = "two_or_more_days"
             else:
                 u = r.get("urgency") or ""
 

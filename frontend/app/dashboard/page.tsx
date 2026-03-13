@@ -511,7 +511,17 @@ export default async function DashboardPage({ searchParams }: PageProps) {
             </div>
 
             <div className="px-6 py-4">
-              <SummaryCards summary={summary} perspective="cliente" />
+              <SummaryCards
+                summary={summary}
+                perspective="cliente"
+                filterHrefs={{
+                  overdue: buildUrl({ ...allParams, urgency: "overdue" }, { tab: "transito", page: "1" }),
+                  delivered_today: buildUrl({ ...allParams, urgency: "delivered_today" }, { tab: "transito", page: "1" }),
+                  tomorrow: buildUrl({ ...allParams, urgency: "tomorrow" }, { tab: "transito", page: "1" }),
+                  two_or_more_days: buildUrl({ ...allParams, urgency: "two_or_more_days" }, { tab: "transito", page: "1" }),
+                  total: buildUrl({ ...allParams, urgency: undefined }, { tab: "transito", page: "1" }),
+                }}
+              />
             </div>
 
             <div className="px-6 py-3 border-t border-gray-100">

@@ -7,6 +7,7 @@ import { formatRelative, SOURCE_LABEL } from "@/app/lib/utils";
 interface Props {
   summary: DashboardSummary;
   perspective?: Perspective;
+  filterHrefs?: Record<string, string>;
 }
 
 function BreakdownDetail({ items }: { items: BreakdownItem[] }) {
@@ -45,7 +46,7 @@ function BreakdownDetail({ items }: { items: BreakdownItem[] }) {
   );
 }
 
-export function SummaryCards({ summary, perspective = "bodega" }: Props) {
+export function SummaryCards({ summary, perspective = "bodega", filterHrefs }: Props) {
   const [openCard, setOpenCard] = useState<string | null>(null);
 
   const overdueLabel = perspective === "bodega" ? "Atrasado Bodega" : "Atrasado Transportista";
@@ -93,7 +94,7 @@ export function SummaryCards({ summary, perspective = "bodega" }: Props) {
     },
     {
       label: "Total paquetes",
-      value: summary.overdue_count + todayCount + summary.tomorrow_count + summary.two_or_more_days_count,
+      value: summary.overdue_count + todayCount + summary.tomorrow_count + summary.two_or_more_days_count + (perspective === "cliente" ? summary.on_time_count : 0),
       breakdownKey: "total",
       color: "border-gray-400 text-gray-600",
       bg: "bg-gray-50",
@@ -111,15 +112,14 @@ export function SummaryCards({ summary, perspective = "bodega" }: Props) {
           const items = breakdown[card.breakdownKey] || [];
           const hasBreakdown = items.length > 0 && card.value > 0;
 
-          return (
-            <div
-              key={card.label}
-              className={`${card.bg} border-l-4 ${card.color.split(" ")[0]} rounded-lg p-4 ${hasBreakdown ? "cursor-pointer" : ""}`}
-              onClick={() => hasBreakdown && setOpenCard(isOpen ? null : card.breakdownKey)}
-            >
+          const href = filterHrefs?.[card.breakdownKey];
+          const cardClass = `${card.bg} border-l-4 ${card.color.split(" ")[0]} rounded-lg p-4 ${href ? "cursor-pointer hover:brightness-95 transition-all" : hasBreakdown ? "cursor-pointer" : ""}`;
+
+          const inner = (
+            <>
               <div className="flex items-center justify-between">
                 <span className="text-2xl">{card.icon}</span>
-                {hasBreakdown && (
+                {!href && hasBreakdown && (
                   <span className="text-gray-400 text-xs">{isOpen ? "▲" : "▼"}</span>
                 )}
               </div>
@@ -127,7 +127,21 @@ export function SummaryCards({ summary, perspective = "bodega" }: Props) {
                 {card.value}
               </div>
               <div className="text-sm text-gray-600 mt-1">{card.label}</div>
-              {isOpen && <BreakdownDetail items={items} />}
+              {!href && isOpen && <BreakdownDetail items={items} />}
+            </>
+          );
+
+          return href ? (
+            <a key={card.label} href={href} className={`block ${cardClass}`}>
+              {inner}
+            </a>
+          ) : (
+            <div
+              key={card.label}
+              className={cardClass}
+              onClick={() => hasBreakdown && setOpenCard(isOpen ? null : card.breakdownKey)}
+            >
+              {inner}
             </div>
           );
         })}
