@@ -519,6 +519,7 @@ export default async function DashboardPage({ searchParams }: PageProps) {
                   delivered_today: buildUrl({ ...allParams, urgency: "delivered_today" }, { tab: "transito", page: "1" }),
                   tomorrow: buildUrl({ ...allParams, urgency: "tomorrow" }, { tab: "transito", page: "1" }),
                   two_or_more_days: buildUrl({ ...allParams, urgency: "two_or_more_days" }, { tab: "transito", page: "1" }),
+                  on_time: buildUrl({ ...allParams, urgency: "on_time" }, { tab: "transito", page: "1" }),
                   total: buildUrl({ ...allParams, urgency: undefined }, { tab: "transito", page: "1" }),
                 }}
               />

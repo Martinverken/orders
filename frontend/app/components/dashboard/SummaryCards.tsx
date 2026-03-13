@@ -92,6 +92,15 @@ export function SummaryCards({ summary, perspective = "bodega", filterHrefs }: P
       bg: "bg-purple-50",
       icon: "🗓️",
     },
+    ...(perspective === "cliente" ? [{
+      label: "A tiempo",
+      sublabel: "Sin fecha confirmada",
+      value: summary.on_time_count,
+      breakdownKey: "on_time",
+      color: "border-green-400 text-green-600",
+      bg: "bg-green-50",
+      icon: "✅",
+    }] : []),
     {
       label: "Total paquetes",
       value: summary.overdue_count + todayCount + summary.tomorrow_count + summary.two_or_more_days_count + (perspective === "cliente" ? summary.on_time_count : 0),
@@ -106,7 +115,7 @@ export function SummaryCards({ summary, perspective = "bodega", filterHrefs }: P
 
   return (
     <div>
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-2">
+      <div className={`grid grid-cols-2 gap-4 mb-2 ${perspective === "cliente" ? "lg:grid-cols-6" : "lg:grid-cols-5"}`}>
         {cards.map((card) => {
           const isOpen = openCard === card.breakdownKey;
           const items = breakdown[card.breakdownKey] || [];
@@ -127,6 +136,9 @@ export function SummaryCards({ summary, perspective = "bodega", filterHrefs }: P
                 {card.value}
               </div>
               <div className="text-sm text-gray-600 mt-1">{card.label}</div>
+              {"sublabel" in card && card.sublabel && (
+                <div className="text-xs text-gray-400 mt-0.5">{card.sublabel}</div>
+              )}
               {!href && isOpen && <BreakdownDetail items={items} />}
             </>
           );
