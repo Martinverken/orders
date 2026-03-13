@@ -8,7 +8,12 @@ export function WarehouseDailySummary() {
   const [data, setData] = useState<WarehouseCarrierSummary[] | null>(null);
 
   useEffect(() => {
-    getWarehouseSummary().then(setData).catch(() => setData([]));
+    getWarehouseSummary()
+      .then(setData)
+      .catch((e) => {
+        console.error("[WarehouseDailySummary] API error:", e);
+        setData([]);
+      });
   }, []);
 
   if (!data || data.length === 0) return null;
