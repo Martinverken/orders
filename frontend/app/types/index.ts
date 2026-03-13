@@ -247,16 +247,30 @@ export interface Courier {
   updated_at: string;
 }
 
+export interface WarehouseOrderMini {
+  id: string;
+  external_id: string;
+  product_name: string;
+  status: string;
+  is_overdue: boolean;
+}
+
 export interface WarehouseDayCarrier {
   carrier: string;
   count: number;
+  due_today: number;
+  overdue: number;
   pickup_cutoff: string | null;
   pickup_window_start: string | null;
+  orders: WarehouseOrderMini[];
 }
 
 export interface WarehouseDayPlatform {
   source: string;
   count: number;
+  due_today: number;
+  overdue: number;
+  orders: WarehouseOrderMini[];
 }
 
 export interface WarehouseDaySummary {

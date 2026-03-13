@@ -291,10 +291,13 @@ def _carrier_from_order(source: str, logistics_operator: str | None) -> str:
 
 @router.get("/warehouse-summary")
 def get_warehouse_summary():
-    """Return per-day breakdown of pending orders with nested carrier and platform sub-summaries."""
+    """Return per-day breakdown of pending orders with nested carrier and platform sub-summaries.
+    Overdue orders (past deadlines) are merged into today's entry.
+    """
     from models.order import Order as _Order
     from datetime import date as _date
     today = _today_santiago()
+    today_iso = today.isoformat()
 
     result = (
         order_repo.db.table(order_repo.table)
@@ -304,7 +307,6 @@ def get_warehouse_summary():
     )
     all_pending = [_Order(**r) for r in (result.data or [])]
 
-    # Pickup window lookup from couriers table
     from repositories.courier_repository import CourierRepository
     couriers = CourierRepository().list()
     window_map = {c.name.lower(): c.pickup_window_start for c in couriers if c.pickup_window_start}
@@ -315,13 +317,69 @@ def get_warehouse_summary():
             return None
         return deadline.astimezone(_SANTIAGO_TZ).date() if deadline.tzinfo else deadline.date()
 
-    def _cutoff_hhmm(order, for_date: _date) -> str | None:
+    def _cutoff_hhmm(order) -> str | None:
         if not order.limit_handoff_date:
             return None
         lhd = order.limit_handoff_date.astimezone(_SANTIAGO_TZ) if order.limit_handoff_date.tzinfo else order.limit_handoff_date
-        return lhd.strftime("%H:%M") if lhd.date() == for_date else None
+        return lhd.strftime("%H:%M")
 
-    # Group orders by deadline date
+    def _order_mini(order, is_overdue: bool) -> dict:
+        raw = order.raw_data or {}
+        if order.source.startswith("shopify"):
+            display_id = str(raw.get("name", "")).lstrip("#") or str(order.external_id)
+        else:
+            display_id = str(order.external_id)
+        return {
+            "id": str(order.id),
+            "external_id": display_id,
+            "product_name": order.product_name or "",
+            "status": order.status,
+            "is_overdue": is_overdue,
+        }
+
+    def _build_breakdowns(orders_list: list, overdue_ids: set) -> tuple[list, list]:
+        cmap: dict[str, dict] = {}
+        for order in orders_list:
+            name = _carrier_from_order(order.source, order.logistics_operator)
+            is_overdue = id(order) in overdue_ids
+            if name not in cmap:
+                cmap[name] = {
+                    "carrier": name,
+                    "count": 0,
+                    "due_today": 0,
+                    "overdue": 0,
+                    "pickup_cutoff": None,
+                    "pickup_window_start": window_map.get(name.lower()),
+                    "orders": [],
+                }
+            cmap[name]["count"] += 1
+            if is_overdue:
+                cmap[name]["overdue"] += 1
+            else:
+                cmap[name]["due_today"] += 1
+            cutoff = _cutoff_hhmm(order)
+            existing = cmap[name]["pickup_cutoff"]
+            if cutoff and (existing is None or cutoff < existing):
+                cmap[name]["pickup_cutoff"] = cutoff
+            cmap[name]["orders"].append(_order_mini(order, is_overdue))
+        by_carrier = sorted(cmap.values(), key=lambda x: (x["pickup_cutoff"] is None, x["pickup_cutoff"] or ""))
+
+        smap: dict[str, dict] = {}
+        for order in orders_list:
+            is_overdue = id(order) in overdue_ids
+            src = order.source
+            if src not in smap:
+                smap[src] = {"source": src, "count": 0, "due_today": 0, "overdue": 0, "orders": []}
+            smap[src]["count"] += 1
+            if is_overdue:
+                smap[src]["overdue"] += 1
+            else:
+                smap[src]["due_today"] += 1
+            smap[src]["orders"].append(_order_mini(order, is_overdue))
+        by_platform = sorted(smap.values(), key=lambda x: x["source"])
+
+        return by_carrier, by_platform
+
     from collections import defaultdict
     date_order_map: dict[str, list] = defaultdict(list)
     for order in all_pending:
@@ -329,50 +387,44 @@ def get_warehouse_summary():
         if dl:
             date_order_map[dl.isoformat()].append(order)
 
-    by_day = []
+    # Separate past (overdue), today, and future orders
+    today_orders: list = list(date_order_map.get(today_iso, []))
+    overdue_orders: list = []
+    future_date_keys: list[str] = []
     for date_key in sorted(date_order_map.keys()):
-        orders = date_order_map[date_key]
         dl = _date.fromisoformat(date_key)
-        is_past = dl < today
-        is_today = dl == today
-        overdue_count = len(orders) if is_past else 0
-        due_today_count = len(orders) if is_today else 0
+        if dl < today:
+            overdue_orders.extend(date_order_map[date_key])
+        elif dl > today:
+            future_date_keys.append(date_key)
 
-        # Per-day carrier breakdown
-        cmap: dict[str, dict] = {}
-        for order in orders:
-            name = _carrier_from_order(order.source, order.logistics_operator)
-            if name not in cmap:
-                cmap[name] = {
-                    "carrier": name,
-                    "count": 0,
-                    "pickup_cutoff": None,
-                    "pickup_window_start": window_map.get(name.lower()),
-                }
-            cmap[name]["count"] += 1
-            if is_today:
-                cutoff = _cutoff_hhmm(order, today)
-                existing = cmap[name]["pickup_cutoff"]
-                if cutoff and (existing is None or cutoff < existing):
-                    cmap[name]["pickup_cutoff"] = cutoff
-        day_by_carrier = sorted(cmap.values(), key=lambda x: (x["pickup_cutoff"] is None, x["pickup_cutoff"] or ""))
+    by_day = []
 
-        # Per-day platform breakdown
-        smap: dict[str, dict] = {}
-        for order in orders:
-            src = order.source
-            if src not in smap:
-                smap[src] = {"source": src, "count": 0}
-            smap[src]["count"] += 1
-        day_by_platform = sorted(smap.values(), key=lambda x: x["source"])
+    # Merged today entry: today's orders + all overdue
+    combined = today_orders + overdue_orders
+    if combined:
+        overdue_ids = {id(o) for o in overdue_orders}
+        by_carrier, by_platform = _build_breakdowns(combined, overdue_ids)
+        by_day.append({
+            "date": today_iso,
+            "count": len(combined),
+            "overdue": len(overdue_orders),
+            "due_today": len(today_orders),
+            "by_carrier": by_carrier,
+            "by_platform": by_platform,
+        })
 
+    # Future date entries
+    for date_key in future_date_keys:
+        orders = date_order_map[date_key]
+        by_carrier, by_platform = _build_breakdowns(orders, set())
         by_day.append({
             "date": date_key,
             "count": len(orders),
-            "overdue": overdue_count,
-            "due_today": due_today_count,
-            "by_carrier": day_by_carrier,
-            "by_platform": day_by_platform,
+            "overdue": 0,
+            "due_today": 0,
+            "by_carrier": by_carrier,
+            "by_platform": by_platform,
         })
 
     return {"success": True, "data": {"by_day": by_day}}

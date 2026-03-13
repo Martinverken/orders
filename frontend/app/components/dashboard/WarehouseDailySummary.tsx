@@ -3,7 +3,7 @@
 import { useEffect, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { getWarehouseSummary } from "@/app/lib/api";
-import type { WarehouseSummaryData, WarehouseDaySummary } from "@/app/types";
+import type { WarehouseSummaryData, WarehouseDaySummary, WarehouseDayCarrier, WarehouseDayPlatform, WarehouseOrderMini } from "@/app/types";
 
 const SOURCE_LABELS: Record<string, string> = {
   falabella: "Falabella",
@@ -28,12 +28,109 @@ function getTomorrowIso(): string {
   return d.toLocaleDateString("sv-SE");
 }
 
+function OrderMiniList({ orders }: { orders: WarehouseOrderMini[] }) {
+  return (
+    <ul className="mt-1.5 space-y-1 pl-3 border-l-2 border-blue-100">
+      {orders.map((o) => (
+        <li key={o.id} className="flex items-center gap-2 text-xs py-0.5">
+          <span className="font-mono text-gray-500 shrink-0">#{o.external_id}</span>
+          {o.product_name && (
+            <span className="text-gray-700 truncate flex-1">{o.product_name}</span>
+          )}
+          {o.is_overdue && (
+            <span className="ml-auto px-1.5 py-0.5 rounded bg-red-100 text-red-600 text-xs font-semibold shrink-0">
+              Atrasado
+            </span>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function CarrierRow({ c }: { c: WarehouseDayCarrier }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <li className="rounded-md overflow-hidden">
+      <div
+        className="flex items-center justify-between gap-2 text-sm px-2 py-1.5 cursor-pointer hover:bg-blue-50 rounded-md transition-colors"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <div className="flex items-center gap-2 min-w-0">
+          <svg
+            xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            className={`w-3 h-3 shrink-0 text-blue-400 transition-transform ${open ? "rotate-90" : ""}`}
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+          <span className="font-medium text-gray-900 truncate">{c.carrier}</span>
+          {c.pickup_window_start && c.pickup_cutoff
+            ? <span className="text-xs font-mono text-blue-600 shrink-0">{c.pickup_window_start} – {c.pickup_cutoff}</span>
+            : c.pickup_cutoff
+            ? <span className="text-xs font-mono text-blue-600 shrink-0">≤ {c.pickup_cutoff}</span>
+            : null
+          }
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {c.overdue > 0 && c.due_today > 0 && (
+            <span className="text-xs text-gray-500">
+              <span className="text-red-600 font-semibold">{c.overdue}</span>
+              <span className="text-gray-400"> + </span>
+              <span className="text-blue-700 font-semibold">{c.due_today}</span>
+              <span className="text-gray-500"> = </span>
+            </span>
+          )}
+          <span className="text-xs font-semibold text-gray-700">{c.count} bulto{c.count !== 1 ? "s" : ""}</span>
+        </div>
+      </div>
+      {open && <OrderMiniList orders={c.orders} />}
+    </li>
+  );
+}
+
+function PlatformRow({ p }: { p: WarehouseDayPlatform }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <li className="rounded-md overflow-hidden">
+      <div
+        className="flex items-center justify-between gap-2 text-sm px-2 py-1.5 cursor-pointer hover:bg-blue-50 rounded-md transition-colors"
+        onClick={() => setOpen((v) => !v)}
+      >
+        <div className="flex items-center gap-2">
+          <svg
+            xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+            className={`w-3 h-3 shrink-0 text-blue-400 transition-transform ${open ? "rotate-90" : ""}`}
+          >
+            <polyline points="9 18 15 12 9 6" />
+          </svg>
+          <span className="font-medium text-gray-900">{SOURCE_LABELS[p.source] || p.source}</span>
+        </div>
+        <div className="flex items-center gap-1.5 shrink-0">
+          {p.overdue > 0 && p.due_today > 0 && (
+            <span className="text-xs text-gray-500">
+              <span className="text-red-600 font-semibold">{p.overdue}</span>
+              <span className="text-gray-400"> + </span>
+              <span className="text-blue-700 font-semibold">{p.due_today}</span>
+              <span className="text-gray-500"> = </span>
+            </span>
+          )}
+          <span className="text-xs font-semibold text-gray-700">{p.count} bulto{p.count !== 1 ? "s" : ""}</span>
+        </div>
+      </div>
+      {open && <OrderMiniList orders={p.orders} />}
+    </li>
+  );
+}
+
 function DayAccordion({ row, expanded, onToggle, onFilter }: {
   row: WarehouseDaySummary;
   expanded: boolean;
   onToggle: () => void;
   onFilter: () => void;
 }) {
+  const [tab, setTab] = useState<"carrier" | "platform">("carrier");
   const todayIso = getTodayIso();
   const isToday = row.date === todayIso;
   const isPast = row.date < todayIso;
@@ -52,7 +149,7 @@ function DayAccordion({ row, expanded, onToggle, onFilter }: {
         {/* Date label */}
         <span className={`w-24 shrink-0 text-sm ${labelClass}`}>{label}</span>
 
-        {/* Count + urgency badges */}
+        {/* Count summary */}
         <span
           className="flex-1 flex items-center gap-2 text-sm"
           onClick={(e) => { e.stopPropagation(); onFilter(); }}
@@ -60,12 +157,19 @@ function DayAccordion({ row, expanded, onToggle, onFilter }: {
           <span className={`font-semibold tabular-nums ${isFuture ? "text-gray-400" : "text-gray-900"}`}>
             {row.count} bulto{row.count !== 1 ? "s" : ""}
           </span>
-          {row.overdue > 0 && (
+          {isToday && row.overdue > 0 && row.due_today > 0 && (
+            <span className="text-xs text-gray-500">
+              = <span className="text-blue-700 font-semibold">{row.due_today} hoy</span>
+              {" + "}
+              <span className="text-red-600 font-semibold">{row.overdue} atrasado{row.overdue !== 1 ? "s" : ""}</span>
+            </span>
+          )}
+          {isToday && row.overdue > 0 && row.due_today === 0 && (
             <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 text-xs font-semibold">
               {row.overdue} atrasado{row.overdue !== 1 ? "s" : ""}
             </span>
           )}
-          {row.due_today > 0 && (
+          {isToday && row.due_today > 0 && row.overdue === 0 && (
             <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 text-xs font-semibold">
               {row.due_today} de hoy
             </span>
@@ -84,47 +188,38 @@ function DayAccordion({ row, expanded, onToggle, onFilter }: {
 
       {/* Expanded content */}
       {expanded && (
-        <div className="px-3 pb-3 pt-2 bg-white border-t border-blue-100 space-y-3">
-          {/* Por Operador */}
-          {row.by_carrier.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Por Operador</p>
-              <ul className="space-y-1.5">
-                {row.by_carrier.map((c) => (
-                  <li key={c.carrier} className="flex items-center justify-between gap-2 text-sm">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900">{c.carrier}</span>
-                      {c.pickup_window_start && c.pickup_cutoff
-                        ? <span className="text-xs font-mono text-blue-600">{c.pickup_window_start} - {c.pickup_cutoff}</span>
-                        : c.pickup_cutoff
-                        ? <span className="text-xs font-mono text-blue-600">≤ {c.pickup_cutoff}</span>
-                        : null
-                      }
-                    </div>
-                    <span className="text-xs font-semibold text-gray-700 shrink-0">
-                      {c.count} bulto{c.count !== 1 ? "s" : ""}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+        <div className="px-3 pb-3 pt-2 bg-white border-t border-blue-100">
+          {/* Tabs */}
+          <div className="flex gap-1 mb-3">
+            {(["carrier", "platform"] as const).map((t) => (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${
+                  tab === t
+                    ? "bg-blue-100 text-blue-800"
+                    : "text-gray-500 hover:bg-gray-100"
+                }`}
+              >
+                {t === "carrier" ? "Operador" : "Plataforma"}
+              </button>
+            ))}
+          </div>
+
+          {tab === "carrier" && row.by_carrier.length > 0 && (
+            <ul className="space-y-0.5">
+              {row.by_carrier.map((c) => (
+                <CarrierRow key={c.carrier} c={c} />
+              ))}
+            </ul>
           )}
 
-          {/* Por Plataforma */}
-          {row.by_platform.length > 0 && (
-            <div>
-              <p className="text-xs font-semibold text-gray-400 uppercase tracking-wide mb-1.5">Por Plataforma</p>
-              <ul className="space-y-1.5">
-                {row.by_platform.map((p) => (
-                  <li key={p.source} className="flex items-center justify-between text-sm">
-                    <span className="font-medium text-gray-900">{SOURCE_LABELS[p.source] || p.source}</span>
-                    <span className="text-xs font-semibold text-gray-700">
-                      {p.count} bulto{p.count !== 1 ? "s" : ""}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            </div>
+          {tab === "platform" && row.by_platform.length > 0 && (
+            <ul className="space-y-0.5">
+              {row.by_platform.map((p) => (
+                <PlatformRow key={p.source} p={p} />
+              ))}
+            </ul>
           )}
         </div>
       )}
@@ -142,7 +237,6 @@ export function WarehouseDailySummary() {
     getWarehouseSummary()
       .then((d) => {
         setData(d);
-        // Auto-expand today if it has orders
         const todayIso = getTodayIso();
         if (d.by_day.some((r) => r.date === todayIso)) {
           setExpandedDate(todayIso);
@@ -156,25 +250,23 @@ export function WarehouseDailySummary() {
   const todayIso = getTodayIso();
   const tomorrowIso = getTomorrowIso();
 
-  const totalOverdue = data.by_day.reduce((s, r) => s + r.overdue, 0);
-  const totalToday = data.by_day.reduce((s, r) => s + r.due_today, 0);
+  const todayRow = data.by_day.find((r) => r.date === todayIso);
+  const totalOverdue = todayRow?.overdue ?? 0;
+  const totalToday = todayRow?.due_today ?? 0;
   const grand = totalOverdue + totalToday;
 
   if (grand === 0 && data.by_day.every((r) => r.date > todayIso)) return null;
 
-  function navigateTo(urgency?: string, source?: string) {
+  function navigateTo(urgency?: string) {
     const next = new URLSearchParams(searchParams.toString());
     next.set("tab", "pedidos");
     if (urgency) next.set("urgency", urgency); else next.delete("urgency");
-    if (source) next.set("source", source); else next.delete("source");
     next.delete("page");
     router.push(`/dashboard?${next.toString()}`);
   }
 
   function urgencyForDate(row: WarehouseDaySummary): string {
-    if (row.date < todayIso) return "overdue";
     if (row.date === todayIso) {
-      // Show today + all overdue so nothing urgent is missed
       return totalOverdue > 0 ? "due_today,overdue" : "due_today";
     }
     return row.date === tomorrowIso ? "tomorrow" : "two_or_more_days";
