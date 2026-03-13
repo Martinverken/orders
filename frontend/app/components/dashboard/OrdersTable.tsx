@@ -5,13 +5,14 @@ import { Order, OrderCase, Perspective } from "@/app/types";
 import { UrgencyBadge, StatusBadge } from "@/app/components/ui/Badge";
 import { ProductCell } from "@/app/components/ui/ProductCell";
 import { formatDate, formatDeadline, SOURCE_LABEL, getCarrier, getOrderNumber, getTrackingCode, getTrackingUrl, getProductDetails, getShippingDestination, getShippingMethod, getOperator, getBultoCount } from "@/app/lib/utils";
-import { getActiveOrderCases, addActiveOrderCase } from "@/app/lib/api";
+import { getActiveOrderCases, addActiveOrderCase, deleteOrder } from "@/app/lib/api";
 import { CaseHistoryModal } from "./CaseHistoryModal";
 
 interface Props {
   orders: Order[];
   orderIdsWithCases?: string[];
   perspective?: Perspective;
+  onOrderDeleted?: (orderId: string) => void;
 }
 
 type SortCol = "created_at_source" | "limit_delivery_date" | "synced_at";
@@ -107,10 +108,27 @@ function ActiveTicketButton({ order }: { order: Order }) {
   );
 }
 
-export function OrdersTable({ orders, orderIdsWithCases = [], perspective = "bodega" }: Props) {
+export function OrdersTable({ orders, orderIdsWithCases = [], perspective = "bodega", onOrderDeleted }: Props) {
   const caseSet = useMemo(() => new Set(orderIdsWithCases), [orderIdsWithCases]);
   const [sortCol, setSortCol] = useState<SortCol | null>(null);
   const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [deletingId, setDeletingId] = useState<string | null>(null);
+  const [deletedIds, setDeletedIds] = useState<Set<string>>(new Set());
+
+  const handleDelete = async (order: Order) => {
+    const label = getOrderNumber(order.raw_data, order.external_id);
+    if (!confirm(`¿Eliminar pedido ${label}? Esta acción no se puede deshacer.`)) return;
+    setDeletingId(order.id);
+    try {
+      await deleteOrder(order.id);
+      setDeletedIds(prev => new Set(prev).add(order.id));
+      onOrderDeleted?.(order.id);
+    } catch {
+      alert("Error al eliminar el pedido");
+    } finally {
+      setDeletingId(null);
+    }
+  };
 
   const handleSort = (col: SortCol) => {
     if (sortCol === col) {
@@ -122,8 +140,9 @@ export function OrdersTable({ orders, orderIdsWithCases = [], perspective = "bod
   };
 
   const sorted = useMemo(() => {
-    if (!sortCol) return orders;
-    return [...orders].sort((a, b) => {
+    const visible = orders.filter(o => !deletedIds.has(o.id));
+    if (!sortCol) return visible;
+    return [...visible].sort((a, b) => {
       const av = a[sortCol] ? new Date(a[sortCol] as string).getTime() : 0;
       const bv = b[sortCol] ? new Date(b[sortCol] as string).getTime() : 0;
       return sortDir === "asc" ? av - bv : bv - av;
@@ -161,6 +180,7 @@ export function OrdersTable({ orders, orderIdsWithCases = [], perspective = "bod
             <th className="pb-3 pr-4 font-medium">Comuna</th>
             <SortableHeader label="Sync" col="synced_at" sortCol={sortCol} sortDir={sortDir} onSort={handleSort} />
             <th className="pb-3 font-medium">Tickets</th>
+            <th className="pb-3 font-medium"></th>
           </tr>
         </thead>
         <tbody>
@@ -173,7 +193,7 @@ export function OrdersTable({ orders, orderIdsWithCases = [], perspective = "bod
             const product = getProductDetails(order.raw_data, order.product_name, order.product_quantity);
             const destination = getShippingDestination(order.raw_data);
             return (
-              <tr key={order.id} className="border-b border-gray-50 hover:bg-gray-50 transition-colors">
+              <tr key={order.id} className="group border-b border-gray-50 hover:bg-gray-50 transition-colors">
                 <td className={`py-3 pr-4 text-xs font-medium ${caseSet.has(order.id) ? "text-amber-600 bg-amber-50 rounded" : "text-gray-400"}`}>{idx + 1}</td>
                 <td className="py-3 pr-4 font-mono text-gray-700 text-xs">
                   <span className="flex items-center gap-1.5">
@@ -258,6 +278,18 @@ export function OrdersTable({ orders, orderIdsWithCases = [], perspective = "bod
                 </td>
                 <td className="py-3 pr-2">
                   <ActiveTicketButton order={order} />
+                </td>
+                <td className="py-3 pl-1">
+                  <button
+                    onClick={() => handleDelete(order)}
+                    disabled={deletingId === order.id}
+                    className="opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded hover:bg-red-50 text-gray-300 hover:text-red-500 disabled:opacity-50"
+                    title="Eliminar pedido"
+                  >
+                    <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
                 </td>
               </tr>
             );

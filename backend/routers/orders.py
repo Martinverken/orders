@@ -185,6 +185,15 @@ def get_tomorrow_orders():
     return {"success": True, "data": orders, "count": len(orders)}
 
 
+@router.delete("/{order_id}", response_model=dict)
+def delete_order(order_id: str):
+    """Permanently delete an active order by its DB UUID."""
+    deleted = order_repo.delete_by_id(order_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="Order not found")
+    return {"success": True}
+
+
 @router.get("/{order_id}", response_model=dict)
 def get_order(order_id: str, source: str = Query("falabella")):
     order = order_repo.get_by_external_id(order_id, source)

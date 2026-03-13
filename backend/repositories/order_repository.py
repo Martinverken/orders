@@ -419,6 +419,16 @@ class OrderRepository:
         communes = sorted({r["commune"] for r in (result.data or []) if r.get("commune")})
         return communes
 
+    def delete_by_id(self, order_id: str) -> bool:
+        """Delete an active order by its DB UUID. Returns True if deleted."""
+        result = (
+            self.db.table(self.table)
+            .delete()
+            .eq("id", order_id)
+            .execute()
+        )
+        return bool(result.data)
+
     def get_by_external_id(self, external_id: str, source: str) -> Optional[Order]:
         result = (
             self.db.table(self.table)

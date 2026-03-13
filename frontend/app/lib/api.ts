@@ -321,3 +321,7 @@ export async function getWarehouseSummary(): Promise<WarehouseCarrierSummary[]> 
   const res = await apiFetch<{ success: boolean; data: WarehouseCarrierSummary[] }>("/api/dashboard/warehouse-summary");
   return res.data;
 }
+
+export async function deleteOrder(orderId: string): Promise<void> {
+  await apiFetch(`/api/orders/${orderId}`, { method: "DELETE" });
+}
