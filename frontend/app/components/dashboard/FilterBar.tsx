@@ -212,7 +212,7 @@ function CollapsibleFilterBarInner({ cities }: { cities?: string[] }) {
           <span className="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded-full">activo</span>
         )}
       </button>
-      {(open || hasFilters) && (
+      {open && (
         <div className="mt-3">
           <FilterBar cities={cities} />
         </div>

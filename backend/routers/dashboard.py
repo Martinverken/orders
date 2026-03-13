@@ -251,8 +251,11 @@ def get_delay_metrics():
 
 _FALABELLA_OPERATOR_LABELS: dict[str, str] = {
     "regular - bluexpress": "Bluexpress",
+    "regular - blue express": "Bluexpress",
     "regular-bluexpress": "Bluexpress",
+    "regular-blue express": "Bluexpress",
     "bluexpress": "Bluexpress",
+    "blue express": "Bluexpress",
     "regular - starken": "Starken",
     "regular-starken": "Starken",
     "starken": "Starken",
@@ -263,6 +266,7 @@ _FALABELLA_OPERATOR_LABELS: dict[str, str] = {
     "falaflex": "Welivery",
     "centro_envios": "Centro Envíos",
     "centro envios": "Centro Envíos",
+    "centro de envios": "Centro Envíos",
 }
 
 

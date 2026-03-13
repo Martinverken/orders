@@ -1,5 +1,6 @@
 import { Suspense } from "react";
 import { getActiveOrdersWithCases, getCESchedule, getCouriers, getDashboardSummary, getDelayMetrics, getDelaysByDay, getDistinctCities, getDistinctHistoricalCities, getHistoricalOrders, getKpiMetrics, getOrders, getProducts, getSyncStatus } from "@/app/lib/api";
+import { SummaryCards } from "@/app/components/dashboard/SummaryCards";
 import { OrdersTable } from "@/app/components/dashboard/OrdersTable";
 import { SyncStatus } from "@/app/components/dashboard/SyncStatus";
 import { CollapsibleFilterBar } from "@/app/components/dashboard/FilterBar";
@@ -508,11 +509,11 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               </p>
             </div>
 
-            <div className="px-6 pt-4 pb-2">
-              <WarehouseDailySummary />
+            <div className="px-6 py-4">
+              <SummaryCards summary={summary} perspective="cliente" />
             </div>
 
-            <div className="px-6 py-3">
+            <div className="px-6 py-3 border-t border-gray-100">
               <CollapsibleFilterBar cities={cities} />
             </div>
 
