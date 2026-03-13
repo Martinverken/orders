@@ -261,7 +261,20 @@ class OrderRepository:
                 pages = max(1, (total + per_page - 1) // per_page)
                 return OrdersPage(data=paginated, total=total, page=page, per_page=per_page, pages=pages)
 
-        if urgency_parts and len(urgency_parts) == 1:
+        # For cliente perspective: filter by delivery date range only (status=shipped already set above)
+        if perspective == "cliente" and urgency_parts and len(urgency_parts) == 1:
+            u = urgency_parts[0]
+            if u == OrderUrgency.OVERDUE.value:
+                query = query.lt("limit_delivery_date", _today_iso())
+            elif u == OrderUrgency.DELIVERED_TODAY.value:
+                query = query.gte("limit_delivery_date", _today_iso()).lt("limit_delivery_date", _tomorrow_iso())
+            elif u == OrderUrgency.TOMORROW.value:
+                query = query.gte("limit_delivery_date", _tomorrow_iso()).lt("limit_delivery_date", _day_after_tomorrow_iso())
+            elif u == OrderUrgency.TWO_OR_MORE_DAYS.value:
+                query = query.gte("limit_delivery_date", _day_after_tomorrow_iso())
+            elif u == OrderUrgency.ON_TIME.value:
+                query = query.gte("limit_delivery_date", _tomorrow_iso())
+        elif urgency_parts and len(urgency_parts) == 1:
             u = urgency_parts[0]
             if u == OrderUrgency.OVERDUE:
                 query = query.in_("status", _PENDING_LIKE).lt("limit_delivery_date", _today_iso())

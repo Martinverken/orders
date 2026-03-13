@@ -249,7 +249,6 @@ export interface Courier {
   notes?: string | null;
   active: boolean;
   pickup_cutoff?: string | null;
-  pickup_window_start?: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -268,7 +267,6 @@ export interface WarehouseDayCarrier {
   due_today: number;
   overdue: number;
   pickup_cutoff: string | null;
-  pickup_window_start: string | null;
   orders: WarehouseOrderMini[];
 }
 

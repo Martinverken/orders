@@ -65,12 +65,9 @@ function CarrierRow({ c }: { c: WarehouseDayCarrier }) {
             <polyline points="9 18 15 12 9 6" />
           </svg>
           <span className="font-medium text-gray-900 truncate">{c.carrier}</span>
-          {c.pickup_window_start && c.pickup_cutoff
-            ? <span className="text-xs font-mono text-blue-600 shrink-0">{c.pickup_window_start} – {c.pickup_cutoff}</span>
-            : c.pickup_cutoff
-            ? <span className="text-xs font-mono text-blue-600 shrink-0">≤ {c.pickup_cutoff}</span>
-            : null
-          }
+          {c.pickup_cutoff && (
+            <span className="text-xs font-mono text-blue-600 shrink-0">≤ {c.pickup_cutoff}</span>
+          )}
         </div>
         <div className="flex items-center gap-1.5 shrink-0">
           {c.overdue > 0 && c.due_today > 0 && (

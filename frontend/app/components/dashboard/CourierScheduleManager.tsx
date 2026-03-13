@@ -35,7 +35,6 @@ function TimeInput({
 }
 
 interface RowState {
-  pickup_window_start: string;
   pickup_cutoff: string;
   saving: boolean;
   dirty: boolean;
@@ -47,7 +46,6 @@ export function CourierScheduleManager({ initialData }: { initialData: Courier[]
     const s: Record<string, RowState> = {};
     for (const c of initialData) {
       s[c.id] = {
-        pickup_window_start: c.pickup_window_start ?? "",
         pickup_cutoff: c.pickup_cutoff ?? "",
         saving: false,
         dirty: false,
@@ -58,7 +56,6 @@ export function CourierScheduleManager({ initialData }: { initialData: Courier[]
 
   // Add new courier form
   const [addName, setAddName] = useState("");
-  const [addWindowStart, setAddWindowStart] = useState("");
   const [addCutoff, setAddCutoff] = useState("");
   const [adding, setAdding] = useState(false);
 
@@ -74,7 +71,6 @@ export function CourierScheduleManager({ initialData }: { initialData: Courier[]
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          pickup_window_start: row.pickup_window_start || null,
           pickup_cutoff: row.pickup_cutoff || null,
         }),
       });
@@ -95,7 +91,6 @@ export function CourierScheduleManager({ initialData }: { initialData: Courier[]
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           name: addName.trim(),
-          pickup_window_start: addWindowStart || null,
           pickup_cutoff: addCutoff || null,
         }),
       });
@@ -106,14 +101,12 @@ export function CourierScheduleManager({ initialData }: { initialData: Courier[]
         setRows((prev) => ({
           ...prev,
           [newC.id]: {
-            pickup_window_start: newC.pickup_window_start ?? "",
             pickup_cutoff: newC.pickup_cutoff ?? "",
             saving: false,
             dirty: false,
           },
         }));
         setAddName("");
-        setAddWindowStart("");
         setAddCutoff("");
       }
     } finally {
@@ -142,7 +135,6 @@ export function CourierScheduleManager({ initialData }: { initialData: Courier[]
             <thead>
               <tr className="border-b border-gray-100 text-left">
                 <th className="pb-2 pr-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Operador</th>
-                <th className="pb-2 pr-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Ventana de retiro</th>
                 <th className="pb-2 pr-4 text-xs font-semibold text-gray-400 uppercase tracking-wide">Hora límite</th>
                 <th className="pb-2 text-xs font-semibold text-gray-400 uppercase tracking-wide"></th>
               </tr>
@@ -154,12 +146,6 @@ export function CourierScheduleManager({ initialData }: { initialData: Courier[]
                 return (
                   <tr key={c.id}>
                     <td className="py-2.5 pr-4 font-medium text-gray-900">{c.name}</td>
-                    <td className="py-2.5 pr-4">
-                      <TimeInput
-                        value={row.pickup_window_start}
-                        onChange={(v) => updateRow(c.id, "pickup_window_start", v)}
-                      />
-                    </td>
                     <td className="py-2.5 pr-4">
                       <TimeInput
                         value={row.pickup_cutoff}
@@ -234,10 +220,6 @@ export function CourierScheduleManager({ initialData }: { initialData: Courier[]
               placeholder="ej. Bluexpress"
               className="w-40 px-2 py-1.5 text-sm border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-          </div>
-          <div>
-            <label className="block text-xs text-gray-400 mb-1">Desde (ventana)</label>
-            <TimeInput value={addWindowStart} onChange={setAddWindowStart} />
           </div>
           <div>
             <label className="block text-xs text-gray-400 mb-1">Hora límite</label>

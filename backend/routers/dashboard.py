@@ -314,10 +314,6 @@ def get_warehouse_summary():
     )
     all_pending = [_Order(**r) for r in (result.data or [])]
 
-    from repositories.courier_repository import CourierRepository
-    couriers = CourierRepository().list()
-    window_map = {c.name.lower(): c.pickup_window_start for c in couriers if c.pickup_window_start}
-
     def _dl_date(order) -> _date | None:
         deadline = order.limit_handoff_date or order.limit_delivery_date
         if not deadline:
@@ -358,7 +354,6 @@ def get_warehouse_summary():
                     "due_today": 0,
                     "overdue": 0,
                     "pickup_cutoff": None,
-                    "pickup_window_start": window_map.get(name.lower()),
                     "orders": [],
                 }
             cmap[name]["count"] += 1
