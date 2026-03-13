@@ -3,12 +3,47 @@
 import { useEffect, useRef, useState } from "react";
 import { createProduct, deleteProduct, exportProducts, getProducts, importProducts, syncShopifyProducts, updateProduct } from "@/app/lib/api";
 import { BultoDims, PackItem, Product, ProductsPage } from "@/app/types";
+import { SkuGenerator } from "./SkuGenerator";
 
 interface Props {
   initialData: ProductsPage;
 }
 
 const BRANDS = ["Verken", "Kaut"];
+
+// SKU builder — slot labels per category prefix (Verken + Kaut)
+const SKU_SLOT_LABELS: Record<string, string[]> = {
+  // — Verken —
+  JAC: ["Colección", "Producto", "Tipo", "Modelo", "Capacidad", "Color", "Extra"],
+  ROP: ["Colección", "Producto", "Talla", "Peso (kg)", "Color", "", ""],
+  EST: ["Colección", "Energía", "BTU/Cap", "Tipo", "Modelo", "Color", "Extra"],
+  TOA: ["Colección", "Alto (cm)", "Ancho (cm)", "Watts", "Tipo", "Modelo", "Color"],
+  AIR: ["Colección", "Tipo", "BTU", "Inverter", "Wifi", "Modelo", "Color"],
+  FUN: ["Colección", "Ambiente", "Tamaño", "Modelo", "Color", "Extra", ""],
+  BRA: ["Colección", "Tipo", "Modelo", "Forma", "Tamaño", "Color", ""],
+  CHI: ["Colección", "Energía", "Tipo", "Potencia", "Modelo", "Color", ""],
+  RAD: ["Colección", "Energía", "Potencia", "Material", "Modelo", "Color", ""],
+  BOM: ["Colección", "Producto", "Tipo", "Tamaño", "Modelo", "Color", "Extra"],
+  CAL: ["Colección", "Energía", "Tipo", "Modelo", "Color", "", ""],
+  INF: ["Colección", "Energía", "Potencia", "Modelo", "Color", "", ""],
+  DES: ["Colección", "Modelo", "Tipo", "Capacidad", "Wifi", "Color", ""],
+  PAR: ["Colección", "Parte 1", "Parte 2", "Parte 3", "Parte 4", "Parte 5", ""],
+  PLA: ["Colección", "Parte 1", "Parte 2", "Parte 3", "Parte 4", "", ""],
+  DEF: ["Parte 1", "Parte 2", "Parte 3", "Parte 4", "Parte 5", "Parte 6", ""],
+  COJ: ["Colección", "Tipo", "Tamaño", "Color", "", "", ""],
+  // — Kaut —
+  SUP: ["Colección", "Largo (cm)", "Tipo", "Modelo", "Color", "", ""],
+  KAY: ["Colección", "Tipo", "Largo (cm)", "Capacidad", "Modelo", "Color", ""],
+  BOT: ["Colección", "Tipo", "Largo (cm)", "Personas", "Piso", "Motor HP", "Modelo"],
+  ISL: ["Colección", "Forma", "Largo", "Ancho", "Tipo", "Modelo", "Color"],
+  MOT: ["Colección", "Tipo", "Empuje/HP", "Eje", "Bat/Tiempos", "Modelo", "Marca"],
+  ACC: ["Colección", "Categoría", "Tipo", "Caract 1", "Caract 2", "Caract 3", ""],
+  CHA: ["Colección", "Tipo", "Material 1", "Material 2", "Tamaño", "Color", ""],
+  TRA: ["Colección", "Género", "MM", "Largo/Corto", "Tamaño", "", ""],
+  CAR: ["Colección", "Tipo", "Material", "Largo", "Modelo", "", ""],
+  CSU: ["Colección", "Largo (cm)", "Tipo", "Modelo", "Color", "", ""],
+};
+const SKU_NUM_SLOTS = 7;
 
 interface BultoDimsForm {
   height_cm: string;
@@ -112,6 +147,7 @@ export function ProductsTable({ initialData }: Props) {
   const [expandedPackId, setExpandedPackId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkMoving, setBulkMoving] = useState(false);
+  const [showSkuGenerator, setShowSkuGenerator] = useState(false);
 
   // Lightbox
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -424,6 +460,15 @@ export function ProductsTable({ initialData }: Props) {
 
   return (
     <div className="space-y-4">
+      {/* SKU Generator modal */}
+      {showSkuGenerator && (
+        <SkuGenerator
+          products={products}
+          onClose={() => setShowSkuGenerator(false)}
+          onCreated={refreshList}
+        />
+      )}
+
       {/* Lightbox */}
       {lightboxUrl && (
         <div
@@ -725,6 +770,10 @@ export function ProductsTable({ initialData }: Props) {
               <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" />
             </svg>
             {syncing ? "Sincronizando..." : "Sincronizar Shopify"}
+          </button>
+          <button onClick={() => setShowSkuGenerator(true)}
+            className="px-3 py-1.5 border border-blue-300 text-blue-700 text-sm rounded-lg hover:bg-blue-50 transition-colors">
+            Generar SKU
           </button>
           {!showForm && (
             <button onClick={openNew}
