@@ -1,9 +1,8 @@
 import { Suspense } from "react";
 import { getActiveOrdersWithCases, getCESchedule, getCouriers, getDashboardSummary, getDelayMetrics, getDelaysByDay, getDistinctCities, getDistinctHistoricalCities, getHistoricalOrders, getKpiMetrics, getOrders, getProducts, getSyncStatus } from "@/app/lib/api";
-import { SummaryCards } from "@/app/components/dashboard/SummaryCards";
 import { OrdersTable } from "@/app/components/dashboard/OrdersTable";
 import { SyncStatus } from "@/app/components/dashboard/SyncStatus";
-import { FilterBar } from "@/app/components/dashboard/FilterBar";
+import { CollapsibleFilterBar } from "@/app/components/dashboard/FilterBar";
 import { HistoricalFilterBar } from "@/app/components/dashboard/HistoricalFilterBar";
 import { HistoricalOrdersTable } from "@/app/components/dashboard/HistoricalOrdersTable";
 import { TicketsTable } from "@/app/components/dashboard/TicketsTable";
@@ -450,26 +449,21 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         {/* ── En Bodega ── */}
         {tab === "pedidos" && summary && ordersPage && (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
-              <div>
-                <h2 className="text-base font-medium text-gray-900">
-                  En Bodega ({ordersPage.total})
-                </h2>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Pedidos pendientes de entrega al transportista
-                </p>
-              </div>
-              <Suspense fallback={null}>
-                <FilterBar cities={cities} />
-              </Suspense>
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-medium text-gray-900">
+                En Bodega ({ordersPage.total})
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Resumen bultos por entregar
+              </p>
             </div>
 
-            <div className="px-6 pt-4">
+            <div className="px-6 pt-4 pb-2">
               <WarehouseDailySummary />
             </div>
 
-            <div className="px-6 py-4">
-              <SummaryCards summary={summary} perspective="bodega" />
+            <div className="px-6 py-3">
+              <CollapsibleFilterBar cities={cities} />
             </div>
 
             <div className="px-6 py-4 border-t border-gray-100">
@@ -505,22 +499,21 @@ export default async function DashboardPage({ searchParams }: PageProps) {
         {/* ── En Tránsito ── */}
         {tab === "transito" && summary && ordersPage && (
           <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-            <div className="px-6 py-4 border-b border-gray-100 flex items-center justify-between flex-wrap gap-3">
-              <div>
-                <h2 className="text-base font-medium text-gray-900">
-                  En Tránsito ({ordersPage.total})
-                </h2>
-                <p className="text-xs text-gray-500 mt-0.5">
-                  Pedidos despachados en camino al cliente final
-                </p>
-              </div>
-              <Suspense fallback={null}>
-                <FilterBar cities={cities} />
-              </Suspense>
+            <div className="px-6 py-4 border-b border-gray-100">
+              <h2 className="text-base font-medium text-gray-900">
+                En Tránsito ({ordersPage.total})
+              </h2>
+              <p className="text-xs text-gray-500 mt-0.5">
+                Pedidos despachados en camino al cliente final
+              </p>
             </div>
 
-            <div className="px-6 py-4">
-              <SummaryCards summary={summary} perspective="cliente" />
+            <div className="px-6 pt-4 pb-2">
+              <WarehouseDailySummary />
+            </div>
+
+            <div className="px-6 py-3">
+              <CollapsibleFilterBar cities={cities} />
             </div>
 
             <div className="px-6 py-4 border-t border-gray-100">

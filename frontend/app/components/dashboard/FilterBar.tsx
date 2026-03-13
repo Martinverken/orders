@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState, useEffect } from "react";
+import { Suspense } from "react";
 import { getDistinctCommunes } from "@/app/lib/api";
 import { MultiSelectDropdown } from "@/app/components/ui/MultiSelectDropdown";
 
@@ -87,7 +88,7 @@ export function FilterBar({ cities = [] }: { cities?: string[] }) {
     params.get("order_number");
 
   return (
-    <div className="flex flex-wrap gap-3 items-center">
+    <div className="flex flex-wrap gap-3 items-start">
       <select
         value={params.get("source") || ""}
         onChange={(e) => update("source", e.target.value)}
@@ -175,5 +176,55 @@ export function FilterBar({ cities = [] }: { cities?: string[] }) {
         </button>
       )}
     </div>
+  );
+}
+
+function CollapsibleFilterBarInner({ cities }: { cities?: string[] }) {
+  const params = useSearchParams();
+  const [open, setOpen] = useState(false);
+
+  const hasFilters = !!(
+    params.get("source") ||
+    params.get("urgency") ||
+    params.get("status") ||
+    params.get("product_name") ||
+    params.get("logistics_operator") ||
+    params.get("city") ||
+    params.get("commune") ||
+    params.get("order_number")
+  );
+
+  return (
+    <div>
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+          open || hasFilters
+            ? "bg-blue-50 border-blue-200 text-blue-700"
+            : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+        }`}
+      >
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+        </svg>
+        Filtrar
+        {hasFilters && (
+          <span className="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded-full">activo</span>
+        )}
+      </button>
+      {(open || hasFilters) && (
+        <div className="mt-3">
+          <FilterBar cities={cities} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+export function CollapsibleFilterBar({ cities }: { cities?: string[] }) {
+  return (
+    <Suspense fallback={null}>
+      <CollapsibleFilterBarInner cities={cities} />
+    </Suspense>
   );
 }

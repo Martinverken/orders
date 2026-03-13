@@ -261,9 +261,16 @@ export interface WarehouseDaySummary {
   due_today: number;
 }
 
+export interface WarehousePlatformSummary {
+  source: string;
+  overdue: number;
+  due_today: number;
+}
+
 export interface WarehouseSummaryData {
   by_carrier: WarehouseCarrierSummary[];
   by_day: WarehouseDaySummary[];
+  by_platform: WarehousePlatformSummary[];
 }
 
 export interface MlReputation {

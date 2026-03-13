@@ -346,10 +346,9 @@ def get_warehouse_summary():
         key=lambda x: (x["pickup_cutoff"] is None, x["pickup_cutoff"] or ""),
     )
 
-    # Group by deadline date for the "por día" view
-    from collections import defaultdict
+    # Group by deadline date for ALL pending orders (overdue + today + future)
     day_map: dict[str, dict] = {}
-    for order in overdue:
+    for order in all_pending:
         deadline = order.limit_handoff_date or order.limit_delivery_date
         if not deadline:
             continue
@@ -358,10 +357,24 @@ def get_warehouse_summary():
         if key not in day_map:
             day_map[key] = {"date": key, "count": 0, "overdue": 0, "due_today": 0}
         day_map[key]["count"] += 1
-        day_map[key]["overdue"] += 1
-    if due_today:
-        key = today.isoformat()
-        day_map[key] = {"date": key, "count": len(due_today), "overdue": 0, "due_today": len(due_today)}
+        if dl_date < today:
+            day_map[key]["overdue"] += 1
+        elif dl_date == today:
+            day_map[key]["due_today"] += 1
     by_day = sorted(day_map.values(), key=lambda x: x["date"])
 
-    return {"success": True, "data": {"by_carrier": by_carrier, "by_day": by_day}}
+    # Group by source (platform view) — only overdue + due_today
+    source_map: dict[str, dict] = {}
+    for order in overdue:
+        src = order.source
+        if src not in source_map:
+            source_map[src] = {"source": src, "overdue": 0, "due_today": 0}
+        source_map[src]["overdue"] += 1
+    for order in due_today:
+        src = order.source
+        if src not in source_map:
+            source_map[src] = {"source": src, "overdue": 0, "due_today": 0}
+        source_map[src]["due_today"] += 1
+    by_platform = sorted(source_map.values(), key=lambda x: x["source"])
+
+    return {"success": True, "data": {"by_carrier": by_carrier, "by_day": by_day, "by_platform": by_platform}}

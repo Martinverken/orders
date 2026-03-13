@@ -1,45 +1,39 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { getWarehouseSummary } from "@/app/lib/api";
-import type { WarehouseSummaryData, WarehouseDaySummary } from "@/app/types";
+import type { WarehouseSummaryData } from "@/app/types";
+
+const SOURCE_LABELS: Record<string, string> = {
+  falabella: "Falabella",
+  mercadolibre: "Mercado Libre",
+  walmart: "Walmart",
+  paris: "Paris",
+  shopify_verken: "Shopify Verken",
+  shopify_kaut: "Shopify Kaut",
+};
 
 function fmtDate(iso: string): string {
-  const d = new Date(iso + "T12:00:00"); // noon to avoid TZ shift
+  const d = new Date(iso + "T12:00:00");
   return d.toLocaleDateString("es-CL", { weekday: "short", day: "numeric", month: "short" });
 }
 
-function isToday(iso: string): boolean {
-  return iso === new Date().toLocaleDateString("sv-SE");
+function getTodayIso(): string {
+  return new Date().toLocaleDateString("sv-SE");
 }
 
-function DayRow({ row }: { row: WarehouseDaySummary }) {
-  const today = isToday(row.date);
-  return (
-    <li className="flex items-center gap-3 text-sm">
-      <span className={`w-28 shrink-0 text-xs font-medium ${today ? "text-blue-700" : "text-gray-500"}`}>
-        {today ? "Hoy" : fmtDate(row.date)}
-      </span>
-      <span className="flex-1 text-gray-900 font-semibold tabular-nums">{row.count} bulto{row.count !== 1 ? "s" : ""}</span>
-      <span className="flex items-center gap-1.5 text-xs">
-        {row.overdue > 0 && (
-          <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-semibold">
-            {row.overdue} atrasado{row.overdue !== 1 ? "s" : ""}
-          </span>
-        )}
-        {row.due_today > 0 && (
-          <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-semibold">
-            {row.due_today} de hoy
-          </span>
-        )}
-      </span>
-    </li>
-  );
+function getTomorrowIso(): string {
+  const d = new Date();
+  d.setDate(d.getDate() + 1);
+  return d.toLocaleDateString("sv-SE");
 }
 
 export function WarehouseDailySummary() {
   const [data, setData] = useState<WarehouseSummaryData | null>(null);
-  const [tab, setTab] = useState<"dia" | "operador">("dia");
+  const [tab, setTab] = useState<"dia" | "operador" | "plataforma">("dia");
+  const router = useRouter();
+  const searchParams = useSearchParams();
 
   useEffect(() => {
     getWarehouseSummary()
@@ -55,8 +49,20 @@ export function WarehouseDailySummary() {
 
   if (grand === 0) return null;
 
+  const todayIso = getTodayIso();
+  const tomorrowIso = getTomorrowIso();
+
+  function navigateTo(urgency?: string, source?: string) {
+    const next = new URLSearchParams(searchParams.toString());
+    next.set("tab", "pedidos");
+    if (urgency) next.set("urgency", urgency); else next.delete("urgency");
+    if (source) next.set("source", source); else next.delete("source");
+    next.delete("page");
+    router.push(`/dashboard?${next.toString()}`);
+  }
+
   return (
-    <div className="bg-blue-50 border border-blue-100 rounded-xl px-5 py-4 mb-2">
+    <div className="bg-blue-50 border border-blue-100 rounded-xl px-5 py-4">
       {/* Header */}
       <div className="flex items-center justify-between mb-3 flex-wrap gap-2">
         <div>
@@ -81,13 +87,55 @@ export function WarehouseDailySummary() {
           >
             Por Operador
           </button>
+          <button
+            onClick={() => setTab("plataforma")}
+            className={`px-3 py-1.5 border-l border-blue-200 ${tab === "plataforma" ? "bg-blue-600 text-white" : "text-blue-700 hover:bg-blue-100"}`}
+          >
+            Por Plataforma
+          </button>
         </div>
       </div>
 
       {/* By Day */}
       {tab === "dia" && (
         <ul className="space-y-1.5">
-          {data.by_day.map((row) => <DayRow key={row.date} row={row} />)}
+          {data.by_day.map((row) => {
+            const isToday = row.date === todayIso;
+            const isFuture = row.date > todayIso;
+            const urgencyFilter = isToday
+              ? "due_today"
+              : isFuture
+              ? row.date === tomorrowIso
+                ? "tomorrow"
+                : "two_or_more_days"
+              : "overdue";
+            return (
+              <li
+                key={row.date}
+                className="flex items-center gap-3 text-sm cursor-pointer hover:bg-blue-100 rounded px-1 -mx-1 transition-colors"
+                onClick={() => navigateTo(urgencyFilter)}
+              >
+                <span className={`w-28 shrink-0 text-xs font-medium ${isToday ? "text-blue-700" : isFuture ? "text-gray-400" : "text-gray-500"}`}>
+                  {isToday ? "Hoy" : fmtDate(row.date)}
+                </span>
+                <span className={`flex-1 font-semibold tabular-nums ${isFuture ? "text-gray-400" : "text-gray-900"}`}>
+                  {row.count} bulto{row.count !== 1 ? "s" : ""}
+                </span>
+                <span className="flex items-center gap-1.5 text-xs">
+                  {row.overdue > 0 && (
+                    <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-semibold">
+                      {row.overdue} atrasado{row.overdue !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                  {row.due_today > 0 && (
+                    <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-semibold">
+                      {row.due_today} de hoy
+                    </span>
+                  )}
+                </span>
+              </li>
+            );
+          })}
         </ul>
       )}
 
@@ -103,6 +151,37 @@ export function WarehouseDailySummary() {
                   {row.pickup_cutoff ? `≤ ${row.pickup_cutoff}` : <span className="text-gray-400 font-normal">sin hora</span>}
                 </span>
                 <span className="font-medium text-gray-900 flex-1">{row.carrier}</span>
+                <span className="flex items-center gap-1.5 text-xs">
+                  {row.overdue > 0 && (
+                    <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-semibold">
+                      {row.overdue} atrasado{row.overdue !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                  {row.due_today > 0 && (
+                    <span className="px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 font-semibold">
+                      {row.due_today} bulto{row.due_today !== 1 ? "s" : ""}
+                    </span>
+                  )}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      )}
+
+      {/* By Platform */}
+      {tab === "plataforma" && (
+        <ul className="space-y-1.5">
+          {data.by_platform.map((row) => {
+            const total = row.due_today + row.overdue;
+            if (total === 0) return null;
+            return (
+              <li
+                key={row.source}
+                className="flex items-center gap-3 text-sm cursor-pointer hover:bg-blue-100 rounded px-1 -mx-1 transition-colors"
+                onClick={() => navigateTo(undefined, row.source)}
+              >
+                <span className="font-medium text-gray-900 flex-1">{SOURCE_LABELS[row.source] || row.source}</span>
                 <span className="flex items-center gap-1.5 text-xs">
                   {row.overdue > 0 && (
                     <span className="px-1.5 py-0.5 rounded bg-red-100 text-red-700 font-semibold">
