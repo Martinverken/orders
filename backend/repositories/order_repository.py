@@ -234,13 +234,13 @@ class OrderRepository:
         # For bodega perspective with urgency filter: SQL date filters use limit_delivery_date
         # which diverges from the cards (which recompute from limit_handoff_date).
         # Fix: fetch all matching pending orders, recompute urgency in Python, then paginate.
-        if perspective == "bodega" and urgency_parts and len(urgency_parts) == 1:
-            u_filter = urgency_parts[0]
+        if perspective == "bodega" and urgency_parts:
+            u_filter_set = set(urgency_parts)
             bodega_urgency_filters = {
                 OrderUrgency.OVERDUE, OrderUrgency.DUE_TODAY, OrderUrgency.TOMORROW,
                 OrderUrgency.TWO_OR_MORE_DAYS, "active",
             }
-            if u_filter in bodega_urgency_filters:
+            if u_filter_set & bodega_urgency_filters:
                 all_rows = query.order(sort_field).execute().data or []
                 all_orders_py = [Order(**r) for r in all_rows]
                 filtered = []
@@ -251,10 +251,10 @@ class OrderRepository:
                     computed = compute_urgency(ref, o.status)
                     o.urgency = computed
                     cu = computed.value
-                    if u_filter == "active":
+                    if "active" in u_filter_set:
                         if cu in (OrderUrgency.OVERDUE.value, OrderUrgency.DUE_TODAY.value, OrderUrgency.TOMORROW.value):
                             filtered.append(o)
-                    elif cu == u_filter:
+                    elif cu in u_filter_set:
                         filtered.append(o)
                 total = len(filtered)
                 paginated = filtered[offset: offset + per_page]

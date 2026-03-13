@@ -247,12 +247,16 @@ export interface Courier {
   updated_at: string;
 }
 
-export interface WarehouseCarrierSummary {
+export interface WarehouseDayCarrier {
   carrier: string;
-  overdue: number;
-  due_today: number;
+  count: number;
   pickup_cutoff: string | null;
   pickup_window_start: string | null;
+}
+
+export interface WarehouseDayPlatform {
+  source: string;
+  count: number;
 }
 
 export interface WarehouseDaySummary {
@@ -260,18 +264,12 @@ export interface WarehouseDaySummary {
   count: number;
   overdue: number;
   due_today: number;
-}
-
-export interface WarehousePlatformSummary {
-  source: string;
-  overdue: number;
-  due_today: number;
+  by_carrier: WarehouseDayCarrier[];
+  by_platform: WarehouseDayPlatform[];
 }
 
 export interface WarehouseSummaryData {
-  by_carrier: WarehouseCarrierSummary[];
   by_day: WarehouseDaySummary[];
-  by_platform: WarehousePlatformSummary[];
 }
 
 export interface MlReputation {

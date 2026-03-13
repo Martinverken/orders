@@ -250,10 +250,13 @@ def get_delay_metrics():
 
 
 _FALABELLA_OPERATOR_LABELS: dict[str, str] = {
+    "regular - blueexpress": "Bluexpress",   # actual DB value
     "regular - bluexpress": "Bluexpress",
     "regular - blue express": "Bluexpress",
+    "regular-blueexpress": "Bluexpress",
     "regular-bluexpress": "Bluexpress",
     "regular-blue express": "Bluexpress",
+    "blueexpress": "Bluexpress",
     "bluexpress": "Bluexpress",
     "blue express": "Bluexpress",
     "regular - starken": "Starken",
@@ -288,16 +291,11 @@ def _carrier_from_order(source: str, logistics_operator: str | None) -> str:
 
 @router.get("/warehouse-summary")
 def get_warehouse_summary():
-    """Return per-carrier counts of orders due today + overdue, with pickup cutoff derived from limit_handoff_date."""
+    """Return per-day breakdown of pending orders with nested carrier and platform sub-summaries."""
     from models.order import Order as _Order
+    from datetime import date as _date
     today = _today_santiago()
-    tomorrow = today + timedelta(days=1)
 
-    # Query all pending/ready_to_ship orders and classify by limit_handoff_date
-    # (falling back to limit_delivery_date when limit_handoff_date is absent).
-    # get_overdue() / get_due_today() use limit_delivery_date which misses Shopify
-    # orders where limit_handoff_date (bodega → carrier) is today but
-    # limit_delivery_date (carrier → customer) is tomorrow.
     result = (
         order_repo.db.table(order_repo.table)
         .select("*")
@@ -306,86 +304,75 @@ def get_warehouse_summary():
     )
     all_pending = [_Order(**r) for r in (result.data or [])]
 
-    overdue: list[_Order] = []
-    due_today: list[_Order] = []
-    for order in all_pending:
-        deadline = order.limit_handoff_date or order.limit_delivery_date
-        if not deadline:
-            continue
-        dl_date = deadline.astimezone(_SANTIAGO_TZ).date() if deadline.tzinfo else deadline.date()
-        if dl_date < today:
-            overdue.append(order)
-        elif dl_date == today:
-            due_today.append(order)
-
-    # Group by carrier — cutoff = time portion of limit_handoff_date, only from today's orders.
-    # Overdue orders have past dates; their HH:MM is no longer the relevant cutoff for today.
-    carrier_data: dict[str, dict] = {}
-
-    def _upsert(order, field: str) -> None:
-        name = _carrier_from_order(order.source, order.logistics_operator)
-        # Only use the cutoff time if the limit_handoff_date is today in Santiago (not a past date)
-        cutoff = None
-        if order.limit_handoff_date:
-            lhd_santiago = order.limit_handoff_date.astimezone(_SANTIAGO_TZ) if order.limit_handoff_date.tzinfo else order.limit_handoff_date
-            if lhd_santiago.date() == today:
-                cutoff = lhd_santiago.strftime("%H:%M")
-        if name not in carrier_data:
-            carrier_data[name] = {"carrier": name, "overdue": 0, "due_today": 0, "pickup_cutoff": cutoff}
-        else:
-            # Keep earliest cutoff for today across all orders for this carrier
-            existing = carrier_data[name]["pickup_cutoff"]
-            if cutoff and (existing is None or cutoff < existing):
-                carrier_data[name]["pickup_cutoff"] = cutoff
-        carrier_data[name][field] += 1
-
-    for order in overdue:
-        _upsert(order, "overdue")
-    for order in due_today:
-        _upsert(order, "due_today")
-
-    # Enrich carrier entries with pickup_window_start from couriers table
+    # Pickup window lookup from couriers table
     from repositories.courier_repository import CourierRepository
     couriers = CourierRepository().list()
     window_map = {c.name.lower(): c.pickup_window_start for c in couriers if c.pickup_window_start}
-    for entry in carrier_data.values():
-        entry["pickup_window_start"] = window_map.get(entry["carrier"].lower())
 
-    # Sort: carriers with cutoff first (by time), then those without
-    by_carrier = sorted(
-        carrier_data.values(),
-        key=lambda x: (x["pickup_cutoff"] is None, x["pickup_cutoff"] or ""),
-    )
-
-    # Group by deadline date for ALL pending orders (overdue + today + future)
-    day_map: dict[str, dict] = {}
-    for order in all_pending:
+    def _dl_date(order) -> _date | None:
         deadline = order.limit_handoff_date or order.limit_delivery_date
         if not deadline:
-            continue
-        dl_date = deadline.astimezone(_SANTIAGO_TZ).date() if deadline.tzinfo else deadline.date()
-        key = dl_date.isoformat()
-        if key not in day_map:
-            day_map[key] = {"date": key, "count": 0, "overdue": 0, "due_today": 0}
-        day_map[key]["count"] += 1
-        if dl_date < today:
-            day_map[key]["overdue"] += 1
-        elif dl_date == today:
-            day_map[key]["due_today"] += 1
-    by_day = sorted(day_map.values(), key=lambda x: x["date"])
+            return None
+        return deadline.astimezone(_SANTIAGO_TZ).date() if deadline.tzinfo else deadline.date()
 
-    # Group by source (platform view) — only overdue + due_today
-    source_map: dict[str, dict] = {}
-    for order in overdue:
-        src = order.source
-        if src not in source_map:
-            source_map[src] = {"source": src, "overdue": 0, "due_today": 0}
-        source_map[src]["overdue"] += 1
-    for order in due_today:
-        src = order.source
-        if src not in source_map:
-            source_map[src] = {"source": src, "overdue": 0, "due_today": 0}
-        source_map[src]["due_today"] += 1
-    by_platform = sorted(source_map.values(), key=lambda x: x["source"])
+    def _cutoff_hhmm(order, for_date: _date) -> str | None:
+        if not order.limit_handoff_date:
+            return None
+        lhd = order.limit_handoff_date.astimezone(_SANTIAGO_TZ) if order.limit_handoff_date.tzinfo else order.limit_handoff_date
+        return lhd.strftime("%H:%M") if lhd.date() == for_date else None
 
-    return {"success": True, "data": {"by_carrier": by_carrier, "by_day": by_day, "by_platform": by_platform}}
+    # Group orders by deadline date
+    from collections import defaultdict
+    date_order_map: dict[str, list] = defaultdict(list)
+    for order in all_pending:
+        dl = _dl_date(order)
+        if dl:
+            date_order_map[dl.isoformat()].append(order)
+
+    by_day = []
+    for date_key in sorted(date_order_map.keys()):
+        orders = date_order_map[date_key]
+        dl = _date.fromisoformat(date_key)
+        is_past = dl < today
+        is_today = dl == today
+        overdue_count = len(orders) if is_past else 0
+        due_today_count = len(orders) if is_today else 0
+
+        # Per-day carrier breakdown
+        cmap: dict[str, dict] = {}
+        for order in orders:
+            name = _carrier_from_order(order.source, order.logistics_operator)
+            if name not in cmap:
+                cmap[name] = {
+                    "carrier": name,
+                    "count": 0,
+                    "pickup_cutoff": None,
+                    "pickup_window_start": window_map.get(name.lower()),
+                }
+            cmap[name]["count"] += 1
+            if is_today:
+                cutoff = _cutoff_hhmm(order, today)
+                existing = cmap[name]["pickup_cutoff"]
+                if cutoff and (existing is None or cutoff < existing):
+                    cmap[name]["pickup_cutoff"] = cutoff
+        day_by_carrier = sorted(cmap.values(), key=lambda x: (x["pickup_cutoff"] is None, x["pickup_cutoff"] or ""))
+
+        # Per-day platform breakdown
+        smap: dict[str, dict] = {}
+        for order in orders:
+            src = order.source
+            if src not in smap:
+                smap[src] = {"source": src, "count": 0}
+            smap[src]["count"] += 1
+        day_by_platform = sorted(smap.values(), key=lambda x: x["source"])
+
+        by_day.append({
+            "date": date_key,
+            "count": len(orders),
+            "overdue": overdue_count,
+            "due_today": due_today_count,
+            "by_carrier": day_by_carrier,
+            "by_platform": day_by_platform,
+        })
+
+    return {"success": True, "data": {"by_day": by_day}}
