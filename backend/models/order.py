@@ -22,7 +22,7 @@ class OrderUrgency(str, Enum):
 
 
 _PENDING_LIKE = {"pending", "ready_to_ship"}
-# Estados que significan "resuelto" — shipped = entregado al operador (Falabella Regular)
+# Estados que se consideran "resueltos" para compute_urgency (delivered = cliente recibió)
 _RESOLVED_LIKE = {"shipped", "delivered"}
 
 

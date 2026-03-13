@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, Any
 
 
@@ -21,8 +21,7 @@ class FalabellaOrderItem(BaseModel):
     ShippingProviderType: Optional[str] = None
     ShippingProvider: Optional[str] = None
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class FalabellaOrder(BaseModel):
@@ -50,5 +49,4 @@ class FalabellaOrder(BaseModel):
     limit_delivery_date: Optional[str] = None
     PromisedShippingDate: Optional[str] = None
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")

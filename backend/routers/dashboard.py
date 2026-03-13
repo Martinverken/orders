@@ -3,11 +3,13 @@ from pydantic import BaseModel
 from typing import Optional
 from collections import defaultdict
 from datetime import timedelta
+from zoneinfo import ZoneInfo
 import logging
+
+_SANTIAGO_TZ = ZoneInfo("America/Santiago")
 from services.order_service import OrderService
 from repositories.delayed_order_repository import DelayedOrderRepository
 from repositories.order_repository import OrderRepository
-from repositories.courier_repository import CourierRepository
 from models.order import _today_santiago
 from integrations.welivery.client import get_delivery_status as welivery_get_status
 
@@ -17,7 +19,6 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 order_service = OrderService()
 delayed_repo = DelayedOrderRepository()
 order_repo = OrderRepository()
-courier_repo = CourierRepository()
 
 
 def _enrich_with_welivery(order_dicts: list[dict]) -> None:
@@ -263,32 +264,39 @@ def _carrier_from_order(source: str, logistics_operator: str | None) -> str:
 
 @router.get("/warehouse-summary")
 def get_warehouse_summary():
-    """Return per-carrier counts of orders due today + overdue, with pickup cutoff times."""
+    """Return per-carrier counts of orders due today + overdue, with pickup cutoff derived from limit_handoff_date."""
     overdue = order_repo.get_overdue()
     due_today = order_repo.get_due_today()
 
-    # Group by carrier
+    today = _today_santiago()
+
+    # Group by carrier — cutoff = time portion of limit_handoff_date, only from today's orders.
+    # Overdue orders have past dates; their HH:MM is no longer the relevant cutoff for today.
     carrier_data: dict[str, dict] = {}
+
+    def _upsert(order, field: str) -> None:
+        name = _carrier_from_order(order.source, order.logistics_operator)
+        # Only use the cutoff time if the limit_handoff_date is today in Santiago (not a past date)
+        cutoff = None
+        if order.limit_handoff_date:
+            lhd_santiago = order.limit_handoff_date.astimezone(_SANTIAGO_TZ) if order.limit_handoff_date.tzinfo else order.limit_handoff_date
+            if lhd_santiago.date() == today:
+                cutoff = lhd_santiago.strftime("%H:%M")
+        if name not in carrier_data:
+            carrier_data[name] = {"carrier": name, "overdue": 0, "due_today": 0, "pickup_cutoff": cutoff}
+        else:
+            # Keep earliest cutoff for today across all orders for this carrier
+            existing = carrier_data[name]["pickup_cutoff"]
+            if cutoff and (existing is None or cutoff < existing):
+                carrier_data[name]["pickup_cutoff"] = cutoff
+        carrier_data[name][field] += 1
+
     for order in overdue:
-        name = _carrier_from_order(order.source, order.logistics_operator)
-        if name not in carrier_data:
-            carrier_data[name] = {"carrier": name, "overdue": 0, "due_today": 0, "pickup_cutoff": None}
-        carrier_data[name]["overdue"] += 1
-
+        _upsert(order, "overdue")
     for order in due_today:
-        name = _carrier_from_order(order.source, order.logistics_operator)
-        if name not in carrier_data:
-            carrier_data[name] = {"carrier": name, "overdue": 0, "due_today": 0, "pickup_cutoff": None}
-        carrier_data[name]["due_today"] += 1
+        _upsert(order, "due_today")
 
-    # Enrich with pickup_cutoff from couriers table (case-insensitive name match)
-    couriers = courier_repo.list()
-    cutoff_map = {c.name.lower(): c.pickup_cutoff for c in couriers if c.pickup_cutoff}
-
-    for item in carrier_data.values():
-        item["pickup_cutoff"] = cutoff_map.get(item["carrier"].lower())
-
-    # Sort: couriers with cutoff first (by time), then those without
+    # Sort: carriers with cutoff first (by time), then those without
     result = sorted(
         carrier_data.values(),
         key=lambda x: (x["pickup_cutoff"] is None, x["pickup_cutoff"] or ""),

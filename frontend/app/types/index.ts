@@ -253,3 +253,17 @@ export interface WarehouseCarrierSummary {
   due_today: number;
   pickup_cutoff: string | null;
 }
+
+export interface MlReputation {
+  level_id: string | null;
+  power_seller_status: string | null;
+  delayed_rate: number | null;
+  delayed_value: number | null;
+  claims_rate: number | null;
+  claims_value: number | null;
+  mediations_rate: number | null;
+  mediations_value: number | null;
+  cancellations_rate: number | null;
+  cancellations_value: number | null;
+  transactions_completed: number | null;
+}

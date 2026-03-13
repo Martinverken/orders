@@ -1,4 +1,4 @@
-import { ActiveOrderWithCases, CESchedule, Courier, DailyDelays, DashboardSummary, HistoricalMetrics, HistoricalOrdersPage, KpiMetrics, Order, OrderCase, OrdersPage, Product, ProductsPage, SyncStatusResponse, YesterdayDelays } from "@/app/types";
+import { ActiveOrderWithCases, CESchedule, Courier, DailyDelays, DashboardSummary, HistoricalMetrics, HistoricalOrdersPage, KpiMetrics, MlReputation, Order, OrderCase, OrdersPage, Product, ProductsPage, SyncStatusResponse, WarehouseCarrierSummary, YesterdayDelays } from "@/app/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -313,20 +313,11 @@ export async function getDelayMetrics(): Promise<HistoricalMetrics> {
 }
 
 
-export interface MlReputation {
-  level_id: string | null;
-  power_seller_status: string | null;
-  delayed_rate: number | null;
-  claims_rate: number | null;
-  cancellations_rate: number | null;
-  transactions_completed: number | null;
-}
-
 export async function getMlReputation(): Promise<MlReputation> {
   return apiFetch<MlReputation>("/api/ml/reputation");
 }
 
-export async function getWarehouseSummary(): Promise<import("@/app/types").WarehouseCarrierSummary[]> {
-  const res = await apiFetch<{ success: boolean; data: import("@/app/types").WarehouseCarrierSummary[] }>("/api/dashboard/warehouse-summary");
+export async function getWarehouseSummary(): Promise<WarehouseCarrierSummary[]> {
+  const res = await apiFetch<{ success: boolean; data: WarehouseCarrierSummary[] }>("/api/dashboard/warehouse-summary");
   return res.data;
 }

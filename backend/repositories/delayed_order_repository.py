@@ -1,6 +1,6 @@
 import math
 from collections import defaultdict
-from datetime import datetime
+from datetime import datetime, timezone
 from database import get_supabase
 from models.order import Order, DelayedOrder, DelayMetric, HistoricalOrder, OnTimeMetric, OrderCase
 from repositories.order_repository import _extract_city_commune
@@ -563,7 +563,7 @@ class DelayedOrderRepository:
         ).gt("days_delayed", 0).execute()
         rows = result.data or []
 
-        cutoff = (datetime.utcnow() - timedelta(days=30)).isoformat()
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).isoformat()
         total_bodega = total_transportista = 0
         recent_bodega = recent_transportista = 0
 

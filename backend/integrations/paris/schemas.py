@@ -4,7 +4,7 @@ Based on real API response from developers.ecomm.cencosud.com.
 Docs: https://developers.ecomm.cencosud.com/docs
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 from typing import Optional, Any
 
 
@@ -13,8 +13,7 @@ class ParisStatus(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class ParisItem(BaseModel):
@@ -30,8 +29,7 @@ class ParisItem(BaseModel):
     imagePath: Optional[str] = None
     category: Optional[str] = None
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class ParisShippingAddress(BaseModel):
@@ -47,8 +45,7 @@ class ParisShippingAddress(BaseModel):
     phone: Optional[str] = None
     communaCode: Optional[str] = None
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class ParisDeliveryOption(BaseModel):
@@ -56,8 +53,7 @@ class ParisDeliveryOption(BaseModel):
     name: Optional[str] = None
     description: Optional[str] = None
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class ParisSubOrder(BaseModel):
@@ -81,8 +77,7 @@ class ParisSubOrder(BaseModel):
     deliveryOption: Optional[ParisDeliveryOption] = None
     items: Optional[list[ParisItem]] = None
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class ParisCustomer(BaseModel):
@@ -92,8 +87,7 @@ class ParisCustomer(BaseModel):
     documentType: Optional[str] = None
     documentNumber: Optional[str] = None
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")
 
 
 class ParisOrder(BaseModel):
@@ -107,5 +101,4 @@ class ParisOrder(BaseModel):
     billingAddress: Optional[dict] = None
     subOrders: Optional[list[ParisSubOrder]] = None
 
-    class Config:
-        extra = "allow"
+    model_config = ConfigDict(extra="allow")

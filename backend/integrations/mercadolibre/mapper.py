@@ -207,11 +207,7 @@ def to_order_create(order_raw: dict, shipment_raw: dict | None = None) -> OrderC
         logger.warning(f"ML order {order.id} has no delivery date (shipping_option.estimated_delivery_limit.date) — skipping")
         return None
 
-    # Skip orders already delivered — no action needed
     shipment_status = (shipment.status if shipment else None) or order.status or "unknown"
-    if shipment_status == "delivered":
-        logger.info(f"ML order {order.id} already delivered — skipping")
-        return None
 
     delivery_mode = resolve_delivery_mode(logistic_type)
 

@@ -1,6 +1,6 @@
 from database import get_supabase
 from models.sync_log import SyncLog, SyncLogCreate, SyncStatus
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 
 
@@ -29,7 +29,7 @@ class SyncLogRepository:
                     "orders_fetched": orders_fetched,
                     "orders_upserted": orders_upserted,
                     "error_message": error_message,
-                    "finished_at": datetime.utcnow().isoformat(),
+                    "finished_at": datetime.now(timezone.utc).isoformat(),
                 }
             )
             .eq("id", log_id)

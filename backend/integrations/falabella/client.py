@@ -110,7 +110,9 @@ class FalabellaClient(BaseIntegration):
                     # 'delivered' has no natural recency filter — without CreatedAfter it
                     # would return the entire order history and time out.
                     if status == "delivered":
-                        extra["CreatedAfter"] = "2026-03-01T00:00:00+00:00"
+                        from datetime import timedelta
+                        cutoff = (datetime.now(timezone.utc) - timedelta(days=60)).strftime("%Y-%m-%dT%H:%M:%S+00:00")
+                        extra["CreatedAfter"] = cutoff
                     url = self._build_signed_url("GetOrders", extra)
                     logger.info(f"Fetching Falabella orders: status={status} offset={offset}")
                     try:

@@ -57,9 +57,9 @@ def walmart_raw():
     """Minimal valid Walmart order (Created)."""
     return {
         "purchaseOrderId": "WM-001",
-        "orderDate": 1773014400000,  # 2026-03-09 epoch ms (UTC)
+        "orderDate": 1894276800000,  # 2030-01-11 epoch ms (UTC)
         "shippingInfo": {
-            "estimatedShipDate": 1773273600000,  # 2026-03-12 epoch ms (UTC)
+            "estimatedShipDate": 1894622400000,  # 2030-01-15 epoch ms (UTC)
             "methodCode": "Standard",
         },
         "orderLines": {
@@ -82,12 +82,12 @@ def paris_raw():
     """Minimal valid Paris order (pending)."""
     return {
         "id": "PAR-001",
-        "createdAt": "2026-03-09T10:00:00",
+        "createdAt": "2030-01-11T10:00:00",
         "subOrders": [
             {
                 "id": 1,
                 "status": {"id": 1, "name": "pending"},
-                "dispatchDate": "2026-03-12",
+                "dispatchDate": "2030-01-15",
                 "items": [{"name": "Cojín Decorativo"}],
             }
         ],

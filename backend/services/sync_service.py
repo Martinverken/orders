@@ -108,7 +108,8 @@ def _get_handoff_date(order: Order) -> datetime | None:
 def _is_regular_shipping(order: Order) -> bool:
     """Check if order uses Regular/Centro Envíos (carrier picks up from warehouse).
 
-    For these orders, shipped = terminal and any delay is always bodega's fault.
+    For these orders, bodega success is measured by handoff to carrier on time.
+    Any delay is always bodega's fault, regardless of when the customer receives it.
     """
     raw = order.raw_data or {}
     if order.source == "falabella":
@@ -120,7 +121,7 @@ def _is_regular_shipping(order: Order) -> bool:
         mode = (raw.get("delivery_mode") or "").lower()
         return mode not in ("flex", "self_service")
     if order.source.startswith("shopify"):
-        return True  # Shopify: shipped (fulfilled) = Welivery picked up; terminal
+        return True  # Shopify: Welivery picks up from warehouse; bodega metric = handoff
     return True
 
 
@@ -135,8 +136,8 @@ def _compute_blame(
     Returns 'transportista' if handoff was on time but delivery was late.
     Returns None if order was on time or we can't determine.
 
-    For Regular/Centro Envíos, blame is always 'bodega' since shipped = terminal
-    and the seller only controls the handoff to carrier.
+    For Regular/Centro Envíos, blame is always 'bodega' since the seller only
+    controls the handoff to carrier (not the last-mile delivery).
     """
     limit_handoff = order.limit_handoff_date or order.limit_delivery_date
     if not limit_handoff:
@@ -178,24 +179,18 @@ def _falabella_was_late(order: Order) -> bool:
 def _is_order_resolved(order: Order) -> bool:
     """Determina si el pedido salió del ámbito de seguimiento activo.
 
-    - Regular/CE: shipped = terminal (carrier picked up, seller done)
-    - Direct/Flex/Shopify: only delivered = terminal (seller delivers to client)
-    - ML: check shipment.status for real delivery status
+    All sources: only 'delivered' is terminal. Shipped orders stay visible
+    in "En Tránsito" until the carrier delivers to the customer.
+
+    - Regular/CE (Falabella, Walmart, Paris, Shopify): delivered = terminal
+    - ML: shipment.status == 'delivered' = terminal
+    - Direct/Flex: order.status == 'delivered' = terminal
     """
     if order.source == "mercadolibre":
         raw = order.raw_data or {}
         shipment = raw.get("shipment") or {}
         shipment_status = str(shipment.get("status", "")).lower()
-        if shipment_status == "delivered":
-            return True
-        # ML Regular (cross_docking, etc.): shipped = terminal
-        if _is_regular_shipping(order) and order.status == "shipped":
-            return True
-        return False
-
-    # Regular/CE: shipped = terminal
-    if _is_regular_shipping(order) and order.status in ("shipped", "delivered"):
-        return True
+        return shipment_status == "delivered"
 
     return order.status == "delivered"
 
@@ -489,12 +484,12 @@ class SyncService:
             )
 
     async def _refresh_delivered_ml_orders(self) -> None:
-        """Re-fetch shipment status for ML CE orders archived as 'shipped'.
+        """Safety net: update delivered_at for ML CE orders in delayed_orders still marked as shipped.
 
-        ML Centro de Envíos orders are archived when we hand the package to ML
-        (shipment.status = 'shipped'). Later, ML delivers to the customer
-        (status = 'delivered'). Since the ML mapper skips delivered orders, we
-        need to explicitly re-check these archived orders every sync cycle.
+        New ML shipped orders stay in active orders until the main sync detects
+        shipment.status='delivered' via the ML feed (mapper no longer skips delivered).
+        This function handles orders that were archived as 'shipped' before that logic
+        change, updating their delivered_at and urgency when delivery is confirmed.
         """
         from integrations.mercadolibre.client import MercadoLibreClient
         ml_client = self.integrations.get("mercadolibre")

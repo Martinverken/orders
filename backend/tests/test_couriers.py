@@ -136,18 +136,25 @@ class TestQuoteAll:
     def test_returns_all_couriers(self):
         quotes = quote_all(weight_kg=5.0, sum_sides_cm=100.0, commune="Santiago")
         couriers = {q.courier for q in quotes}
-        assert couriers == {"Rapiboy", "Welivery", "Starken"}
+        assert "Rapiboy" in couriers
+        assert "Welivery" in couriers
+        assert "Starken" in couriers
+        assert any("Falabella" in c for c in couriers)
 
     def test_flex_zone_two_available(self):
         quotes = quote_all(weight_kg=5.0, sum_sides_cm=100.0, commune="Providencia")
-        available = [q for q in quotes if q.available]
-        assert len(available) == 2  # Rapiboy + Welivery
+        available_names = {q.courier for q in quotes if q.available}
+        assert "Rapiboy" in available_names
+        assert "Welivery" in available_names
 
     def test_outside_flex_starken_only(self):
         quotes = quote_all(weight_kg=5.0, sum_sides_cm=100.0, commune="Valparaíso")
         available = [q for q in quotes if q.available]
-        assert len(available) == 1
-        assert available[0].courier == "Starken"
+        available_names = {q.courier for q in available}
+        # Rapiboy and Welivery are not available outside flex zone
+        assert "Rapiboy" not in available_names
+        assert "Welivery" not in available_names
+        assert "Starken" in available_names
 
     def test_dimensions_passed_to_starken(self):
         """Volumetric weight should affect Starken quote via quote_all."""

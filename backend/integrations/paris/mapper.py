@@ -4,7 +4,8 @@ Converts raw Paris API response into canonical OrderCreate.
 Paris shipping logic is identical to Falabella Regular:
 - Carrier (BLUEXPRESS) picks up from warehouse
 - Deadline = dispatchDate (when seller must hand package to carrier)
-- Terminal state: shipped (carrier took it)
+- Bodega metric: first_shipped_at vs dispatchDate (handoff on time = success)
+- Terminal state: delivered (carrier delivered to customer)
 
 Status IDs (confirmed from real data):
   2  = cancelled

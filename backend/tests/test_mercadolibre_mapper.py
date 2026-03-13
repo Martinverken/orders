@@ -19,9 +19,12 @@ class TestSkips:
         ml_shipment_raw["logistic_type"] = "fulfillment"
         assert to_order_create(ml_order_raw, ml_shipment_raw) is None
 
-    def test_delivered_skipped(self, ml_order_raw, ml_shipment_raw):
+    def test_delivered_returns_order(self, ml_order_raw, ml_shipment_raw):
+        """Delivered ML orders are returned (not skipped) so the sync can archive them."""
         ml_shipment_raw["status"] = "delivered"
-        assert to_order_create(ml_order_raw, ml_shipment_raw) is None
+        result = to_order_create(ml_order_raw, ml_shipment_raw)
+        assert result is not None
+        assert result.status == "delivered"
 
     def test_no_delivery_date_skipped(self, ml_order_raw, ml_shipment_raw):
         ml_shipment_raw["shipping_option"] = {}
