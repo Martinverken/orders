@@ -5,42 +5,17 @@ import type { Product } from "@/app/types";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "";
 
-// Human-readable name for each prefix
 const PREFIX_NAMES: Record<string, string> = {
-  // Verken
-  JAC: "Jacuzzi",
-  ROP: "Ropa de baño",
-  EST: "Estufa",
-  TOA: "Toallero",
-  AIR: "Aire acondicionado",
-  FUN: "Funda",
-  BRA: "Brasero",
-  CHI: "Chimenea",
-  RAD: "Radiador",
-  BOM: "Bomba",
-  CAL: "Calefactor",
-  INF: "Inflable",
-  DES: "Deshumidificador",
-  PAR: "Partes",
-  PLA: "Planchas",
-  DEF: "Deflector",
-  COJ: "Cojín",
-  // Kaut
-  SUP: "SUP (Paddle)",
-  KAY: "Kayak",
-  BOT: "Bote",
-  ISL: "Isla inflable",
-  MOT: "Motor",
-  ACC: "Accesorios",
-  CHA: "Chaleco",
-  TRA: "Traje",
-  CAR: "Carpa / Carro",
-  CSU: "Canguro SUP",
+  JAC: "Jacuzzi", ROP: "Ropa de baño", EST: "Estufa", TOA: "Toallero",
+  AIR: "Aire acondicionado", FUN: "Funda", BRA: "Brasero", CHI: "Chimenea",
+  RAD: "Radiador", BOM: "Bomba", CAL: "Calefactor", INF: "Inflable",
+  DES: "Deshumidificador", PAR: "Partes", PLA: "Planchas", DEF: "Deflector",
+  COJ: "Cojín", SUP: "SUP (Paddle)", KAY: "Kayak", BOT: "Bote",
+  ISL: "Isla inflable", MOT: "Motor", ACC: "Accesorios", CHA: "Chaleco",
+  TRA: "Traje", CAR: "Carpa / Carro", CSU: "Canguro SUP",
 };
 
-// SKU slot labels per category prefix
 const SKU_SLOT_LABELS: Record<string, string[]> = {
-  // — Verken —
   JAC: ["Colección", "Producto", "Tipo", "Modelo", "Capacidad", "Color", "Extra"],
   ROP: ["Colección", "Producto", "Talla", "Peso (kg)", "Color", "", ""],
   EST: ["Colección", "Energía", "BTU/Cap", "Tipo", "Modelo", "Color", "Extra"],
@@ -58,7 +33,6 @@ const SKU_SLOT_LABELS: Record<string, string[]> = {
   PLA: ["Colección", "Parte 1", "Parte 2", "Parte 3", "Parte 4", "", ""],
   DEF: ["Parte 1", "Parte 2", "Parte 3", "Parte 4", "Parte 5", "Parte 6", ""],
   COJ: ["Colección", "Tipo", "Tamaño", "Color", "", "", ""],
-  // — Kaut —
   SUP: ["Colección", "Largo (cm)", "Tipo", "Modelo", "Color", "", ""],
   KAY: ["Colección", "Tipo", "Largo (cm)", "Capacidad", "Modelo", "Color", ""],
   BOT: ["Colección", "Tipo", "Largo (cm)", "Personas", "Piso", "Motor HP", "Modelo"],
@@ -71,9 +45,22 @@ const SKU_SLOT_LABELS: Record<string, string[]> = {
   CSU: ["Colección", "Largo (cm)", "Tipo", "Modelo", "Color", "", ""],
 };
 
+// Popular template suggestions for new categories
+const TEMPLATE_SUGGESTIONS: { label: string; slots: string[] }[] = [
+  { label: "Producto con color", slots: ["Colección", "Tipo", "Modelo", "Capacidad", "Color", "", ""] },
+  { label: "Producto con talla", slots: ["Colección", "Tipo", "Modelo", "Talla", "Color", "", ""] },
+  { label: "Eléctrico (potencia)", slots: ["Colección", "Energía", "Potencia", "Tipo", "Modelo", "Color", ""] },
+  { label: "Eléctrico (BTU)", slots: ["Colección", "Energía", "BTU/Cap", "Tipo", "Modelo", "Color", ""] },
+  { label: "Por medidas", slots: ["Colección", "Largo (cm)", "Ancho (cm)", "Alto (cm)", "Modelo", "Color", ""] },
+  { label: "Partes / Repuestos", slots: ["Parte 1", "Parte 2", "Parte 3", "Parte 4", "Parte 5", "Parte 6", ""] },
+  { label: "Accesorios", slots: ["Colección", "Categoría", "Tipo", "Caract 1", "Caract 2", "Color", ""] },
+  { label: "Inflable náutico", slots: ["Colección", "Tipo", "Largo (cm)", "Personas", "Modelo", "Color", ""] },
+];
+
 const VERKEN_PREFIXES = ["JAC","ROP","EST","TOA","AIR","FUN","BRA","CHI","RAD","BOM","CAL","INF","DES","PAR","PLA","DEF","COJ"];
 const KAUT_PREFIXES = ["SUP","KAY","BOT","ISL","MOT","ACC","CHA","TRA","CAR","CSU"];
 const NUM_SLOTS = 7;
+const DEFAULT_SLOT_LABELS = Array.from({ length: NUM_SLOTS }, (_, i) => `Atributo ${i + 1}`);
 
 interface Props {
   products: Product[];
@@ -85,75 +72,113 @@ export function SkuGenerator({ products, onClose, onCreated }: Props) {
   const [brand, setBrand] = useState<"verken" | "kaut">("verken");
   const [prefix, setPrefix] = useState("");
   const [customPrefix, setCustomPrefix] = useState("");
+  const [customSlotLabels, setCustomSlotLabels] = useState<string[]>([...DEFAULT_SLOT_LABELS]);
   const [productName, setProductName] = useState("");
   const [slots, setSlots] = useState<string[]>(Array(NUM_SLOTS).fill(""));
   const [creating, setCreating] = useState(false);
   const [createResult, setCreateResult] = useState<{ ok: boolean; msg: string; url?: string } | null>(null);
   const [copied, setCopied] = useState(false);
+  const [suggesting, setSuggesting] = useState(false);
+  const [suggestionReasoning, setSuggestionReasoning] = useState<string | null>(null);
 
   const prefixes = brand === "verken" ? VERKEN_PREFIXES : KAUT_PREFIXES;
-  const activePrefix = prefix || customPrefix.toUpperCase();
-  const labels = activePrefix
-    ? (SKU_SLOT_LABELS[activePrefix] ?? Array(NUM_SLOTS).fill("Atributo"))
-    : Array(NUM_SLOTS).fill("");
+  const activePrefix = prefix || customPrefix;
+  const isCustom = !prefix && !!customPrefix;
+  const labels: string[] = isCustom
+    ? customSlotLabels
+    : (activePrefix ? (SKU_SLOT_LABELS[activePrefix] ?? DEFAULT_SLOT_LABELS) : DEFAULT_SLOT_LABELS);
 
   function handleBrandChange(b: "verken" | "kaut") {
-    setBrand(b);
-    setPrefix("");
-    setCustomPrefix("");
-    setSlots(Array(NUM_SLOTS).fill(""));
-    setCreateResult(null);
+    setBrand(b); setPrefix(""); setCustomPrefix("");
+    setSlots(Array(NUM_SLOTS).fill("")); setCustomSlotLabels([...DEFAULT_SLOT_LABELS]); setCreateResult(null);
   }
 
   function handlePrefixSelect(p: string) {
-    setPrefix(p);
-    setCustomPrefix("");
-    setSlots(Array(NUM_SLOTS).fill(""));
-    setCreateResult(null);
+    setPrefix(p); setCustomPrefix("");
+    setSlots(Array(NUM_SLOTS).fill("")); setCreateResult(null);
   }
 
   function handleCustomPrefix(v: string) {
-    setCustomPrefix(v.toUpperCase().replace(/[^A-Z]/g, ""));
-    setPrefix(""); // deselect chip
-    setSlots(Array(NUM_SLOTS).fill(""));
-    setCreateResult(null);
+    const up = v.toUpperCase().replace(/[^A-Z]/g, "");
+    setCustomPrefix(up); setPrefix("");
+    setSlots(Array(NUM_SLOTS).fill("")); setCreateResult(null);
   }
 
   function handleSlot(i: number, v: string) {
-    const next = [...slots];
-    next[i] = v.toUpperCase();
-    setSlots(next);
-    setCreateResult(null);
+    const next = [...slots]; next[i] = v.toUpperCase(); setSlots(next); setCreateResult(null);
+  }
+
+  function handleCustomLabel(i: number, v: string) {
+    const next = [...customSlotLabels]; next[i] = v; setCustomSlotLabels(next);
+  }
+
+  function applyTemplate(tpl: { label: string; slots: string[] }) {
+    setCustomSlotLabels([...tpl.slots]);
+    setSlots(Array(NUM_SLOTS).fill(""));
+    setSuggestionReasoning(null);
+  }
+
+  async function handleSuggest() {
+    if (!customPrefix || !productName.trim()) return;
+    setSuggesting(true);
+    setSuggestionReasoning(null);
+    try {
+      const res = await fetch(`${API_URL}/api/shopify/suggest-sku`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          prefix: customPrefix,
+          product_name: productName.trim(),
+          brand,
+          ref_skus: refProducts.map((p) => p.sku),
+        }),
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setCustomSlotLabels(data.slot_labels);
+        setSlots(data.suggested_values);
+        setSuggestionReasoning(data.reasoning);
+      }
+    } catch {
+      // silently ignore
+    } finally {
+      setSuggesting(false);
+    }
   }
 
   const sku = useMemo(() => {
     if (!activePrefix) return "";
-    const parts = [activePrefix, ...slots.map((s) => s.trim())].filter(Boolean);
-    return parts.join("");
+    return [activePrefix, ...slots.map((s) => s.trim())].filter(Boolean).join("");
   }, [activePrefix, slots]);
 
+  // Existing products matching the custom prefix (to infer pattern)
   const refProducts = useMemo(() => {
     if (!activePrefix) return [];
     return products
       .filter((p) => p.sku.startsWith(activePrefix) && p.brand?.toLowerCase() === brand)
-      .slice(0, 8);
+      .slice(0, 10);
   }, [activePrefix, brand, products]);
+
+  // For custom prefix: detect common slot count from ref SKUs (rough heuristic)
+  const inferredSlotCount = useMemo(() => {
+    if (!isCustom || refProducts.length === 0) return null;
+    // SKUs with this prefix — strip prefix and count uppercase segments (rough: count chars after prefix)
+    const lens = refProducts.map((p) => p.sku.slice(activePrefix.length).length);
+    return Math.round(lens.reduce((a, b) => a + b, 0) / lens.length);
+  }, [isCustom, refProducts, activePrefix]);
 
   async function handleCopy() {
     if (!sku) return;
     await navigator.clipboard.writeText(sku);
-    setCopied(true);
-    setTimeout(() => setCopied(false), 1500);
+    setCopied(true); setTimeout(() => setCopied(false), 1500);
   }
 
   async function handleCreate() {
     if (!sku || !productName.trim()) return;
-    setCreating(true);
-    setCreateResult(null);
+    setCreating(true); setCreateResult(null);
     try {
       const res = await fetch(`${API_URL}/api/shopify/create-product`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
+        method: "POST", headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ brand, name: productName.trim(), sku }),
       });
       const data = await res.json();
@@ -165,10 +190,10 @@ export function SkuGenerator({ products, onClose, onCreated }: Props) {
       }
     } catch (e) {
       setCreateResult({ ok: false, msg: e instanceof Error ? e.message : "Error de red" });
-    } finally {
-      setCreating(false);
-    }
+    } finally { setCreating(false); }
   }
+
+  const activeSlots = labels.filter((l) => l).length || NUM_SLOTS;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4">
@@ -177,7 +202,7 @@ export function SkuGenerator({ products, onClose, onCreated }: Props) {
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
           <h2 className="text-base font-semibold text-gray-900">Generador de SKU</h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg font-bold leading-none">✕</button>
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-700 text-lg font-bold">✕</button>
         </div>
 
         <div className="p-6 space-y-5">
@@ -188,10 +213,7 @@ export function SkuGenerator({ products, onClose, onCreated }: Props) {
             <div className="flex gap-2">
               {(["verken", "kaut"] as const).map((b) => (
                 <button key={b} onClick={() => handleBrandChange(b)}
-                  className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
-                    brand === b ? "bg-gray-900 text-white border-gray-900" : "border-gray-200 text-gray-700 hover:bg-gray-50"
-                  }`}
-                >
+                  className={`px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${brand === b ? "bg-gray-900 text-white border-gray-900" : "border-gray-200 text-gray-700 hover:bg-gray-50"}`}>
                   {b.charAt(0).toUpperCase() + b.slice(1)}
                 </button>
               ))}
@@ -206,78 +228,155 @@ export function SkuGenerator({ products, onClose, onCreated }: Props) {
                 const active = prefix === p;
                 return (
                   <button key={p} onClick={() => handlePrefixSelect(p)}
-                    className={`flex flex-col items-start px-3 py-1.5 rounded-lg border transition-colors text-left ${
-                      active
-                        ? "bg-blue-600 border-blue-600 text-white"
-                        : "border-gray-200 text-gray-900 hover:bg-gray-50"
-                    }`}
-                  >
+                    className={`flex flex-col items-start px-3 py-1.5 rounded-lg border transition-colors text-left ${active ? "bg-blue-600 border-blue-600 text-white" : "border-gray-200 text-gray-900 hover:bg-gray-50"}`}>
                     <span className="font-mono font-bold text-xs leading-tight">{p}</span>
-                    <span className={`text-xs leading-tight ${active ? "text-blue-100" : "text-gray-400"}`}>
-                      {PREFIX_NAMES[p] ?? ""}
-                    </span>
+                    <span className={`text-xs leading-tight ${active ? "text-blue-100" : "text-gray-400"}`}>{PREFIX_NAMES[p]}</span>
                   </button>
                 );
               })}
             </div>
+
             {/* Custom prefix */}
-            <div className="flex items-center gap-2">
-              <span className="text-xs text-gray-400">Nuevo prefijo:</span>
-              <input
-                type="text"
-                value={customPrefix}
-                onChange={(e) => handleCustomPrefix(e.target.value)}
-                placeholder="ej. NEW"
-                maxLength={6}
-                className="w-24 px-2 py-1.5 text-sm font-mono font-bold text-gray-900 border border-dashed border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase placeholder:font-normal placeholder:text-gray-300"
-              />
-              {customPrefix && (
-                <span className="text-xs text-gray-500">→ el SKU usará slots genéricos</span>
-              )}
+            <div className="flex items-center gap-3 pt-2 border-t border-dashed border-gray-200">
+              <span className="text-xs text-gray-400 shrink-0">Nueva categoría:</span>
+              <input type="text" value={customPrefix} onChange={(e) => handleCustomPrefix(e.target.value)}
+                placeholder="ej. HUM" maxLength={6}
+                className={`w-24 px-2 py-1.5 text-sm font-mono font-bold text-gray-900 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase placeholder:font-normal placeholder:text-gray-300 border ${customPrefix ? "border-blue-400 bg-blue-50" : "border-dashed border-gray-300"}`} />
+              {customPrefix && <span className="text-xs text-blue-600 font-medium">Prefijo nuevo — define los atributos abajo</span>}
             </div>
           </div>
 
           {/* Selected category banner */}
           {activePrefix && (
-            <div className="flex items-center gap-2 bg-blue-50 rounded-lg px-4 py-2.5">
-              <span className="font-mono font-bold text-blue-700 text-sm">{activePrefix}</span>
+            <div className={`flex items-center gap-2 rounded-lg px-4 py-2.5 ${isCustom ? "bg-amber-50 border border-amber-200" : "bg-blue-50"}`}>
+              <span className={`font-mono font-bold text-sm ${isCustom ? "text-amber-700" : "text-blue-700"}`}>{activePrefix}</span>
               <span className="text-gray-400">·</span>
-              <span className="text-sm text-gray-700 font-medium">
-                {PREFIX_NAMES[activePrefix] ?? "Categoría personalizada"}
+              <span className={`text-sm font-medium ${isCustom ? "text-amber-800" : "text-gray-700"}`}>
+                {isCustom ? "Categoría nueva" : (PREFIX_NAMES[activePrefix] ?? "Categoría personalizada")}
               </span>
+              {isCustom && <span className="ml-auto text-xs text-amber-600">Define nombre y atributos para este prefijo</span>}
             </div>
           )}
 
           {/* Product name */}
           <div>
             <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Nombre del producto</label>
-            <input
-              type="text"
-              value={productName}
-              onChange={(e) => setProductName(e.target.value)}
+            <input type="text" value={productName} onChange={(e) => setProductName(e.target.value)}
               placeholder="ej. Jacuzzi Spa Inflable 4 personas Negro"
-              className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
-            />
+              className="w-full px-3 py-2 text-sm text-gray-900 border border-gray-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500" />
           </div>
 
-          {/* Slot builder */}
-          {activePrefix && (
+          {/* ── Custom prefix: template + label editor ── */}
+          {isCustom && activePrefix.length >= 2 && (
+            <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 space-y-3">
+              <div>
+                <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-2">
+                  Elige una plantilla de atributos
+                </p>
+                <div className="flex flex-wrap gap-1.5">
+                  {TEMPLATE_SUGGESTIONS.map((tpl) => (
+                    <button key={tpl.label} onClick={() => applyTemplate(tpl)}
+                      className="px-2.5 py-1 text-xs rounded-lg border border-amber-300 text-amber-800 bg-white hover:bg-amber-100 transition-colors">
+                      {tpl.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-2">
+                  O personaliza los nombres de cada atributo
+                </p>
+                <div className="grid grid-cols-2 gap-2">
+                  {customSlotLabels.map((lbl, i) => (
+                    <div key={i} className="flex items-center gap-1.5">
+                      <span className="text-xs text-amber-600 w-5 shrink-0">{i + 1}.</span>
+                      <input type="text" value={lbl} onChange={(e) => handleCustomLabel(i, e.target.value)}
+                        placeholder={`Atributo ${i + 1}`}
+                        className="w-full px-2 py-1 text-xs text-gray-900 border border-amber-200 rounded-md focus:outline-none focus:ring-1 focus:ring-amber-400 bg-white" />
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Existing SKUs with this prefix — show to help infer structure */}
+              {refProducts.length > 0 && (
+                <div>
+                  <p className="text-xs font-semibold text-amber-800 uppercase tracking-wide mb-1.5">
+                    SKUs existentes con prefijo {activePrefix} — úsalos de referencia
+                  </p>
+                  {inferredSlotCount !== null && (
+                    <p className="text-xs text-amber-700 mb-1.5">
+                      Promedio de caracteres tras el prefijo: <strong>{inferredSlotCount}</strong>
+                    </p>
+                  )}
+                  <div className="rounded-lg border border-amber-200 divide-y divide-amber-100 max-h-32 overflow-y-auto bg-white">
+                    {refProducts.map((p) => (
+                      <div key={p.id} className="flex items-center gap-3 px-3 py-1.5">
+                        <span className="font-mono text-xs font-bold text-amber-700 shrink-0 w-44 truncate">{p.sku}</span>
+                        <span className="text-xs text-gray-500 truncate">{p.name}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {refProducts.length === 0 && (
+                <p className="text-xs text-amber-600 italic">
+                  No hay SKUs con el prefijo {activePrefix} en el sistema — usa IA o elige una plantilla.
+                </p>
+              )}
+
+              {/* AI suggest button */}
+              <div className="pt-1 border-t border-amber-200">
+                <button
+                  onClick={handleSuggest}
+                  disabled={suggesting || !productName.trim()}
+                  className="w-full py-2 text-sm font-semibold bg-amber-500 text-white rounded-lg hover:bg-amber-600 disabled:opacity-40 transition-colors flex items-center justify-center gap-2"
+                >
+                  {suggesting ? (
+                    <>
+                      <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                      </svg>
+                      Analizando producto…
+                    </>
+                  ) : (
+                    <>✦ Sugerir atributos con IA</>
+                  )}
+                </button>
+                {!productName.trim() && (
+                  <p className="text-xs text-amber-600 mt-1 text-center">Ingresa el nombre del producto primero</p>
+                )}
+                {suggestionReasoning && (
+                  <div className="mt-2 px-3 py-2 bg-white border border-amber-200 rounded-lg">
+                    <p className="text-xs text-amber-800 italic">✦ {suggestionReasoning}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* Slot builder — known or custom prefix */}
+          {activePrefix && (!isCustom || activePrefix.length >= 2) && (
             <div>
-              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Segmentos del SKU</label>
+              <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
+                {isCustom ? "Valores de los atributos" : "Segmentos del SKU"}
+              </label>
               <div className="grid grid-cols-2 gap-3">
                 {Array.from({ length: NUM_SLOTS }).map((_, i) => {
-                  const label = labels[i];
-                  if (!label && i > 0) return null;
+                  const lbl = labels[i];
+                  if (!lbl && !isCustom && i > 0) return null;
+                  if (isCustom && !lbl) return null;
                   return (
                     <div key={i}>
-                      <label className="block text-xs font-medium text-gray-500 mb-1">{label || `Atributo ${i + 1}`}</label>
-                      <input
-                        type="text"
-                        value={slots[i]}
-                        onChange={(e) => handleSlot(i, e.target.value)}
-                        placeholder={label || `Atributo ${i + 1}`}
-                        className="w-full px-2 py-1.5 text-sm font-mono font-semibold text-gray-900 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase placeholder:font-normal placeholder:text-gray-300"
-                      />
+                      <label className="block text-xs font-medium text-gray-500 mb-1">
+                        {lbl || `Atributo ${i + 1}`}
+                      </label>
+                      <input type="text" value={slots[i]} onChange={(e) => handleSlot(i, e.target.value)}
+                        placeholder={lbl || `Atributo ${i + 1}`}
+                        className="w-full px-2 py-1.5 text-sm font-mono font-semibold text-gray-900 border border-gray-200 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500 uppercase placeholder:font-normal placeholder:text-gray-300" />
                     </div>
                   );
                 })}
@@ -309,8 +408,8 @@ export function SkuGenerator({ products, onClose, onCreated }: Props) {
             </div>
           )}
 
-          {/* Reference SKUs */}
-          {refProducts.length > 0 && (
+          {/* Reference SKUs — known prefix */}
+          {!isCustom && refProducts.length > 0 && (
             <div>
               <label className="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">
                 Referencia — {activePrefix} · {PREFIX_NAMES[activePrefix] ?? ""} ({refProducts.length})
@@ -331,17 +430,14 @@ export function SkuGenerator({ products, onClose, onCreated }: Props) {
             <div className={`rounded-lg px-4 py-3 text-sm font-medium ${createResult.ok ? "bg-green-50 text-green-700" : "bg-red-50 text-red-700"}`}>
               {createResult.msg}
               {createResult.url && (
-                <a href={createResult.url} target="_blank" rel="noreferrer" className="ml-2 underline">
-                  Ver en Shopify →
-                </a>
+                <a href={createResult.url} target="_blank" rel="noreferrer" className="ml-2 underline">Ver en Shopify →</a>
               )}
             </div>
           )}
 
           {/* Actions */}
           <div className="flex items-center gap-3 pt-2 border-t border-gray-100">
-            <button onClick={handleCreate}
-              disabled={!sku || !productName.trim() || creating}
+            <button onClick={handleCreate} disabled={!sku || !productName.trim() || creating}
               className="flex-1 py-2.5 text-sm font-semibold bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:opacity-40 transition-colors">
               {creating ? "Creando en Shopify…" : "Crear en Shopify"}
             </button>

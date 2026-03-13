@@ -51,6 +51,9 @@ class Settings(BaseSettings):
     shopify_kaut_url: str = ""        # e.g. "kaut.myshopify.com"
     shopify_kaut_token: str = ""      # Admin API token (scope: read_orders)
 
+    # Anthropic
+    anthropic_api_key: str = ""
+
     # CORS
     allowed_origins: str = "http://localhost:3000"
 
