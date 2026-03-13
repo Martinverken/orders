@@ -33,6 +33,7 @@ class ProductRequest(BaseModel):
     is_service: bool = False
     is_pack: bool = False
     bultos_dims: Optional[list[dict]] = None
+    pack_items: Optional[list[dict]] = None
 
 
 class ProductUpdateRequest(BaseModel):
@@ -48,6 +49,7 @@ class ProductUpdateRequest(BaseModel):
     is_service: Optional[bool] = None
     is_pack: Optional[bool] = None
     bultos_dims: Optional[list[dict]] = None
+    pack_items: Optional[list[dict]] = None
 
 
 @router.get("/export")
