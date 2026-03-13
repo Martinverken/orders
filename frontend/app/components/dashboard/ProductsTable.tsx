@@ -109,6 +109,7 @@ export function ProductsTable({ initialData }: Props) {
   const [importing, setImporting] = useState(false);
   const [importResult, setImportResult] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const [expandedPackId, setExpandedPackId] = useState<string | null>(null);
 
   // Lightbox
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -310,6 +311,18 @@ export function ProductsTable({ initialData }: Props) {
       setError(e instanceof Error ? e.message : "Error al guardar");
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function handleMoveTo(id: string, target: "pack" | "service") {
+    try {
+      const payload = target === "pack"
+        ? { is_pack: true, is_service: false }
+        : { is_pack: false, is_service: true };
+      const updated = await updateProduct(id, payload);
+      setProducts((prev) => prev.map((p) => (p.id === id ? updated : p)));
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Error al mover");
     }
   }
 
@@ -540,7 +553,7 @@ export function ProductsTable({ initialData }: Props) {
                 <button
                   type="button"
                   onClick={() => setForm((f) => ({ ...f, pack_items: [...f.pack_items, { sku: "", quantity: 1 }] }))}
-                  className="px-2 py-0.5 text-xs border border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
+                  className="px-3 py-1 text-xs font-medium bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
                 >
                   + Agregar SKU
                 </button>
@@ -733,39 +746,45 @@ export function ProductsTable({ initialData }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
+                <th className="py-2.5 px-3 w-8" />
                 <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-400 w-10">#</th>
                 <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Nombre</th>
                 <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">SKU Pack</th>
-                <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Composición</th>
+                <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Componentes</th>
                 <th className="py-2.5 px-3" />
               </tr>
             </thead>
-            <tbody className="divide-y divide-gray-50">
+            <tbody>
               {sorted.map((p, idx) => {
                 const skuMap = Object.fromEntries(products.map((pr) => [pr.sku, pr.name]));
-                return (
-                  <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                const isExpanded = expandedPackId === p.id;
+                const itemCount = p.pack_items?.length ?? 0;
+                return [
+                  <tr
+                    key={p.id}
+                    className="border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer"
+                    onClick={() => setExpandedPackId(isExpanded ? null : p.id)}
+                  >
+                    <td className="py-3 px-3 w-8">
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none"
+                        stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                        className={`w-3.5 h-3.5 text-blue-400 transition-transform ${isExpanded ? "rotate-90" : ""}`}
+                      >
+                        <polyline points="9 18 15 12 9 6" />
+                      </svg>
+                    </td>
                     <td className="py-3 px-3 text-right text-xs text-gray-400">{idx + 1}</td>
                     <td className="py-3 px-3 font-medium text-gray-900">{p.name}</td>
                     <td className="py-3 px-3 text-gray-500 font-mono text-xs">{p.sku}</td>
                     <td className="py-3 px-3">
-                      {p.pack_items && p.pack_items.length > 0 ? (
-                        <div className="flex flex-wrap gap-1.5">
-                          {p.pack_items.map((item, i) => (
-                            <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-medium">
-                              <span className="font-semibold">{item.quantity}×</span>
-                              <span className="font-mono">{item.sku}</span>
-                              {skuMap[item.sku] && (
-                                <span className="text-blue-400 font-normal">· {skuMap[item.sku]}</span>
-                              )}
-                            </span>
-                          ))}
-                        </div>
+                      {itemCount > 0 ? (
+                        <span className="text-xs text-blue-600 font-medium">{itemCount} SKU{itemCount !== 1 ? "s" : ""}</span>
                       ) : (
                         <span className="text-xs text-amber-500 border border-amber-200 px-2 py-0.5 rounded-md">Sin composición</span>
                       )}
                     </td>
-                    <td className="py-3 px-3">
+                    <td className="py-3 px-3" onClick={(e) => e.stopPropagation()}>
                       <div className="flex items-center justify-end gap-2">
                         <button onClick={() => openEdit(p)}
                           className="text-xs px-2 py-0.5 border border-gray-900 text-gray-900 rounded-md hover:bg-gray-900 hover:text-white transition-colors">
@@ -777,8 +796,27 @@ export function ProductsTable({ initialData }: Props) {
                         </button>
                       </div>
                     </td>
-                  </tr>
-                );
+                  </tr>,
+                  isExpanded && (
+                    <tr key={`${p.id}-expanded`} className="border-b border-gray-50 bg-blue-50/40">
+                      <td colSpan={6} className="px-8 py-3">
+                        {p.pack_items && p.pack_items.length > 0 ? (
+                          <div className="space-y-1.5">
+                            {p.pack_items.map((item, i) => (
+                              <div key={i} className="flex items-center gap-3 text-sm">
+                                <span className="w-6 text-right text-blue-600 font-bold font-mono">{item.quantity}×</span>
+                                <span className="font-mono text-gray-600 text-xs bg-white px-2 py-0.5 rounded border border-blue-100">{item.sku}</span>
+                                <span className="text-gray-700">{skuMap[item.sku] ?? <span className="text-gray-400 italic">SKU no encontrado</span>}</span>
+                              </div>
+                            ))}
+                          </div>
+                        ) : (
+                          <p className="text-xs text-gray-400 italic">Este pack no tiene componentes definidos.</p>
+                        )}
+                      </td>
+                    </tr>
+                  ),
+                ];
               })}
             </tbody>
           </table>
@@ -876,6 +914,18 @@ export function ProductsTable({ initialData }: Props) {
                       <div className="flex items-center justify-end gap-2">
                         {missingDimensions && (
                           <span className="text-xs px-2 py-0.5 border border-amber-300 text-amber-600 rounded-md">Pendiente</span>
+                        )}
+                        {!p.is_pack && (
+                          <button onClick={() => handleMoveTo(p.id, "pack")}
+                            className="text-xs px-2 py-0.5 border border-blue-300 text-blue-600 rounded-md hover:bg-blue-600 hover:border-blue-600 hover:text-white transition-colors">
+                            → Pack
+                          </button>
+                        )}
+                        {!p.is_service && (
+                          <button onClick={() => handleMoveTo(p.id, "service")}
+                            className="text-xs px-2 py-0.5 border border-purple-300 text-purple-600 rounded-md hover:bg-purple-600 hover:border-purple-600 hover:text-white transition-colors">
+                            → Servicio
+                          </button>
                         )}
                         <button onClick={() => openEdit(p)}
                           className="text-xs px-2 py-0.5 border border-gray-900 text-gray-900 rounded-md hover:bg-gray-900 hover:text-white transition-colors">
