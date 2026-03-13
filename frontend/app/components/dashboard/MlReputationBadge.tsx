@@ -36,14 +36,14 @@ function MetricRow({
   value: number | null;
   threshold: number;
 }) {
-  if (rate == null) return null;
-  const ok = rate <= threshold;
+  const ok = rate != null && rate <= threshold;
+  const display = rate == null ? "0.0%" : fmt(rate);
   return (
     <div className="flex items-center justify-between gap-3 text-xs">
       <span className="text-gray-600">{label}</span>
       <div className="flex items-center gap-1.5">
-        <span className={`font-semibold tabular-nums ${ok ? "text-green-700" : "text-red-600"}`}>
-          {fmt(rate)}
+        <span className={`font-semibold tabular-nums ${ok ? "text-green-700" : rate == null ? "text-gray-400" : "text-red-600"}`}>
+          {display}
           {value != null && <span className="font-normal text-gray-400 ml-1">({value})</span>}
         </span>
         <span className="text-gray-300">·</span>
