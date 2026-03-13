@@ -33,7 +33,7 @@ function OrderMiniList({ orders }: { orders: WarehouseOrderMini[] }) {
     <ul className="mt-1.5 space-y-1 pl-3 border-l-2 border-blue-100">
       {orders.map((o) => (
         <li key={o.id} className="flex items-center gap-2 text-xs py-0.5">
-          <span className="font-mono text-gray-500 shrink-0">#{o.external_id}</span>
+          <span className="font-mono text-gray-500 shrink-0">{o.external_id}</span>
           {o.product_name && (
             <span className="text-gray-700 truncate flex-1">{o.product_name}</span>
           )}
