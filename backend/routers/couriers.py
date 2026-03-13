@@ -21,6 +21,7 @@ class CourierRequest(BaseModel):
     notes: Optional[str] = None
     active: bool = True
     pickup_cutoff: Optional[str] = None
+    pickup_window_start: Optional[str] = None
 
 
 class CourierUpdateRequest(BaseModel):
@@ -35,6 +36,7 @@ class CourierUpdateRequest(BaseModel):
     notes: Optional[str] = None
     active: Optional[bool] = None
     pickup_cutoff: Optional[str] = None
+    pickup_window_start: Optional[str] = None
 
 
 @router.get("")

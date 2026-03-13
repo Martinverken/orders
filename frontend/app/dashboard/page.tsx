@@ -16,6 +16,7 @@ import { ProductsTable } from "@/app/components/dashboard/ProductsTable";
 import { MlReputationBadge } from "@/app/components/dashboard/MlReputationBadge";
 import { WarehouseDailySummary } from "@/app/components/dashboard/WarehouseDailySummary";
 import { CouriersTable } from "@/app/components/dashboard/CouriersTable";
+import { CourierScheduleManager } from "@/app/components/dashboard/CourierScheduleManager";
 import type { Courier, ProductsPage } from "@/app/types";
 
 interface PageProps {
@@ -634,15 +635,31 @@ export default async function DashboardPage({ searchParams }: PageProps) {
 
         {/* ── Couriers ── */}
         {tab === "couriers" && (
-          <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
-            <div className="px-6 py-4 border-b border-gray-100">
-              <h2 className="text-base font-medium text-gray-900">Couriers</h2>
-              <p className="text-xs text-gray-500 mt-0.5">
-                Couriers disponibles, tarifas y restricciones de envío
-              </p>
+          <div className="space-y-4">
+            {/* Pickup schedule management */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+              <div className="px-6 py-4 border-b border-gray-100">
+                <h2 className="text-base font-medium text-gray-900">Horarios de retiro</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Ventana habitual y hora límite de retiro por operador logístico. Se muestra en el resumen de bodega.
+                </p>
+              </div>
+              <div className="px-6 py-6">
+                <CourierScheduleManager initialData={couriersData} />
+              </div>
             </div>
-            <div className="px-6 py-6">
-              <CouriersTable initialData={couriersData} />
+
+            {/* Static pricing reference */}
+            <div className="bg-white rounded-xl border border-gray-200 shadow-sm">
+              <div className="px-6 py-4 border-b border-gray-100">
+                <h2 className="text-base font-medium text-gray-900">Tarifas y restricciones</h2>
+                <p className="text-xs text-gray-500 mt-0.5">
+                  Tarifas y restricciones de envío por courier
+                </p>
+              </div>
+              <div className="px-6 py-6">
+                <CouriersTable initialData={couriersData} />
+              </div>
             </div>
           </div>
         )}
