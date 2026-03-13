@@ -15,7 +15,6 @@ class CourierCreate(BaseModel):
     notes: Optional[str] = None
     active: bool = True
     pickup_cutoff: Optional[str] = None        # HH:MM hard deadline, e.g. "11:00"
-    pickup_window_start: Optional[str] = None  # HH:MM typical start, e.g. "09:00"
 
 
 class Courier(CourierCreate):
