@@ -110,6 +110,8 @@ export function ProductsTable({ initialData }: Props) {
   const [importResult, setImportResult] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [expandedPackId, setExpandedPackId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkMoving, setBulkMoving] = useState(false);
 
   // Lightbox
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
@@ -326,6 +328,28 @@ export function ProductsTable({ initialData }: Props) {
     }
   }
 
+  async function handleBulkMove(target: "pack" | "service") {
+    if (selectedIds.size === 0) return;
+    setBulkMoving(true);
+    const payload = target === "pack"
+      ? { is_pack: true, is_service: false }
+      : { is_pack: false, is_service: true };
+    try {
+      const updates = await Promise.all(
+        Array.from(selectedIds).map((id) => updateProduct(id, payload))
+      );
+      setProducts((prev) => {
+        const map = Object.fromEntries(updates.map((u) => [u.id, u]));
+        return prev.map((p) => map[p.id] ?? p);
+      });
+      setSelectedIds(new Set());
+    } catch (e) {
+      alert(e instanceof Error ? e.message : "Error al mover");
+    } finally {
+      setBulkMoving(false);
+    }
+  }
+
   async function handleDelete(id: string) {
     setDeletingId(id);
     try {
@@ -430,7 +454,7 @@ export function ProductsTable({ initialData }: Props) {
           return (
             <button
               key={key}
-              onClick={() => { setActiveTab(key); setSearch(""); setFilterCategory(""); setSortKey(null); }}
+              onClick={() => { setActiveTab(key); setSearch(""); setFilterCategory(""); setSortKey(null); setSelectedIds(new Set()); }}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors ${
                 active ? "border-gray-900 text-gray-900" : "border-transparent text-gray-400 hover:text-gray-600"
               }`}
@@ -729,6 +753,34 @@ export function ProductsTable({ initialData }: Props) {
         )}
       </div>
 
+      {/* Bulk action bar */}
+      {selectedIds.size > 0 && (activeTab === "Verken" || activeTab === "Kaut" || activeTab === "Servicios") && (
+        <div className="flex items-center gap-3 px-4 py-2.5 bg-gray-900 text-white rounded-xl text-sm">
+          <span className="font-medium">{selectedIds.size} seleccionado{selectedIds.size !== 1 ? "s" : ""}</span>
+          <span className="text-gray-500">·</span>
+          <button
+            onClick={() => handleBulkMove("pack")}
+            disabled={bulkMoving}
+            className="px-3 py-1 text-xs font-medium bg-blue-600 hover:bg-blue-500 rounded-lg transition-colors disabled:opacity-50"
+          >
+            → Pack
+          </button>
+          <button
+            onClick={() => handleBulkMove("service")}
+            disabled={bulkMoving}
+            className="px-3 py-1 text-xs font-medium bg-purple-600 hover:bg-purple-500 rounded-lg transition-colors disabled:opacity-50"
+          >
+            → Servicio
+          </button>
+          <button
+            onClick={() => setSelectedIds(new Set())}
+            className="ml-auto text-xs text-gray-400 hover:text-white transition-colors"
+          >
+            Cancelar
+          </button>
+        </div>
+      )}
+
       {/* Table */}
       {filtered.length === 0 ? (
         <div className="text-center py-12 text-gray-400 text-sm">
@@ -826,6 +878,17 @@ export function ProductsTable({ initialData }: Props) {
           <table className="w-full text-sm">
             <thead>
               <tr className="border-b border-gray-100">
+                <th className="py-2.5 px-3 w-8">
+                  <input
+                    type="checkbox"
+                    checked={sorted.length > 0 && sorted.every((p) => selectedIds.has(p.id))}
+                    onChange={(e) => {
+                      if (e.target.checked) setSelectedIds(new Set(sorted.map((p) => p.id)));
+                      else setSelectedIds(new Set());
+                    }}
+                    className="accent-gray-900 w-3.5 h-3.5 cursor-pointer"
+                  />
+                </th>
                 <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-400 w-10">#</th>
                 <th className="py-2.5 px-3 w-12" />
                 <SortableHeader label="Nombre" colKey="name" />
@@ -854,7 +917,22 @@ export function ProductsTable({ initialData }: Props) {
                 const isVolumetric = billableWeight != null && d1kg != null && d1h != null && d1w != null && d1l != null
                   && (d1h * d1w * d1l) / 4000 > d1kg;
                 return (
-                  <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                  <tr key={p.id} className={`hover:bg-gray-50 transition-colors ${selectedIds.has(p.id) ? "bg-blue-50/50" : ""}`}>
+                    <td className="py-3 px-3 w-8">
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(p.id)}
+                        onChange={(e) => {
+                          setSelectedIds((prev) => {
+                            const next = new Set(prev);
+                            if (e.target.checked) next.add(p.id);
+                            else next.delete(p.id);
+                            return next;
+                          });
+                        }}
+                        className="accent-gray-900 w-3.5 h-3.5 cursor-pointer"
+                      />
+                    </td>
                     <td className="py-3 px-3 text-right text-xs text-gray-400">{idx + 1}</td>
                     <td className="py-2 px-3">
                       {p.image_url ? (
@@ -911,7 +989,7 @@ export function ProductsTable({ initialData }: Props) {
                       ) : <span className="text-gray-300">—</span>}
                     </td>
                     <td className="py-3 px-3">
-                      <div className="flex items-center justify-end gap-2">
+                      <div className="flex items-center justify-end gap-1.5">
                         {missingDimensions && (
                           <span className="text-xs px-2 py-0.5 border border-amber-300 text-amber-600 rounded-md">Pendiente</span>
                         )}
@@ -925,6 +1003,21 @@ export function ProductsTable({ initialData }: Props) {
                           <button onClick={() => handleMoveTo(p.id, "service")}
                             className="text-xs px-2 py-0.5 border border-purple-300 text-purple-600 rounded-md hover:bg-purple-600 hover:border-purple-600 hover:text-white transition-colors">
                             → Servicio
+                          </button>
+                        )}
+                        {!p.is_service && !p.is_pack && (
+                          <button
+                            onClick={async () => {
+                              const updated = await updateProduct(p.id, {
+                                height_cm: 32, width_cm: 42, length_cm: 5, weight_kg: 3,
+                                bultos_dims: [{ height_cm: 32, width_cm: 42, length_cm: 5, weight_kg: 3 }],
+                              });
+                              setProducts((prev) => prev.map((x) => x.id === p.id ? updated : x));
+                            }}
+                            className="text-xs px-2 py-0.5 border border-gray-300 text-gray-600 rounded-md hover:bg-gray-100 transition-colors"
+                            title="Aplicar dimensiones de bolsa estándar"
+                          >
+                            📦 Bolsa std
                           </button>
                         )}
                         <button onClick={() => openEdit(p)}
