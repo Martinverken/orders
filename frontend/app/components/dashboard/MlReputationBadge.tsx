@@ -16,8 +16,8 @@ const LEVEL_CONFIG: Record<string, { label: string; score: string | null; color:
 const THRESHOLDS = {
   delayed:       0.10,   // 10%
   claims:        0.025,  // 2.5%
-  mediations:    0.02,   // 2%
-  cancellations: 0.005,  // 0.5%
+  mediations:    0.005,  // 0.5%
+  cancellations: 0.015,  // 1.5%
 };
 
 function fmt(rate: number | null): string {
@@ -85,7 +85,7 @@ export function MlReputationBadge() {
         <span>{cfg.label}</span>
         {cfg.score && <span className="opacity-60 font-normal">({cfg.score})</span>}
         {data.delayed_rate != null && (
-          <span className="opacity-70 font-normal">· {fmt(data.delayed_rate)} tardíos</span>
+          <span className="opacity-70 font-normal">· {fmt(data.delayed_rate)} incorrectos</span>
         )}
         <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-600 ml-0.5">
           detalle
@@ -100,7 +100,7 @@ export function MlReputationBadge() {
               Reputación MercadoLibre
             </p>
             <MetricRow
-              label="Envíos tardíos"
+              label="Envíos incorrectos"
               rate={data.delayed_rate}
               value={data.delayed_value}
               threshold={THRESHOLDS.delayed}
