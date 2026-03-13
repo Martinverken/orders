@@ -334,6 +334,8 @@ def get_warehouse_summary():
         raw = order.raw_data or {}
         if order.source.startswith("shopify"):
             display_id = str(raw.get("name", "")).lstrip("#") or str(order.external_id)
+        elif order.source == "falabella":
+            display_id = str(raw.get("OrderNumber") or order.external_id)
         else:
             display_id = str(order.external_id)
         return {
