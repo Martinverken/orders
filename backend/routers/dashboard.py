@@ -249,6 +249,23 @@ def get_delay_metrics():
     }
 
 
+_FALABELLA_OPERATOR_LABELS: dict[str, str] = {
+    "regular - bluexpress": "Bluexpress",
+    "regular-bluexpress": "Bluexpress",
+    "bluexpress": "Bluexpress",
+    "regular - starken": "Starken",
+    "regular-starken": "Starken",
+    "starken": "Starken",
+    "regular - chilexpress": "Chilexpress",
+    "regular-chilexpress": "Chilexpress",
+    "chilexpress": "Chilexpress",
+    "direct": "Welivery",
+    "falaflex": "Welivery",
+    "centro_envios": "Centro Envíos",
+    "centro envios": "Centro Envíos",
+}
+
+
 def _carrier_from_order(source: str, logistics_operator: str | None) -> str:
     """Derive a display carrier name from order source and logistics_operator."""
     if source == "mercadolibre":
@@ -257,8 +274,11 @@ def _carrier_from_order(source: str, logistics_operator: str | None) -> str:
         return "Transporte Interno"
     if source.startswith("shopify"):
         return "Welivery"
-    if source == "falabella" and logistics_operator:
-        return logistics_operator
+    if source == "paris":
+        return "Bluexpress"
+    if source == "falabella":
+        lo = (logistics_operator or "").strip().lower()
+        return _FALABELLA_OPERATOR_LABELS.get(lo, logistics_operator or "Falabella")
     return logistics_operator or source
 
 
@@ -321,9 +341,27 @@ def get_warehouse_summary():
         _upsert(order, "due_today")
 
     # Sort: carriers with cutoff first (by time), then those without
-    result = sorted(
+    by_carrier = sorted(
         carrier_data.values(),
         key=lambda x: (x["pickup_cutoff"] is None, x["pickup_cutoff"] or ""),
     )
 
-    return {"success": True, "data": result}
+    # Group by deadline date for the "por día" view
+    from collections import defaultdict
+    day_map: dict[str, dict] = {}
+    for order in overdue:
+        deadline = order.limit_handoff_date or order.limit_delivery_date
+        if not deadline:
+            continue
+        dl_date = deadline.astimezone(_SANTIAGO_TZ).date() if deadline.tzinfo else deadline.date()
+        key = dl_date.isoformat()
+        if key not in day_map:
+            day_map[key] = {"date": key, "count": 0, "overdue": 0, "due_today": 0}
+        day_map[key]["count"] += 1
+        day_map[key]["overdue"] += 1
+    if due_today:
+        key = today.isoformat()
+        day_map[key] = {"date": key, "count": len(due_today), "overdue": 0, "due_today": len(due_today)}
+    by_day = sorted(day_map.values(), key=lambda x: x["date"])
+
+    return {"success": True, "data": {"by_carrier": by_carrier, "by_day": by_day}}

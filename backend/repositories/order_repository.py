@@ -451,14 +451,12 @@ class OrderRepository:
         return communes
 
     def delete_by_id(self, order_id: str) -> bool:
-        """Delete an active order by its DB UUID. Returns True if deleted."""
-        result = (
-            self.db.table(self.table)
-            .delete()
-            .eq("id", order_id)
-            .execute()
-        )
-        return bool(result.data)
+        """Delete an active order by its DB UUID. Returns True if row existed."""
+        check = self.db.table(self.table).select("id").eq("id", order_id).execute()
+        if not check.data:
+            return False
+        self.db.table(self.table).delete().eq("id", order_id).execute()
+        return True
 
     def get_by_external_id(self, external_id: str, source: str) -> Optional[Order]:
         result = (

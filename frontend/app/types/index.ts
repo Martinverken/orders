@@ -254,6 +254,18 @@ export interface WarehouseCarrierSummary {
   pickup_cutoff: string | null;
 }
 
+export interface WarehouseDaySummary {
+  date: string;
+  count: number;
+  overdue: number;
+  due_today: number;
+}
+
+export interface WarehouseSummaryData {
+  by_carrier: WarehouseCarrierSummary[];
+  by_day: WarehouseDaySummary[];
+}
+
 export interface MlReputation {
   level_id: string | null;
   power_seller_status: string | null;
