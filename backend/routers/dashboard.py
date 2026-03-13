@@ -275,7 +275,7 @@ def _carrier_from_order(source: str, logistics_operator: str | None) -> str:
     if source == "mercadolibre":
         return "Mercado Libre"
     if source == "walmart":
-        return "Transporte Interno"
+        return "Walmart"
     if source.startswith("shopify"):
         return "Welivery"
     if source == "paris":

@@ -180,6 +180,7 @@ export function FilterBar({ cities = [] }: { cities?: string[] }) {
 }
 
 function CollapsibleFilterBarInner({ cities }: { cities?: string[] }) {
+  const router = useRouter();
   const params = useSearchParams();
   const [open, setOpen] = useState(false);
 
@@ -194,24 +195,43 @@ function CollapsibleFilterBarInner({ cities }: { cities?: string[] }) {
     params.get("order_number")
   );
 
+  function clearAll() {
+    const next = new URLSearchParams(params.toString());
+    ["source","urgency","status","product_name","logistics_operator","city","commune","order_number","page"].forEach(k => next.delete(k));
+    router.push(`/dashboard?${next.toString()}`);
+  }
+
   return (
     <div>
-      <button
-        onClick={() => setOpen((o) => !o)}
-        className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
-          open || hasFilters
-            ? "bg-blue-50 border-blue-200 text-blue-700"
-            : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
-        }`}
-      >
-        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
-          <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
-        </svg>
-        Filtrar
+      <div className="flex items-center gap-2">
+        <button
+          onClick={() => setOpen((o) => !o)}
+          className={`flex items-center gap-2 px-4 py-2 text-sm font-medium rounded-lg border transition-colors ${
+            open || hasFilters
+              ? "bg-blue-50 border-blue-200 text-blue-700"
+              : "bg-white border-gray-200 text-gray-700 hover:bg-gray-50"
+          }`}
+        >
+          <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-4 h-4">
+            <polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3" />
+          </svg>
+          Filtrar
+          {hasFilters && (
+            <span className="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded-full">activo</span>
+          )}
+        </button>
         {hasFilters && (
-          <span className="px-1.5 py-0.5 text-xs bg-blue-100 text-blue-700 rounded-full">activo</span>
+          <button
+            onClick={clearAll}
+            className="flex items-center gap-1.5 px-3 py-2 text-sm text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition-colors"
+          >
+            <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="w-3.5 h-3.5">
+              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
+            </svg>
+            Borrar filtros
+          </button>
         )}
-      </button>
+      </div>
       {open && (
         <div className="mt-3">
           <FilterBar cities={cities} />
