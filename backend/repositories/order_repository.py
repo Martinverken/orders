@@ -228,6 +228,39 @@ class OrderRepository:
             query = query.ilike("commune", f"%{commune}%")
         # Urgency filter
         urgency_parts = _split_filter(urgency)
+        sort_field = "limit_handoff_date" if perspective == "bodega" else "limit_delivery_date"
+        offset = (page - 1) * per_page
+
+        # For bodega perspective with urgency filter: SQL date filters use limit_delivery_date
+        # which diverges from the cards (which recompute from limit_handoff_date).
+        # Fix: fetch all matching pending orders, recompute urgency in Python, then paginate.
+        if perspective == "bodega" and urgency_parts and len(urgency_parts) == 1:
+            u_filter = urgency_parts[0]
+            bodega_urgency_filters = {
+                OrderUrgency.OVERDUE, OrderUrgency.DUE_TODAY, OrderUrgency.TOMORROW,
+                OrderUrgency.TWO_OR_MORE_DAYS, "active",
+            }
+            if u_filter in bodega_urgency_filters:
+                all_rows = query.order(sort_field).execute().data or []
+                all_orders_py = [Order(**r) for r in all_rows]
+                filtered = []
+                for o in all_orders_py:
+                    ref = o.limit_handoff_date or o.limit_delivery_date
+                    if not ref:
+                        continue
+                    computed = compute_urgency(ref, o.status)
+                    o.urgency = computed
+                    cu = computed.value
+                    if u_filter == "active":
+                        if cu in (OrderUrgency.OVERDUE.value, OrderUrgency.DUE_TODAY.value, OrderUrgency.TOMORROW.value):
+                            filtered.append(o)
+                    elif cu == u_filter:
+                        filtered.append(o)
+                total = len(filtered)
+                paginated = filtered[offset: offset + per_page]
+                pages = max(1, (total + per_page - 1) // per_page)
+                return OrdersPage(data=paginated, total=total, page=page, per_page=per_page, pages=pages)
+
         if urgency_parts and len(urgency_parts) == 1:
             u = urgency_parts[0]
             if u == OrderUrgency.OVERDUE:
@@ -248,8 +281,6 @@ class OrderRepository:
             # Multiple urgency values → filter by stored urgency column
             query = query.in_("urgency", urgency_parts)
 
-        sort_field = "limit_handoff_date" if perspective == "bodega" else "limit_delivery_date"
-        offset = (page - 1) * per_page
         result = query.order(sort_field).range(offset, offset + per_page - 1).execute()
         total = result.count or 0
         orders = [Order(**r) for r in (result.data or [])]
