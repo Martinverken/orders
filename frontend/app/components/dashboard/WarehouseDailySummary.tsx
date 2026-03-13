@@ -154,8 +154,10 @@ export function WarehouseDailySummary() {
               <li key={row.carrier} className="flex items-center justify-between gap-2 text-sm">
                 <div className="flex items-center gap-2 min-w-0">
                   <span className="font-medium text-gray-900 shrink-0">{row.carrier}</span>
-                  {row.pickup_cutoff
-                    ? <span className="text-xs font-mono text-blue-600 shrink-0">hoy ≤ {row.pickup_cutoff}</span>
+                  {row.pickup_window_start && row.pickup_cutoff
+                    ? <span className="text-xs font-mono text-blue-600 shrink-0">{row.pickup_window_start} - {row.pickup_cutoff}</span>
+                    : row.pickup_cutoff
+                    ? <span className="text-xs font-mono text-blue-600 shrink-0">≤ {row.pickup_cutoff}</span>
                     : <span className="text-xs text-gray-400 shrink-0">sin hora</span>
                   }
                 </div>

@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timezone, time as _time
 from zoneinfo import ZoneInfo
 import logging
 
@@ -153,13 +153,17 @@ def to_order_creates(raw: dict) -> list[OrderCreate]:
             except (ValueError, TypeError):
                 pass
 
+    # Handoff deadline: same date as estimatedShipDate but at 18:00 Santiago
+    dl_date = limit_delivery_date.astimezone(_SANTIAGO).date()
+    limit_handoff_date = datetime(dl_date.year, dl_date.month, dl_date.day, 18, 0, tzinfo=_SANTIAGO)
+
     return [OrderCreate(
         external_id=str(order.purchaseOrderId),
         source="walmart",
         status=status,
         created_at_source=created_at_source,
         limit_delivery_date=limit_delivery_date,
-        limit_handoff_date=limit_delivery_date,
+        limit_handoff_date=limit_handoff_date,
         product_name=product_name,
         product_quantity=product_quantity,
         raw_data=raw,

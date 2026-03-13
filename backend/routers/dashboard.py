@@ -344,6 +344,13 @@ def get_warehouse_summary():
     for order in due_today:
         _upsert(order, "due_today")
 
+    # Enrich carrier entries with pickup_window_start from couriers table
+    from repositories.courier_repository import CourierRepository
+    couriers = CourierRepository().list()
+    window_map = {c.name.lower(): c.pickup_window_start for c in couriers if c.pickup_window_start}
+    for entry in carrier_data.values():
+        entry["pickup_window_start"] = window_map.get(entry["carrier"].lower())
+
     # Sort: carriers with cutoff first (by time), then those without
     by_carrier = sorted(
         carrier_data.values(),

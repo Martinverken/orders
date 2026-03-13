@@ -252,6 +252,7 @@ export interface WarehouseCarrierSummary {
   overdue: number;
   due_today: number;
   pickup_cutoff: string | null;
+  pickup_window_start: string | null;
 }
 
 export interface WarehouseDaySummary {
