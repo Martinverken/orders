@@ -273,10 +273,17 @@ _FALABELLA_OPERATOR_LABELS: dict[str, str] = {
 }
 
 
+_ML_OPERATOR_LABELS: dict[str, str] = {
+    "flex": "Welivery",
+    "centro de envíos": "Centro de Envíos",
+}
+
+
 def _carrier_from_order(source: str, logistics_operator: str | None) -> str:
     """Derive a display carrier name from order source and logistics_operator."""
     if source == "mercadolibre":
-        return "Mercado Libre"
+        lo = (logistics_operator or "").strip().lower()
+        return _ML_OPERATOR_LABELS.get(lo, logistics_operator or "Mercado Libre")
     if source == "walmart":
         return "Walmart"
     if source.startswith("shopify"):
