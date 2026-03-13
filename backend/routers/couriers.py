@@ -20,6 +20,7 @@ class CourierRequest(BaseModel):
     max_height_cm: Optional[float] = None
     notes: Optional[str] = None
     active: bool = True
+    pickup_cutoff: Optional[str] = None
 
 
 class CourierUpdateRequest(BaseModel):
@@ -33,6 +34,7 @@ class CourierUpdateRequest(BaseModel):
     max_height_cm: Optional[float] = None
     notes: Optional[str] = None
     active: Optional[bool] = None
+    pickup_cutoff: Optional[str] = None
 
 
 @router.get("")

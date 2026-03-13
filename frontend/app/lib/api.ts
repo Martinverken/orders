@@ -325,3 +325,8 @@ export interface MlReputation {
 export async function getMlReputation(): Promise<MlReputation> {
   return apiFetch<MlReputation>("/api/ml/reputation");
 }
+
+export async function getWarehouseSummary(): Promise<import("@/app/types").WarehouseCarrierSummary[]> {
+  const res = await apiFetch<{ success: boolean; data: import("@/app/types").WarehouseCarrierSummary[] }>("/api/dashboard/warehouse-summary");
+  return res.data;
+}

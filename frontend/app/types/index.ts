@@ -242,6 +242,14 @@ export interface Courier {
   max_height_cm?: number | null;
   notes?: string | null;
   active: boolean;
+  pickup_cutoff?: string | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface WarehouseCarrierSummary {
+  carrier: string;
+  overdue: number;
+  due_today: number;
+  pickup_cutoff: string | null;
 }

@@ -14,6 +14,7 @@ class CourierCreate(BaseModel):
     max_height_cm: Optional[float] = None
     notes: Optional[str] = None
     active: bool = True
+    pickup_cutoff: Optional[str] = None  # HH:MM, e.g. "11:00"
 
 
 class Courier(CourierCreate):

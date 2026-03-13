@@ -14,6 +14,7 @@ import { DailyDelaysSummary } from "@/app/components/dashboard/DailyDelaysSummar
 import { CEScheduleModal } from "@/app/components/dashboard/CEScheduleModal";
 import { ProductsTable } from "@/app/components/dashboard/ProductsTable";
 import { MlReputationBadge } from "@/app/components/dashboard/MlReputationBadge";
+import { WarehouseDailySummary } from "@/app/components/dashboard/WarehouseDailySummary";
 import { CouriersTable } from "@/app/components/dashboard/CouriersTable";
 import type { Courier, ProductsPage } from "@/app/types";
 
@@ -461,6 +462,10 @@ export default async function DashboardPage({ searchParams }: PageProps) {
               <Suspense fallback={null}>
                 <FilterBar cities={cities} />
               </Suspense>
+            </div>
+
+            <div className="px-6 pt-4">
+              <WarehouseDailySummary />
             </div>
 
             <div className="px-6 py-4">

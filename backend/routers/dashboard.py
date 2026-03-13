@@ -7,6 +7,7 @@ import logging
 from services.order_service import OrderService
 from repositories.delayed_order_repository import DelayedOrderRepository
 from repositories.order_repository import OrderRepository
+from repositories.courier_repository import CourierRepository
 from models.order import _today_santiago
 from integrations.welivery.client import get_delivery_status as welivery_get_status
 
@@ -16,6 +17,7 @@ router = APIRouter(prefix="/api/dashboard", tags=["dashboard"])
 order_service = OrderService()
 delayed_repo = DelayedOrderRepository()
 order_repo = OrderRepository()
+courier_repo = CourierRepository()
 
 
 def _enrich_with_welivery(order_dicts: list[dict]) -> None:
@@ -244,3 +246,52 @@ def get_delay_metrics():
             "on_time_weekly": [m.model_dump() for m in metrics["on_time_weekly"]],
         },
     }
+
+
+def _carrier_from_order(source: str, logistics_operator: str | None) -> str:
+    """Derive a display carrier name from order source and logistics_operator."""
+    if source == "mercadolibre":
+        return "Mercado Libre"
+    if source == "walmart":
+        return "Transporte Interno"
+    if source.startswith("shopify"):
+        return "Welivery"
+    if source == "falabella" and logistics_operator:
+        return logistics_operator
+    return logistics_operator or source
+
+
+@router.get("/warehouse-summary")
+def get_warehouse_summary():
+    """Return per-carrier counts of orders due today + overdue, with pickup cutoff times."""
+    overdue = order_repo.get_overdue()
+    due_today = order_repo.get_due_today()
+
+    # Group by carrier
+    carrier_data: dict[str, dict] = {}
+    for order in overdue:
+        name = _carrier_from_order(order.source, order.logistics_operator)
+        if name not in carrier_data:
+            carrier_data[name] = {"carrier": name, "overdue": 0, "due_today": 0, "pickup_cutoff": None}
+        carrier_data[name]["overdue"] += 1
+
+    for order in due_today:
+        name = _carrier_from_order(order.source, order.logistics_operator)
+        if name not in carrier_data:
+            carrier_data[name] = {"carrier": name, "overdue": 0, "due_today": 0, "pickup_cutoff": None}
+        carrier_data[name]["due_today"] += 1
+
+    # Enrich with pickup_cutoff from couriers table (case-insensitive name match)
+    couriers = courier_repo.list()
+    cutoff_map = {c.name.lower(): c.pickup_cutoff for c in couriers if c.pickup_cutoff}
+
+    for item in carrier_data.values():
+        item["pickup_cutoff"] = cutoff_map.get(item["carrier"].lower())
+
+    # Sort: couriers with cutoff first (by time), then those without
+    result = sorted(
+        carrier_data.values(),
+        key=lambda x: (x["pickup_cutoff"] is None, x["pickup_cutoff"] or ""),
+    )
+
+    return {"success": True, "data": result}
