@@ -265,10 +265,34 @@ def _carrier_from_order(source: str, logistics_operator: str | None) -> str:
 @router.get("/warehouse-summary")
 def get_warehouse_summary():
     """Return per-carrier counts of orders due today + overdue, with pickup cutoff derived from limit_handoff_date."""
-    overdue = order_repo.get_overdue()
-    due_today = order_repo.get_due_today()
-
+    from models.order import Order as _Order
     today = _today_santiago()
+    tomorrow = today + timedelta(days=1)
+
+    # Query all pending/ready_to_ship orders and classify by limit_handoff_date
+    # (falling back to limit_delivery_date when limit_handoff_date is absent).
+    # get_overdue() / get_due_today() use limit_delivery_date which misses Shopify
+    # orders where limit_handoff_date (bodega → carrier) is today but
+    # limit_delivery_date (carrier → customer) is tomorrow.
+    result = (
+        order_repo.db.table(order_repo.table)
+        .select("*")
+        .in_("status", ["pending", "ready_to_ship"])
+        .execute()
+    )
+    all_pending = [_Order(**r) for r in (result.data or [])]
+
+    overdue: list[_Order] = []
+    due_today: list[_Order] = []
+    for order in all_pending:
+        deadline = order.limit_handoff_date or order.limit_delivery_date
+        if not deadline:
+            continue
+        dl_date = deadline.astimezone(_SANTIAGO_TZ).date() if deadline.tzinfo else deadline.date()
+        if dl_date < today:
+            overdue.append(order)
+        elif dl_date == today:
+            due_today.append(order)
 
     # Group by carrier — cutoff = time portion of limit_handoff_date, only from today's orders.
     # Overdue orders have past dates; their HH:MM is no longer the relevant cutoff for today.

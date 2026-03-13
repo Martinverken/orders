@@ -12,17 +12,17 @@ const LEVEL_CONFIG: Record<string, { label: string; score: string | null; color:
   "1_red":         { label: "Bronce",  score: null,  color: "text-red-700 bg-red-50 border-red-200", dot: "bg-red-500" },
 };
 
-// ML Líder thresholds (rates as fractions, e.g. 0.02 = 2%)
+// ML Líder thresholds (as fractions)
 const THRESHOLDS = {
-  claims:      0.02,   // 2%
-  mediations:  0.02,   // 2%
-  cancellations: 0.005, // 0.5%
-  delayed:     0.10,   // 10%
+  delayed:       0.10,   // 10%
+  claims:        0.025,  // 2.5%
+  mediations:    0.02,   // 2%
+  cancellations: 0.005,  // 0.5%
 };
 
 function fmt(rate: number | null): string {
   if (rate == null) return "—";
-  return `${(rate * 100).toFixed(2)}%`;
+  return `${(rate * 100).toFixed(1)}%`;
 }
 
 function MetricRow({
@@ -41,11 +41,14 @@ function MetricRow({
   return (
     <div className="flex items-center justify-between gap-3 text-xs">
       <span className="text-gray-600">{label}</span>
-      <span className={`font-semibold tabular-nums ${ok ? "text-green-700" : "text-red-600"}`}>
-        {fmt(rate)}
-        {value != null && <span className="font-normal text-gray-400 ml-1">({value})</span>}
-      </span>
-      <span className="text-gray-400">lím. {fmt(threshold)}</span>
+      <div className="flex items-center gap-1.5">
+        <span className={`font-semibold tabular-nums ${ok ? "text-green-700" : "text-red-600"}`}>
+          {fmt(rate)}
+          {value != null && <span className="font-normal text-gray-400 ml-1">({value})</span>}
+        </span>
+        <span className="text-gray-300">·</span>
+        <span className="text-gray-400">lím. {fmt(threshold)}</span>
+      </div>
     </div>
   );
 }
@@ -75,7 +78,7 @@ export function MlReputationBadge() {
     <div className="relative hidden sm:block">
       <button
         onClick={() => setOpen((v) => !v)}
-        className={`flex items-center gap-2 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer ${cfg.color}`}
+        className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-medium cursor-pointer ${cfg.color}`}
       >
         <span className={`w-2 h-2 rounded-full shrink-0 ${cfg.dot}`} />
         <span className="font-semibold">ML</span>
@@ -84,6 +87,9 @@ export function MlReputationBadge() {
         {data.delayed_rate != null && (
           <span className="opacity-70 font-normal">· {fmt(data.delayed_rate)} tardíos</span>
         )}
+        <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-gray-200 text-gray-600 ml-0.5">
+          detalle
+        </span>
       </button>
 
       {open && (
@@ -112,7 +118,7 @@ export function MlReputationBadge() {
               threshold={THRESHOLDS.mediations}
             />
             <MetricRow
-              label="Cancelaciones"
+              label="Canceladas por ti"
               rate={data.cancellations_rate}
               value={data.cancellations_value}
               threshold={THRESHOLDS.cancellations}
