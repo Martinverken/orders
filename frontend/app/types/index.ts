@@ -203,6 +203,11 @@ export interface BultoDims {
   weight_kg?: number | null;
 }
 
+export interface PackItem {
+  sku: string;
+  quantity: number;
+}
+
 export interface Product {
   id: string;
   name: string;
@@ -218,6 +223,7 @@ export interface Product {
   is_service: boolean;
   is_pack: boolean;
   bultos_dims?: BultoDims[] | null;
+  pack_items?: PackItem[] | null;
   created_at: string;
   updated_at: string;
 }
@@ -243,6 +249,7 @@ export interface Courier {
   notes?: string | null;
   active: boolean;
   pickup_cutoff?: string | null;
+  pickup_window_start?: string | null;
   created_at: string;
   updated_at: string;
 }

@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { createProduct, deleteProduct, exportProducts, getProducts, importProducts, syncShopifyProducts, updateProduct } from "@/app/lib/api";
-import { BultoDims, Product, ProductsPage } from "@/app/types";
+import { BultoDims, PackItem, Product, ProductsPage } from "@/app/types";
 
 interface Props {
   initialData: ProductsPage;
@@ -26,6 +26,7 @@ interface FormState {
   is_service: boolean;
   is_pack: boolean;
   bultos: BultoDimsForm[];
+  pack_items: PackItem[];
 }
 
 const EMPTY_BULTO: BultoDimsForm = { height_cm: "", width_cm: "", length_cm: "", weight_kg: "" };
@@ -35,6 +36,7 @@ const EMPTY_FORM: FormState = {
   name: "", sku: "", brand: "", category: "",
   num_bultos: 1, is_service: false, is_pack: false,
   bultos: [{ ...EMPTY_BULTO }],
+  pack_items: [],
 };
 
 type SizeTag = "Chico" | "Mediano" | "Grande" | "Extra Grande" | "Gigante";
@@ -118,10 +120,10 @@ export function ProductsTable({ initialData }: Props) {
   }, [lightboxUrl]);
 
   // Tab
-  type ActiveTab = "Verken" | "Kaut" | "Servicios";
+  type ActiveTab = "Verken" | "Kaut" | "Packs" | "Servicios";
   const [activeTab, setActiveTab] = useState<ActiveTab>("Verken");
   // Keep activeBrand alias for new-product default brand
-  const activeBrand = activeTab === "Servicios" ? "Verken" : activeTab;
+  const activeBrand = activeTab === "Servicios" || activeTab === "Packs" ? "Verken" : activeTab;
 
   // Filters
   const [search, setSearch] = useState("");
@@ -137,9 +139,10 @@ export function ProductsTable({ initialData }: Props) {
     else { setSortKey(key); setSortDir("asc"); }
   }
 
-  const brandProducts = activeTab === "Servicios"
-    ? products.filter((p) => p.is_service)
-    : products.filter((p) => p.brand === activeTab && !p.is_service);
+  const brandProducts =
+    activeTab === "Servicios" ? products.filter((p) => p.is_service) :
+    activeTab === "Packs" ? products.filter((p) => p.is_pack && !p.is_service) :
+    products.filter((p) => p.brand === activeTab && !p.is_service && !p.is_pack);
   const allCategories = Array.from(new Set(brandProducts.map((p) => p.category).filter(Boolean) as string[])).sort();
 
   const filtered = brandProducts.filter((p) => {
@@ -239,6 +242,7 @@ export function ProductsTable({ initialData }: Props) {
       is_service: p.is_service ?? false,
       is_pack: p.is_pack ?? false,
       bultos,
+      pack_items: p.pack_items ?? [],
     });
     setError(null);
     setShowForm(true);
@@ -291,6 +295,7 @@ export function ProductsTable({ initialData }: Props) {
         is_service: form.is_service,
         is_pack: form.is_pack,
         bultos_dims: form.is_service ? null : bultoParsed,
+        pack_items: form.is_pack ? form.pack_items.filter((i) => i.sku.trim()) : null,
       };
       if (editingId) {
         const updated = await updateProduct(editingId, payload);
@@ -375,8 +380,9 @@ export function ProductsTable({ initialData }: Props) {
   const inputReadonlyClass =
     "border border-gray-100 rounded-lg px-3 py-2 text-sm text-gray-400 bg-gray-50 w-full cursor-not-allowed";
 
-  const verkenCount = products.filter((p) => p.brand === "Verken" && !p.is_service).length;
-  const kautCount = products.filter((p) => p.brand === "Kaut" && !p.is_service).length;
+  const verkenCount = products.filter((p) => p.brand === "Verken" && !p.is_service && !p.is_pack).length;
+  const kautCount = products.filter((p) => p.brand === "Kaut" && !p.is_service && !p.is_pack).length;
+  const packsCount = products.filter((p) => p.is_pack && !p.is_service).length;
   const serviciosCount = products.filter((p) => p.is_service).length;
 
   return (
@@ -404,6 +410,7 @@ export function ProductsTable({ initialData }: Props) {
         {([
           { key: "Verken", count: verkenCount },
           { key: "Kaut", count: kautCount },
+          { key: "Packs", count: packsCount },
           { key: "Servicios", count: serviciosCount },
         ] as { key: ActiveTab; count: number }[]).map(({ key, count }) => {
           const active = activeTab === key;
@@ -507,7 +514,7 @@ export function ProductsTable({ initialData }: Props) {
             </div>
 
             {/* Bultos stepper */}
-            {!form.is_service && (
+            {!form.is_service && !form.is_pack && (
               <div>
                 <label className="block text-xs text-gray-500 mb-1">Bultos</label>
                 <div className="flex items-center gap-2">
@@ -525,8 +532,76 @@ export function ProductsTable({ initialData }: Props) {
             )}
           </div>
 
+          {/* Pack items editor */}
+          {form.is_pack && (
+            <div className="mt-4">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">Composición del pack</span>
+                <button
+                  type="button"
+                  onClick={() => setForm((f) => ({ ...f, pack_items: [...f.pack_items, { sku: "", quantity: 1 }] }))}
+                  className="px-2 py-0.5 text-xs border border-dashed border-gray-300 rounded-lg text-gray-500 hover:border-gray-400 hover:text-gray-700 transition-colors"
+                >
+                  + Agregar SKU
+                </button>
+              </div>
+              {form.pack_items.length === 0 && (
+                <p className="text-xs text-gray-400 italic">Sin componentes. Agrega al menos un SKU.</p>
+              )}
+              <div className="space-y-2">
+                {form.pack_items.map((item, idx) => (
+                  <div key={idx} className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <label className="block text-xs text-gray-400 mb-0.5">SKU</label>
+                      <input
+                        type="text"
+                        value={item.sku}
+                        onChange={(e) => setForm((f) => {
+                          const pack_items = [...f.pack_items];
+                          pack_items[idx] = { ...pack_items[idx], sku: e.target.value };
+                          return { ...f, pack_items };
+                        })}
+                        list={`sku-options-${idx}`}
+                        placeholder="Ej: CAM-001"
+                        className={inputClass}
+                      />
+                      <datalist id={`sku-options-${idx}`}>
+                        {products.filter((p) => !p.is_pack && !p.is_service).map((p) => (
+                          <option key={p.id} value={p.sku}>{p.name}</option>
+                        ))}
+                      </datalist>
+                    </div>
+                    <div className="w-28">
+                      <label className="block text-xs text-gray-400 mb-0.5">Cantidad</label>
+                      <input
+                        type="number"
+                        min="1"
+                        step="1"
+                        value={item.quantity}
+                        onChange={(e) => setForm((f) => {
+                          const pack_items = [...f.pack_items];
+                          pack_items[idx] = { ...pack_items[idx], quantity: Math.max(1, parseInt(e.target.value) || 1) };
+                          return { ...f, pack_items };
+                        })}
+                        className={inputClass}
+                      />
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setForm((f) => ({ ...f, pack_items: f.pack_items.filter((_, i) => i !== idx) }))}
+                      className="mt-4 text-gray-300 hover:text-red-500 transition-colors text-sm"
+                      title="Eliminar"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
           {/* Per-bulto dimension fields */}
-          {!form.is_service && form.bultos.map((bulto, idx) => (
+          {!form.is_service && !form.is_pack && form.bultos.map((bulto, idx) => (
             <div key={idx} className="mt-4">
               <div className="flex items-center gap-3 mb-2">
                 <span className="text-xs font-semibold text-gray-600 uppercase tracking-wide">
@@ -647,8 +722,66 @@ export function ProductsTable({ initialData }: Props) {
           {brandProducts.length === 0
             ? activeTab === "Servicios"
               ? `No hay SKUs de servicio. Agrega uno y activa el toggle "Servicio".`
+              : activeTab === "Packs"
+              ? `No hay packs. Agrega uno y activa el toggle "Pack".`
               : `No hay productos ${activeTab}. Usa "Sincronizar Shopify" o agrega uno manualmente.`
             : "No hay productos que coincidan con los filtros."}
+        </div>
+      ) : activeTab === "Packs" ? (
+        /* Packs table */
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-100">
+                <th className="text-right py-2.5 px-3 text-xs font-semibold text-gray-400 w-10">#</th>
+                <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Nombre</th>
+                <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">SKU Pack</th>
+                <th className="py-2.5 px-3 text-left text-xs font-semibold text-gray-500 uppercase tracking-wide">Composición</th>
+                <th className="py-2.5 px-3" />
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-50">
+              {sorted.map((p, idx) => {
+                const skuMap = Object.fromEntries(products.map((pr) => [pr.sku, pr.name]));
+                return (
+                  <tr key={p.id} className="hover:bg-gray-50 transition-colors">
+                    <td className="py-3 px-3 text-right text-xs text-gray-400">{idx + 1}</td>
+                    <td className="py-3 px-3 font-medium text-gray-900">{p.name}</td>
+                    <td className="py-3 px-3 text-gray-500 font-mono text-xs">{p.sku}</td>
+                    <td className="py-3 px-3">
+                      {p.pack_items && p.pack_items.length > 0 ? (
+                        <div className="flex flex-wrap gap-1.5">
+                          {p.pack_items.map((item, i) => (
+                            <span key={i} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-blue-50 text-blue-700 text-xs font-medium">
+                              <span className="font-semibold">{item.quantity}×</span>
+                              <span className="font-mono">{item.sku}</span>
+                              {skuMap[item.sku] && (
+                                <span className="text-blue-400 font-normal">· {skuMap[item.sku]}</span>
+                              )}
+                            </span>
+                          ))}
+                        </div>
+                      ) : (
+                        <span className="text-xs text-amber-500 border border-amber-200 px-2 py-0.5 rounded-md">Sin composición</span>
+                      )}
+                    </td>
+                    <td className="py-3 px-3">
+                      <div className="flex items-center justify-end gap-2">
+                        <button onClick={() => openEdit(p)}
+                          className="text-xs px-2 py-0.5 border border-gray-900 text-gray-900 rounded-md hover:bg-gray-900 hover:text-white transition-colors">
+                          Editar
+                        </button>
+                        <button onClick={() => handleDelete(p.id)} disabled={deletingId === p.id}
+                          className="text-xs px-2 py-0.5 border border-gray-900 text-gray-900 rounded-md hover:bg-red-600 hover:border-red-600 hover:text-white transition-colors disabled:opacity-50">
+                          {deletingId === p.id ? "..." : "Eliminar"}
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
         </div>
       ) : (
         <div className="overflow-x-auto">

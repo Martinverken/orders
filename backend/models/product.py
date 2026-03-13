@@ -17,6 +17,7 @@ class ProductCreate(BaseModel):
     is_service: bool = False
     is_pack: bool = False
     bultos_dims: Optional[list[dict]] = None
+    pack_items: Optional[list[dict]] = None  # [{sku: str, quantity: int}]
 
 
 class Product(ProductCreate):
